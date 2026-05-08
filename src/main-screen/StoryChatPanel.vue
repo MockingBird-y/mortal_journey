@@ -3,19 +3,12 @@
  * 中栏：剧情与对话 — 展示开局剧情，支持玩家输入并调用 AI 继续生成后续剧情。
  */
 import { ref, watch } from "vue";
-import type { OpeningStoryPhase } from "../../ai/useOpeningStory";
-import { generateStory, type StoryChatEntry, type StoryParsed } from "../../ai/story_generate";
-import { generateState, type StateParsed } from "../../ai/state_generate";
-import {
-  protagonist,
-  setCurrentHpMp,
-  addToInventory,
-  setInventorySlot,
-} from "../../lib/protagonistManager";
-import type { ProtagonistPlayInfo } from "../../types/playInfo";
-import { createSpiritStoneInventoryStack, mjDescribeSpiritStones, type SpiritStoneName, SPIRIT_STONE_TABLE_KEYS_ORDERED } from "../../types/spiritStone";
-import { mergeNearbyNpcs } from "../../lib/npcManager";
-import { gameLog } from "../../log/gameLog";
+import type { OpeningStoryPhase } from "../ai/useOpeningStory";
+import { generateStory, type StoryChatEntry, type StoryParsed } from "../ai/story_generate";
+import { generateState, type StateParsed } from "../ai/state_generate";
+import { protagonist } from "../lib/protagonistManager";
+import { applyStateChanges } from "../lib/stateApplier";
+import { gameLog } from "../log/gameLog";
 
 const props = withDefaults(
   defineProps<{
@@ -61,127 +54,6 @@ function autoResizeTextarea(): void {
 }
 
 let abortCtl: AbortController | null = null;
-
-function mergeOrAddStone(p: ProtagonistPlayInfo, name: SpiritStoneName, count: number): void {
-  for (let i = 0; i < p.inventorySlots.length; i++) {
-    const cell = p.inventorySlots[i];
-    if (!cell || !("type" in cell) || cell.type !== "灵石" || cell.name !== name) continue;
-    cell.count += count;
-    return;
-  }
-  addToInventory(createSpiritStoneInventoryStack(name, count));
-}
-
-function grantChangeStones(p: ProtagonistPlayInfo, changeValue: number): void {
-  let remaining = Math.floor(changeValue);
-  if (remaining < 10) return;
-  const namesDesc = [...SPIRIT_STONE_TABLE_KEYS_ORDERED].reverse();
-  for (const name of namesDesc) {
-    if (remaining <= 0) break;
-    const v = mjDescribeSpiritStones[name].value;
-    if (v <= 0) continue;
-    const count = Math.floor(remaining / v);
-    if (count <= 0) continue;
-    mergeOrAddStone(p, name, count);
-    remaining -= count * v;
-  }
-}
-
-function applyStateChanges(state: StateParsed): void {
-  const p = protagonist.value;
-  if (!p) return;
-
-  if (state.userState) {
-    setCurrentHpMp(state.userState.currentHp, state.userState.currentMp);
-  }
-
-  for (const change of state.spiritStoneChanges) {
-    if (!SPIRIT_STONE_TABLE_KEYS_ORDERED.includes(change.name as SpiritStoneName)) continue;
-    if (change.op === "add") {
-      mergeOrAddStone(p, change.name as SpiritStoneName, change.count);
-    } else if (change.op === "remove") {
-      const targetValue = mjDescribeSpiritStones[change.name as SpiritStoneName]?.value;
-      if (!targetValue) continue;
-      let neededValue = targetValue * change.count;
-
-      for (const stoneName of SPIRIT_STONE_TABLE_KEYS_ORDERED) {
-        if (neededValue <= 0) break;
-        const stoneValue = mjDescribeSpiritStones[stoneName as SpiritStoneName].value;
-        for (let i = 0; i < p.inventorySlots.length && neededValue > 0; i++) {
-          const cell = p.inventorySlots[i];
-          if (!cell || !("type" in cell) || cell.type !== "灵石" || cell.name !== stoneName) continue;
-          const cellTotalValue = cell.count * stoneValue;
-          if (cellTotalValue <= neededValue) {
-            neededValue -= cellTotalValue;
-            setInventorySlot(i, null);
-          } else {
-            const takeCount = Math.ceil(neededValue / stoneValue);
-            const takeValue = takeCount * stoneValue;
-            const changeValue = takeValue - neededValue;
-            neededValue = 0;
-            cell.count -= takeCount;
-            if (cell.count <= 0) setInventorySlot(i, null);
-            if (changeValue >= 10) {
-              grantChangeStones(p, changeValue);
-            }
-          }
-        }
-      }
-
-      if (neededValue > 0) {
-        gameLog.warn(`[StoryChat] 灵石不足：还需 ${neededValue} 点等值灵石`);
-      }
-    }
-  }
-
-  const stackableTypes = new Set(["材料", "杂物"]);
-
-  for (const item of state.itemAdds) {
-    if (item.type === "灵石") continue;
-    if (stackableTypes.has(item.type)) {
-      let merged = false;
-      for (let i = 0; i < p.inventorySlots.length; i++) {
-        const cell = p.inventorySlots[i];
-        if (!cell || !("name" in cell) || cell.name !== item.name) continue;
-        if (!("itemType" in cell) || !stackableTypes.has(cell.itemType)) continue;
-        cell.count += item.count;
-        merged = true;
-        break;
-      }
-      if (!merged) {
-        addToInventory({
-          name: item.name,
-          desc: item.intro,
-          grade: item.grade as "下品" | "中品" | "上品" | "极品" | "仙品",
-          value: 0,
-          count: item.count,
-          itemType: "杂物",
-        } as any);
-      }
-    } else {
-      addToInventory({
-        name: item.name,
-        desc: item.intro,
-        grade: item.grade as "下品" | "中品" | "上品" | "极品" | "仙品",
-        value: 0,
-        count: item.count,
-        itemType: "杂物",
-      } as any);
-    }
-  }
-
-  for (const item of state.itemRemoves) {
-    let remaining = item.count;
-    for (let i = 0; i < p.inventorySlots.length && remaining > 0; i++) {
-      const cell = p.inventorySlots[i];
-      if (!cell || !("name" in cell) || cell.name !== item.name) continue;
-      const take = Math.min(remaining, cell.count);
-      cell.count -= take;
-      remaining -= take;
-      if (cell.count <= 0) setInventorySlot(i, null);
-    }
-  }
-}
 
 watch(
   () => props.storyText,
@@ -255,7 +127,6 @@ async function handleSend(): Promise<void> {
           });
           if (abortCtl !== ac) return;
           applyStateChanges(stateResult);
-          mergeNearbyNpcs(stateResult.nearbyNpcs, props.currentWorldLocation);
         }
       } catch (se) {
         gameLog.warn("[StoryChat] 状态更新失败（不影响剧情显示）：" + (se instanceof Error ? se.message : String(se)));

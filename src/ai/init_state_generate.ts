@@ -119,13 +119,6 @@ function generateMagnificationForGrade(grade: string, statKeys: ZhPlayerStatBonu
   return mag;
 }
 
-function generateValueForGrade(grade: string): number {
-  const idx = gradeIndexOf(grade);
-  const bases = [50, 200, 1000, 5000, 30000];
-  const base = bases[idx] ?? 50;
-  return Math.round(base * (0.8 + Math.random() * 0.4));
-}
-
 interface AiEquipItem {
   type: string;
   name: string;
@@ -285,7 +278,6 @@ function buildWeapon(item: AiEquipItem): WeaponItemDefinition {
     name: item.name,
     desc: item.intro,
     grade: item.grade as ItemGrade,
-    value: generateValueForGrade(item.grade),
     count: 1,
     itemType: "装备",
     equipType: "武器",
@@ -300,7 +292,6 @@ function buildFaqi(item: AiEquipItem): FaqiItemDefinition {
     name: item.name,
     desc: item.intro,
     grade: item.grade as ItemGrade,
-    value: generateValueForGrade(item.grade),
     count: 1,
     itemType: "装备",
     equipType: "法器",
@@ -314,7 +305,6 @@ function buildArmor(item: AiEquipItem): ArmorItemDefinition {
     name: item.name,
     desc: item.intro,
     grade: item.grade as ItemGrade,
-    value: generateValueForGrade(item.grade),
     count: 1,
     itemType: "装备",
     equipType: "防具",
@@ -330,7 +320,6 @@ function buildAttackGongfa(item: AiGongfaItem): AttackGongfaDefinition {
     name: item.name,
     desc: item.intro,
     grade: item.grade as ItemGrade,
-    value: generateValueForGrade(item.grade),
     count: 1,
     itemType: "功法",
     subtype: "攻击",
@@ -348,7 +337,6 @@ function buildAssistGongfa(item: AiGongfaItem): AssistGongfaDefinition {
     name: item.name,
     desc: item.intro,
     grade: item.grade as ItemGrade,
-    value: generateValueForGrade(item.grade),
     count: 1,
     itemType: "功法",
     subtype: "辅助",
@@ -377,7 +365,6 @@ function buildElixir(item: AiStorageItem): ElixirItemDefinition {
     name: item.name,
     desc: item.intro ?? "",
     grade: (item.grade ?? "下品") as ItemGrade,
-    value: generateValueForGrade(item.grade ?? "下品"),
     count: item.count,
     itemType: "丹药",
     effects: {
@@ -394,7 +381,6 @@ function buildMaterial(item: AiStorageItem): MaterialItemDefinition {
     name: item.name,
     desc: item.intro ?? "",
     grade: (item.grade ?? "下品") as ItemGrade,
-    value: generateValueForGrade(item.grade ?? "下品"),
     count: item.count,
     itemType: "材料",
   };
@@ -405,7 +391,6 @@ function buildMisc(item: AiStorageItem): MiscItemDefinition {
     name: item.name,
     desc: item.intro ?? "",
     grade: (item.grade ?? "下品") as ItemGrade,
-    value: generateValueForGrade(item.grade ?? "下品"),
     count: item.count,
     itemType: "杂物",
   };

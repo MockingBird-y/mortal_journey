@@ -3,7 +3,7 @@ import { ref } from "vue";
 import DebugLogPanel from "./log/DebugLogPanel.vue";
 import StartFrame from "./start_frame/StartFrame.vue";
 import FateChoiceScreen from "./fate_choice/FateChoiceScreen.vue";
-import MainScreen from "./components/main-screen/MainScreen.vue";
+import MainScreen from "./main-screen/MainScreen.vue";
 import { useSplash } from "./start_frame/useSplash";
 import { gameLog } from "./log/gameLog";
 import type { FateChoiceResult } from "./fate_choice/types";

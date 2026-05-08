@@ -19,7 +19,6 @@ import type {
 } from "../types/itemInfo";
 import type { CultivationRealm, TraitEntry } from "../types/playInfo";
 import { getEquipBonusRealmRatio } from "../config/realm_state";
-import { formatSpiritStonePointsForUi, getSpiritStoneRawPerPiece } from "./spiritStoneCultivation";
 import { gradeToTraitRarity, type EquipSlotKey } from "./protagonistPanelDisplay";
 
 /**
@@ -29,10 +28,7 @@ export type ProtagonistDetailAction =
   | { id: "unequipWear"; equipSlot: EquipSlotKey }
   | { id: "unequipGongfa"; gongfaIndex: number }
   | { id: "equipWearFromBag"; inventoryIndex: number }
-  | { id: "equipGongfaFromBag"; inventoryIndex: number }
-  | { id: "absorbSpiritStones"; bagIndex: number; count: number; consumeAll: boolean }
-  | { id: "sellInventoryItem"; bagIndex: number; count: number }
-  | { id: "useElixirFromBag"; bagIndex: number };
+  | { id: "equipGongfaFromBag"; inventoryIndex: number };
 
 /**
  * 详情弹窗底部的一个操作按钮。
@@ -56,46 +52,15 @@ export interface ProtagonistDetailSection {
   text: string;
 }
 
-/** 灵石详情：修炼数量输入与「尽数修炼」所需上下文（与 mortal_journey 灵石弹窗一致）。 */
-export interface SpiritStoneCultivationUi {
-  /** 储物袋格子下标。 */
-  bagIndex: number;
-  /** 当前堆叠最大颗数。 */
-  maxCount: number;
-}
-
-/** 非灵石物品在储物袋中打开时：底部显示售卖按钮（`value` 刻度同灵石）。 */
-export interface SellInventoryItemUi {
-  bagIndex: number;
-  /** 当前堆叠可售卖的件数上限。 */
-  maxCount: number;
-}
-
-/** 储物袋中普通丹药（带恢复药效）显示「使用」按钮。 */
-export interface UseElixirFromBagUi {
-  bagIndex: number;
-}
-
 /**
  * 传给详情弹窗的完整展示数据。
  */
 export interface ProtagonistDetailPayload {
-  /** 标题（物品或天赋名）。 */
   title: string;
-  /** 副标题（类型或品质摘要）。 */
   subtitle: string;
-  /** 分段说明列表。 */
   sections: ProtagonistDetailSection[];
-  /** 用于 UI 稀有度样式，通常由品级映射而来。 */
   dataRarity?: string;
-  /** 可选底部操作按钮。 */
   actions?: ProtagonistDetailActionButton[];
-  /** 灵石专用：显示修炼输入区与尽数修炼。 */
-  spiritStoneCultivation?: SpiritStoneCultivationUi;
-  /** 储物袋非灵石：底部售卖（折算为灵石）。 */
-  sellInventoryItem?: SellInventoryItemUi;
-  /** 储物袋普通丹药：在售卖上方显示使用（恢复生命/法力）。 */
-  useElixirFromBag?: UseElixirFromBagUi;
 }
 
 /**
@@ -134,25 +99,6 @@ function sec(label: string, text: string | number | undefined | null): Protagoni
 function pushSec(out: ProtagonistDetailSection[], label: string, text: string | number | undefined | null): void {
   const s = sec(label, text);
   if (s) out.push(s);
-}
-
-function inventoryStackSellTotalValue(it: CategorizedItemDefinition): number {
-  const v = typeof it.value === "number" && Number.isFinite(it.value) ? it.value : 0;
-  const c = typeof it.count === "number" && Number.isFinite(it.count) ? Math.max(1, Math.floor(it.count)) : 1;
-  return Math.floor(v * c);
-}
-
-function inventoryStackMaxCount(it: CategorizedItemDefinition): number {
-  return typeof it.count === "number" && Number.isFinite(it.count) ? Math.max(1, Math.floor(it.count)) : 1;
-}
-
-function buildSellInventoryUi(
-  bagIndex: number,
-  totalValuePoints: number,
-  maxCount: number,
-): SellInventoryItemUi | undefined {
-  if (totalValuePoints < 10 || maxCount < 1) return undefined;
-  return { bagIndex, maxCount };
 }
 
 /**
@@ -269,7 +215,6 @@ export function buildWearableDetailPayload(
     const mag = formatMagnification((it as WeaponItemDefinition).magnification);
     if (mag) pushSec(sections, "伤害倍率", mag);
   }
-  pushSec(sections, "价值", it.value);
   pushSec(sections, "数量", it.count);
 
   const actions: ProtagonistDetailActionButton[] = [];
@@ -293,10 +238,6 @@ export function buildWearableDetailPayload(
     sections: sections.length ? sections : [{ label: "说明", text: "暂无信息。" }],
     dataRarity: gradeToTraitRarity(it.grade),
     actions: actions.length ? actions : undefined,
-    sellInventoryItem:
-      source?.type === "bag"
-        ? buildSellInventoryUi(source.inventoryIndex, inventoryStackSellTotalValue(it), inventoryStackMaxCount(it))
-        : undefined,
   };
 }
 
@@ -337,7 +278,6 @@ export function buildGongfaDetailPayload(
     const mag = formatMagnification(atk.magnification);
     if (mag) pushSec(sections, "伤害倍率", mag);
   }
-  pushSec(sections, "价值", gf.value);
   pushSec(sections, "数量", gf.count);
 
   const actions: ProtagonistDetailActionButton[] = [];
@@ -361,10 +301,6 @@ export function buildGongfaDetailPayload(
     sections: sections.length ? sections : [{ label: "说明", text: "暂无信息。" }],
     dataRarity: gradeToTraitRarity(gf.grade),
     actions: actions.length ? actions : undefined,
-    sellInventoryItem:
-      source?.type === "bag"
-        ? buildSellInventoryUi(source.inventoryIndex, inventoryStackSellTotalValue(gf), inventoryStackMaxCount(gf))
-        : undefined,
   };
 }
 
@@ -381,14 +317,6 @@ function formatRecover(el: ElixirItemDefinition): string | undefined {
   const mp = typeof r.mp === "number" && r.mp > 0 ? `法力 +${r.mp}` : "";
   const parts = [hp, mp].filter(Boolean);
   return parts.length ? parts.join("，") : undefined;
-}
-
-function elixirHasRecoverEffectToUse(el: ElixirItemDefinition): boolean {
-  const r = el.effects?.recover;
-  if (!r) return false;
-  const hp = typeof r.hp === "number" && Number.isFinite(r.hp) && r.hp > 0;
-  const mp = typeof r.mp === "number" && Number.isFinite(r.mp) && r.mp > 0;
-  return hp || mp;
 }
 
 /**
@@ -426,23 +354,13 @@ export function buildInventoryStackDetailPayload(
     const sections: ProtagonistDetailSection[] = [];
     pushSec(sections, "简介", st.desc);
     pushSec(sections, "品级", st.grade);
-    pushSec(sections, "价值", st.value);
     pushSec(sections, "持有数量", st.count);
-    const raw = linggen != null ? getSpiritStoneRawPerPiece(st.name, linggen) : 0;
-    if (raw > 0) {
-      pushSec(sections, "修炼", `每个灵石可提供 ${formatSpiritStonePointsForUi(raw)} 点修为。`);
-    }
-    const cnt = typeof st.count === "number" && Number.isFinite(st.count) ? Math.max(1, Math.floor(st.count)) : 1;
-    const payload: ProtagonistDetailPayload = {
+    return {
       title: st.name,
       subtitle: `灵石`,
       sections: sections.length ? sections : [{ label: "说明", text: "—" }],
       dataRarity: gradeToTraitRarity(st.grade),
     };
-    if (bagIndex != null && linggen != null && raw > 0) {
-      payload.spiritStoneCultivation = { bagIndex, maxCount: cnt };
-    }
-    return payload;
   }
 
   const it = cell;
@@ -464,19 +382,12 @@ export function buildInventoryStackDetailPayload(
       pushSec(sections, "品级", pill.grade);
       const fx = formatRecover(pill);
       if (fx) pushSec(sections, "药效", fx);
-      pushSec(sections, "价值", pill.value);
       pushSec(sections, "数量", pill.count);
       return {
         title: pill.name,
         subtitle: `丹药`,
         sections,
         dataRarity: gradeToTraitRarity(pill.grade),
-        useElixirFromBag:
-          bagIndex != null && elixirHasRecoverEffectToUse(pill) ? { bagIndex } : undefined,
-        sellInventoryItem:
-          bagIndex != null
-            ? buildSellInventoryUi(bagIndex, inventoryStackSellTotalValue(pill), inventoryStackMaxCount(pill))
-            : undefined,
       };
     }
     case "突破丹药": {
@@ -486,17 +397,12 @@ export function buildInventoryStackDetailPayload(
       pushSec(sections, "品级", bt.grade);
       const fx = formatBreakthrough(bt);
       if (fx) pushSec(sections, "突破效果", fx);
-      pushSec(sections, "价值", bt.value);
       pushSec(sections, "数量", bt.count);
       return {
         title: bt.name,
         subtitle: `突破丹药`,
         sections,
         dataRarity: gradeToTraitRarity(bt.grade),
-        sellInventoryItem:
-          bagIndex != null
-            ? buildSellInventoryUi(bagIndex, inventoryStackSellTotalValue(bt), inventoryStackMaxCount(bt))
-            : undefined,
       };
     }
     case "材料": {
@@ -504,15 +410,12 @@ export function buildInventoryStackDetailPayload(
       const sections: ProtagonistDetailSection[] = [];
       pushSec(sections, "简介", m.desc);
       pushSec(sections, "品级", m.grade);
-      pushSec(sections, "价值", m.value);
       pushSec(sections, "数量", m.count);
       return {
         title: m.name,
         subtitle: `材料`,
         sections,
         dataRarity: gradeToTraitRarity(m.grade),
-        sellInventoryItem:
-          bagIndex != null ? buildSellInventoryUi(bagIndex, inventoryStackSellTotalValue(m), inventoryStackMaxCount(m)) : undefined,
       };
     }
     case "杂物": {
@@ -520,31 +423,21 @@ export function buildInventoryStackDetailPayload(
       const sections: ProtagonistDetailSection[] = [];
       pushSec(sections, "简介", misc.desc);
       pushSec(sections, "品级", misc.grade);
-      pushSec(sections, "价值", misc.value);
       pushSec(sections, "数量", misc.count);
       return {
         title: misc.name,
         subtitle: `杂物`,
         sections,
         dataRarity: gradeToTraitRarity(misc.grade),
-        sellInventoryItem:
-          bagIndex != null
-            ? buildSellInventoryUi(bagIndex, inventoryStackSellTotalValue(misc), inventoryStackMaxCount(misc))
-            : undefined,
       };
     }
     default: {
-      const u = it as { name?: string; desc?: string; grade?: string; value?: number; count?: number };
-      const cnt =
-        typeof u.count === "number" && Number.isFinite(u.count) ? Math.max(1, Math.floor(u.count)) : 1;
-      const tv =
-        typeof u.value === "number" && Number.isFinite(u.value) ? Math.floor(u.value * cnt) : 0;
+      const u = it as { name?: string; desc?: string; grade?: string; count?: number };
       return {
         title: u.name ?? "—",
         subtitle: "物品",
         sections: [{ label: "说明", text: u.desc ?? "—" }],
         dataRarity: u.grade ? gradeToTraitRarity(u.grade) : undefined,
-        sellInventoryItem: bagIndex != null ? buildSellInventoryUi(bagIndex, tv, cnt) : undefined,
       };
     }
   }

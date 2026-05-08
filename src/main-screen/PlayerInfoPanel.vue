@@ -4,8 +4,8 @@
  * 展示派生逻辑见 `lib/protagonistPanelDisplay.ts`；详情弹窗见 `ProtagonistDetailModal.vue`。
  */
 import { computed, ref } from "vue";
-import type { ProtagonistPlayInfo } from "../../types/playInfo";
-import { PLAYER_STAT_KEY_TO_ZH } from "../../types/zhPlayerStats";
+import type { ProtagonistPlayInfo } from "../types/playInfo";
+import { PLAYER_STAT_KEY_TO_ZH } from "../types/zhPlayerStats";
 import {
   buildGongfaDetailPayload,
   buildInventoryStackDetailPayload,
@@ -13,9 +13,9 @@ import {
   buildWearableDetailPayload,
   type ProtagonistDetailAction,
   type ProtagonistDetailPayload,
-} from "../../lib/protagonistDetailPayload";
-import { getProtagonistDerivedStats } from "../../lib/protagonistDerivedStats";
-import { applyProtagonistDetailAction } from "../../lib/protagonistManager";
+} from "../lib/protagonistDetailPayload";
+import { getProtagonistDerivedStats } from "../lib/protagonistDerivedStats";
+import { applyProtagonistDetailAction } from "../lib/protagonistManager";
 import {
   formatLinggenElements,
   formatRealmLine,
@@ -33,15 +33,13 @@ import {
   traitSlotRarity,
   traitSlotTitle,
   type EquipSlotKey,
-} from "../../lib/protagonistPanelDisplay";
+} from "../lib/protagonistPanelDisplay";
 import ProtagonistDetailModal from "./ProtagonistDetailModal.vue";
-import MajorBreakthroughModal from "./MajorBreakthroughModal.vue";
-import { getMajorBreakthroughReadyContext } from "../../lib/majorBreakthrough";
 import {
   calendarYearsElapsed,
   formatWorldTimeZhDisplay,
   type WorldTime,
-} from "../../lib/worldTime";
+} from "../lib/worldTime";
 
 const props = defineProps<{
   protagonist: ProtagonistPlayInfo | null;
@@ -72,10 +70,6 @@ const inventoryBagDisplaySlots = computed(() =>
 
 const detailOpen = ref(false);
 const detailPayload = ref<ProtagonistDetailPayload | null>(null);
-const majorBreakOpen = ref(false);
-
-const majorBreakReady = computed(() => getMajorBreakthroughReadyContext(props.protagonist));
-
 function closeDetail() {
   detailOpen.value = false;
   detailPayload.value = null;
@@ -139,11 +133,6 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
       @close="closeDetail"
       @action="onDetailAction"
     />
-    <MajorBreakthroughModal
-      :open="majorBreakOpen"
-      :protagonist="protagonist"
-      @close="majorBreakOpen = false"
-    />
     <header class="main-panel__meta-strip" aria-label="世界时间" :title="worldTimeTitle">
       <p class="main-panel__meta-strip-text">{{ worldTimeTitle }}</p>
     </header>
@@ -176,14 +165,6 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
                 >
               </span>
             </div>
-            <button
-              v-if="majorBreakReady"
-              type="button"
-              class="mj-major-breakthrough-btn"
-              @click="majorBreakOpen = true"
-            >
-              突破
-            </button>
           </div>
           <template v-if="cultivationUi.req != null && cultivationUi.req > 0">
             <div

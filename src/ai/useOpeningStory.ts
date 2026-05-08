@@ -7,7 +7,6 @@ import { generateInitStory } from "./init_story_generate";
 import { generateInitState } from "./init_state_generate";
 import { generateState } from "./state_generate";
 import { applyInitStateToProtagonist } from "../lib/protagonistFromFateChoice";
-import { mergeNearbyNpcs } from "../lib/npcManager";
 import { gameLog } from "../log/gameLog";
 import {
   cloneWorldTime,
@@ -147,7 +146,6 @@ export function useOpeningStoryFromFateChoice(
                 signal: ac.signal,
               });
               if (abortCtl !== ac) return;
-              mergeNearbyNpcs(stateResult.nearbyNpcs, worldLocation.value);
             }
           } catch (e3) {
             gameLog.warn("[OpeningStory] 开局NPC状态更新失败（不影响剧情显示）：" + (e3 instanceof Error ? e3.message : String(e3)));

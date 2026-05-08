@@ -1,6 +1,5 @@
 /**
- * 灵石：描述表、表键、储物袋堆叠形态与构造方法（与 mortal_journey `MjDescribeSpiritStones` 对齐）。
- * `value` 为灵石等价刻度，与装备、功法、杂物等 describe.value 同一数轴，用于比价，非「颗数」。
+ * 灵石：描述表、表键、储物袋堆叠形态与构造方法。
  */
 
 // ---------------------------------------------------------------------------
@@ -22,41 +21,31 @@ export type SpiritStoneGrade = "下品" | "中品" | "上品" | "极品" | "仙�
 export interface SpiritStoneDefinition {
   desc: string;
   grade: SpiritStoneGrade;
-  /** 等价刻度（整数）；与同项目其它物品 value 同刻度 */
-  value: number;
 }
 
 /** 完整灵石表：名称 → 定义（键集与脚本对象一致） */
 export type SpiritStoneCatalog = Record<SpiritStoneName, SpiritStoneDefinition>;
 
-/**
- * 与 `mortal_journey/js/data/spirit_stone.js` 中 `MjDescribeSpiritStones` 数据一致（简介 / 品阶 /价值）。
- */
 export const mjDescribeSpiritStones = {
   下品灵石: {
     desc: "修仙界基础货币，灵气较少，用于日常交易。",
     grade: "下品",
-    value: 10,
   },
   中品灵石: {
     desc: "灵气精纯，催动法器、布阵的常见消耗品。",
     grade: "中品",
-    value: 100,
   },
   上品灵石: {
     desc: "颇为稀有，用于大额交易或炼制高阶法宝。",
     grade: "上品",
-    value: 1000,
   },
   极品灵石: {
     desc: "极为稀有，是提升修为的关键之物。",
     grade: "极品",
-    value: 10000,
   },
   仙品灵石: {
     desc: "人界传说，灵气精纯至极，现世必引争夺。",
     grade: "仙品",
-    value: 100000,
   },
 } as const satisfies SpiritStoneCatalog;
 
@@ -92,15 +81,11 @@ export interface SpiritStoneInventoryStack {
   count: number;
   desc: string;
   grade: SpiritStoneGrade;
-  value: number;
   type: typeof SPIRIT_STONE_INVENTORY_KIND;
 }
 
 /**
  * 由描述表构造单格灵石堆叠。
- *
- * @param name - 五档灵石名（表键）
- * @param count - 颗数
  */
 export function createSpiritStoneInventoryStack(name: SpiritStoneName, count: number): SpiritStoneInventoryStack {
   return {

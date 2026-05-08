@@ -16,7 +16,7 @@ import type {
   WeaponItemDefinition,
 } from "../types/playInfo";
 import { GONGFA_SLOT_COUNT } from "../types/playInfo";
-import type { CategorizedItemDefinition, ElixirItemDefinition, WearableItemDefinition } from "../types/itemInfo";
+import type { WearableItemDefinition } from "../types/itemInfo";
 import { PLAYER_STAT_BONUS_KEYS } from "../types/zhPlayerStats";
 import {
   buildProtagonistPlayInfoFromFateChoice,
@@ -25,22 +25,6 @@ import {
 } from "./protagonistFromFateChoice";
 import type { ProtagonistDetailAction } from "./protagonistDetailPayload";
 import { gameLog } from "../log/gameLog";
-import {
-  applyRealmBreakthroughs,
-  clampXiuweiToLateStageCapIfNeeded,
-  grantSpiritStoneCountsToInventory,
-  performAbsorbSpiritStonesFromBag,
-  syncProtagonistRealmDerived,
-  valueToSpiritStoneCounts,
-} from "./spiritStoneCultivation";
-import {
-  computeMajorBreakModalTotalP,
-  getMajorBreakthroughReadyContext,
-  getPillBreakthroughBonusDelta,
-  MAJOR_BREAK_FAIL_XIUWEI_FACTOR,
-  type MajorBreakModalSlotSelection,
-} from "./majorBreakthrough";
-import { rollBreakthroughWithProbability } from "../config/realm_state";
 import type { NarrationPerson } from "../types/playInfo";
 import type { EquipSlotKey } from "./protagonistPanelDisplay";
 
@@ -570,209 +554,6 @@ export function equipGongfaFromInventory(inventoryIndex: number): boolean {
  * @param a - 详情弹窗动作联合类型。
  * @returns 操作成功为 `true`。
  */
-/**
- * 炼化储物袋一格灵石堆叠为修为（小境界满足时自动进阶），逻辑见 `spiritStoneCultivation.ts`。
- */
-export function absorbSpiritStonesFromBag(bagIndex: number, count: number, consumeAll: boolean): boolean {
-  const p = protagonist.value;
-  if (!p) return false;
-  const ok = performAbsorbSpiritStonesFromBag(
-    p,
-    bagIndex,
-    consumeAll,
-    consumeAll ? undefined : count,
-  );
-  if (ok) compactInventorySlotsInPlace(p.inventorySlots);
-  return ok;
-}
-
-/**
- * 将储物袋一格非灵石物品按 `value×数量` 折算为灵石（与 `valueToSpiritStoneCounts` 同规则）并入袋。
- * `sellCount` 为售出件数（≤ 堆叠数）；部分售出时剩余数量写回该格。
- */
-export function sellInventoryItemFromBag(bagIndex: number, sellCount: number): boolean {
-  const p = protagonist.value;
-  if (!p) return false;
-  if (bagIndex < 0 || bagIndex >= p.inventorySlots.length) return false;
-  const cell = p.inventorySlots[bagIndex];
-  if (!cell || !("itemType" in cell)) return false;
-  const it = cell as CategorizedItemDefinition;
-  const v = typeof it.value === "number" && Number.isFinite(it.value) ? it.value : 0;
-  const stackCnt = typeof it.count === "number" && Number.isFinite(it.count) ? Math.max(1, Math.floor(it.count)) : 1;
-  const n = typeof sellCount === "number" && Number.isFinite(sellCount) ? Math.floor(sellCount) : 0;
-  if (v <= 0 || n < 1 || n > stackCnt) return false;
-  const total = Math.floor(v * n);
-  if (total < 10) return false;
-  const chunks = valueToSpiritStoneCounts(total);
-  if (!chunks.length) return false;
-  const left = stackCnt - n;
-  if (left <= 0) {
-    p.inventorySlots[bagIndex] = null;
-  } else {
-    p.inventorySlots[bagIndex] = { ...it, count: left } as CategorizedItemDefinition;
-  }
-  grantSpiritStoneCountsToInventory(p, chunks);
-  compactInventorySlotsInPlace(p.inventorySlots);
-  return true;
-}
-
-/**
- * 使用储物袋一格普通丹药（`effects.recover`）：恢复当前生命/法力（不超过上限），消耗 1 颗。
- */
-export function useElixirFromBag(bagIndex: number): boolean {
-  const p = protagonist.value;
-  if (!p) return false;
-  if (bagIndex < 0 || bagIndex >= p.inventorySlots.length) return false;
-  const cell = p.inventorySlots[bagIndex];
-  if (!cell || !("itemType" in cell)) return false;
-  if (cell.itemType !== "丹药") return false;
-  const pill = cell as ElixirItemDefinition;
-  const r = pill.effects?.recover;
-  if (!r) return false;
-  const hpAdd = typeof r.hp === "number" && Number.isFinite(r.hp) && r.hp > 0 ? Math.floor(r.hp) : 0;
-  const mpAdd = typeof r.mp === "number" && Number.isFinite(r.mp) && r.mp > 0 ? Math.floor(r.mp) : 0;
-  if (hpAdd <= 0 && mpAdd <= 0) return false;
-  const stackCnt = typeof pill.count === "number" && Number.isFinite(pill.count) ? Math.max(1, Math.floor(pill.count)) : 1;
-  if (stackCnt < 1) return false;
-
-  const maxHp = typeof p.maxHp === "number" && Number.isFinite(p.maxHp) ? Math.max(1, Math.round(p.maxHp)) : 1;
-  const maxMp = typeof p.maxMp === "number" && Number.isFinite(p.maxMp) ? Math.max(1, Math.round(p.maxMp)) : 1;
-  const curHp = typeof p.currentHp === "number" && Number.isFinite(p.currentHp) ? Math.round(p.currentHp) : maxHp;
-  const curMp = typeof p.currentMp === "number" && Number.isFinite(p.currentMp) ? Math.round(p.currentMp) : maxMp;
-
-  p.currentHp = Math.min(maxHp, Math.max(0, curHp + hpAdd));
-  p.currentMp = Math.min(maxMp, Math.max(0, curMp + mpAdd));
-
-  const left = stackCnt - 1;
-  if (left <= 0) {
-    p.inventorySlots[bagIndex] = null;
-  } else {
-    p.inventorySlots[bagIndex] = { ...pill, count: left } as ElixirItemDefinition;
-  }
-  compactInventorySlotsInPlace(p.inventorySlots);
-  const parts: string[] = [];
-  if (hpAdd > 0) parts.push(`生命 +${hpAdd}`);
-  if (mpAdd > 0) parts.push(`法力 +${mpAdd}`);
-  gameLog.info(`已使用「${pill.name}」：${parts.join("，")}`);
-  return true;
-}
-
-function consumeOneFromInventorySlot(p: ProtagonistPlayInfo, bagIdx: number): boolean {
-  if (bagIdx < 0 || bagIdx >= p.inventorySlots.length) return false;
-  const it = p.inventorySlots[bagIdx];
-  if (!it || !("name" in it) || !(it as { name?: string }).name) return false;
-  const cnt =
-    typeof (it as { count?: number }).count === "number" && Number.isFinite((it as { count: number }).count)
-      ? Math.max(1, Math.floor((it as { count: number }).count))
-      : 1;
-  if (cnt <= 1) {
-    p.inventorySlots[bagIdx] = null;
-  } else {
-    p.inventorySlots[bagIdx] = { ...(it as object), count: cnt - 1 } as InventoryStackItem;
-  }
-  return true;
-}
-
-/**
- * 左栏「突破」弹窗：大境界掷骰。可选最多三格突破丹药（掷骰前消耗）；失败时修为×{@link MAJOR_BREAK_FAIL_XIUWEI_FACTOR}。
- *
- * @param slots - 长度 3，每格为所选储物袋索引与丹药名，或 `null`。
- * @returns 上下文合法且完成掷骰（含取消类失败）为 `true`；无主角或不可突破时为 `false`。
- */
-export function performMajorBreakthroughRoll(slots: MajorBreakModalSlotSelection[]): boolean {
-  const p = protagonist.value;
-  if (!p) return false;
-  const ctx = getMajorBreakthroughReadyContext(p);
-  if (!ctx) return false;
-
-  const slotArr: MajorBreakModalSlotSelection[] =
-    slots.length >= 3 ? slots.slice(0, 3) : [...slots, ...Array(3 - slots.length).fill(null)];
-
-  const needByBag: Record<number, number> = {};
-  for (let i = 0; i < slotArr.length; i++) {
-    const s = slotArr[i];
-    if (!s) continue;
-    const bi = s.bagIdx;
-    if (!Number.isFinite(bi) || bi < 0 || bi >= p.inventorySlots.length) {
-      gameLog.info("[境界突破] 大境界突破取消：丹药格配置无效。");
-      return false;
-    }
-    const it = p.inventorySlots[bi];
-    if (!it || String((it as { name?: string }).name || "").trim() !== String(s.name).trim()) {
-      gameLog.info("[境界突破] 大境界突破取消：储物袋与所选丹药不一致。");
-      return false;
-    }
-    const bonus = getPillBreakthroughBonusDelta(it, ctx.major, ctx.nextMaj);
-    if (bonus <= 0) {
-      gameLog.info(`[境界突破] 大境界突破取消：「${(it as { name?: string }).name}」对当前进阶无效。`);
-      return false;
-    }
-    needByBag[bi] = (needByBag[bi] || 0) + 1;
-  }
-  for (const k of Object.keys(needByBag)) {
-    const idx = Number(k);
-    const it2 = p.inventorySlots[idx];
-    const c2 =
-      it2 && typeof (it2 as { count?: number }).count === "number" && Number.isFinite((it2 as { count: number }).count)
-        ? Math.max(1, Math.floor((it2 as { count: number }).count))
-        : 1;
-    if (!it2 || c2 < (needByBag[idx] ?? 0)) {
-      gameLog.info("[境界突破] 大境界突破取消：丹药数量不足。");
-      return false;
-    }
-  }
-
-  const pRoll = computeMajorBreakModalTotalP(ctx.baseP, ctx.major, ctx.nextMaj, slotArr, (idx) =>
-    p.inventorySlots[idx] ?? null,
-  );
-  const pillPlaced = slotArr.some((s) => s != null);
-
-  if (pillPlaced) {
-    const invBeforeRoll = JSON.parse(JSON.stringify(p.inventorySlots)) as Array<InventoryStackItem | null>;
-    let consumeOk = true;
-    for (let j = 0; j < slotArr.length; j++) {
-      const sj = slotArr[j];
-      if (!sj) continue;
-      if (!consumeOneFromInventorySlot(p, sj.bagIdx)) {
-        consumeOk = false;
-        break;
-      }
-    }
-    if (!consumeOk) {
-      p.inventorySlots = invBeforeRoll;
-      gameLog.info("[境界突破] 大境界突破异常：扣除丹药失败，已回滚背包。");
-      compactInventorySlotsInPlace(p.inventorySlots);
-      return false;
-    }
-  }
-
-  const ok = rollBreakthroughWithProbability(pRoll);
-  const X2 = typeof p.xiuwei === "number" && Number.isFinite(p.xiuwei) ? Math.floor(p.xiuwei) : 0;
-
-  if (ok) {
-    p.xiuwei = Math.max(0, X2 - ctx.req);
-    p.realm = { major: ctx.nextMaj, minor: "初期" };
-    syncProtagonistRealmDerived(p);
-    const chainMsgs = applyRealmBreakthroughs(p);
-    clampXiuweiToLateStageCapIfNeeded(p);
-    const msgOk = [`大境界突破成功：已进入「${ctx.nextMaj}初期」`];
-    if (chainMsgs.length) msgOk.push(...chainMsgs);
-    gameLog.info("[境界突破] " + msgOk.join("；") + "。");
-  } else {
-    p.xiuwei = Math.max(0, Math.floor(X2 * MAJOR_BREAK_FAIL_XIUWEI_FACTOR));
-    const pctStr = (Math.round(pRoll * 10000) / 100).toString();
-    const failParts = [
-      `大境界突破失败：「${ctx.major}」→「${ctx.nextMaj}」（成功率 ${pctStr}%）`,
-      "修为受挫，修炼进度损失约三成",
-    ];
-    if (pillPlaced) failParts.push("所选丹药已在突破中消耗");
-    gameLog.info("[境界突破] " + failParts.join("；") + "。");
-  }
-
-  compactInventorySlotsInPlace(p.inventorySlots);
-  return true;
-}
-
 export function applyProtagonistDetailAction(a: ProtagonistDetailAction): boolean {
   switch (a.id) {
     case "unequipWear":
@@ -783,12 +564,6 @@ export function applyProtagonistDetailAction(a: ProtagonistDetailAction): boolea
       return equipFromInventory(a.inventoryIndex);
     case "equipGongfaFromBag":
       return equipGongfaFromInventory(a.inventoryIndex);
-    case "absorbSpiritStones":
-      return absorbSpiritStonesFromBag(a.bagIndex, a.count, a.consumeAll);
-    case "sellInventoryItem":
-      return sellInventoryItemFromBag(a.bagIndex, a.count);
-    case "useElixirFromBag":
-      return useElixirFromBag(a.bagIndex);
     default:
       return false;
   }

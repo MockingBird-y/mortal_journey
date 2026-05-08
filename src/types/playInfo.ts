@@ -1,7 +1,7 @@
 /**
  * 角色「属性 · 装备 · 功法 · 储物袋」等领域模型。
  * 与 mortal_journey 中 MjCharacterSheet、MortalJourneyGame 槽位、PlayerBaseRuntime 面板属性对齐；
- * 主角主体为 `CharacterPlayInfoCommon`；NPC 在此外壳上增加 `NpcCharacterPlayInfoCommon`。
+ * 主角主体为 `CharacterPlayInfoCommon`。
  * 本文件内接口字段均为必选（无 `?`），缺省语义用空串 / 0 / 空数组 / null 槽位表达。
  *
  * 物品与储物袋格的类型定义见 `itemInfo`；本文件在文末按相同模块顺序再导出，便于业务单点引用。
@@ -107,21 +107,6 @@ export interface CharacterPlayInfoCommon {
   equippedSlots: EquippedSlotsState;
 }
 
-/**
- * NPC 档案公共块：在 `CharacterPlayInfoCommon` 之上增加可见性、生死与好感（与 MjCharacterSheet 周围人物一致）。
- */
-export interface NpcCharacterPlayInfoCommon extends CharacterPlayInfoCommon {
-  identity: string;
-  isVisible: boolean;
-  isDead: boolean;
-  favorability: number;
-  currentStageGoal: string;
-  longTermGoal: string;
-  hobby: string;
-  fear: string;
-  personality: string;
-}
-
 /** 主角档案（`role` 固定为 `protagonist`） */
 export interface ProtagonistPlayInfo extends CharacterPlayInfoCommon {
   role: "protagonist";
@@ -137,17 +122,6 @@ export interface ProtagonistPlayInfo extends CharacterPlayInfoCommon {
   traits: TraitEntry[];
   xiuwei: number;
 }
-
-/** 周围人物 / NPC（含妖兽同构卡，`role` 固定为 `npc`） */
-export interface NpcPlayInfo extends NpcCharacterPlayInfoCommon {
-  role: "npc";
-}
-
-/** 任意一方角色卡（判别用 `role`） */
-export type CharacterPlayInfo = ProtagonistPlayInfo | NpcPlayInfo;
-
-/** 与旧脚本命名对照：规范化后的角色单 */
-export type CharacterSheetNormalized = CharacterPlayInfo;
 
 // ---------------------------------------------------------------------------
 // 自 itemInfo 再导出（模块顺序与 itemInfo.ts 一致）

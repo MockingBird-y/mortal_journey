@@ -69,7 +69,6 @@ export interface ItemDefinitionBase {
   name: string;
   desc: string;
   grade: ItemGrade;
-  value: number;
   count: number;
 }
 
