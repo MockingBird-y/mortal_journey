@@ -1,13 +1,13 @@
 import { createApp } from "vue";
 import App from "./App.vue";
 
-import "./styles/base.css";
+import "./base.css";
 import "./start_frame/start_frame.css";
 import "./log/logPanel.css";
 import "./fate_choice/fateChoice.css";
-import "./styles/mainScreen.css";
-import "./styles/worldMapModal.css";
-import "./styles/mainScreenPlayerPanel.css";
-import "./styles/protagonistDetailModal.css";
+import "./main-screen/mainScreen.css";
+import "./main-screen/worldMapModal.css";
+import "./main-screen/mainScreenPlayerPanel.css";
+import "./main-screen/protagonistDetailModal.css";
 
 createApp(App).mount("#app");

@@ -1,12 +1,12 @@
 import { INIT_STORY_SYSTEM_PRESET } from "./init_state";
 import { completeChatWithMessagesJson, type JsonChatRequestPayload } from "./openAiChatBridge";
-import { formatLinggenElements, formatRealmLine } from "../lib/protagonistPanelDisplay";
-import { ITEM_GRADE_ATTRI_TABLE, MAGIFICATION_TABLE } from "../config/item_grade_attri";
+import { formatLinggenElements, formatRealmLine } from "../role_core/protagonistPanelDisplay";
+import { ITEM_GRADE_ATTRI_TABLE, MAGIFICATION_TABLE } from "../role_core/types/realm_state";
 import {
   createSpiritStoneInventoryStack,
   SPIRIT_STONE_TABLE_KEYS_ORDERED,
   type SpiritStoneName,
-} from "../types/spiritStone";
+} from "../role_core/types/spiritStone";
 import type {
   ArmorItemDefinition,
   AttackGongfaDefinition,
@@ -18,10 +18,10 @@ import type {
   MaterialItemDefinition,
   MiscItemDefinition,
   WeaponItemDefinition,
-} from "../types/itemInfo";
-import type { InventoryStackItem, ProtagonistPlayInfo, GongfaSlotsState, EquippedSlotsState } from "../types/playInfo";
-import type { ZhPlayerStatBonusKey } from "../types/zhPlayerStats";
-import { PLAYER_STAT_KEY_TO_ZH, type PlayerStatBonusKey, PLAYER_STAT_BONUS_KEYS } from "../types/zhPlayerStats";
+} from "../role_core/types/itemInfo";
+import type { InventoryStackItem, ProtagonistPlayInfo, GongfaSlotsState, EquippedSlotsState } from "../role_core/types/playInfo";
+import type { ZhPlayerStatBonusKey } from "../role_core/types/playInfo";
+import { PLAYER_STAT_KEY_TO_ZH, type PlayerStatBonusKey, PLAYER_STAT_BONUS_KEYS } from "../role_core/types/playInfo";
 
 export interface InitStateApiConfig {
   apiUrl: string;

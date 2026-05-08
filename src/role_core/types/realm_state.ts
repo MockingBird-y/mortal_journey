@@ -3,16 +3,15 @@
  * 化神与其它大境界一致，均为初期 / 中期 / 后期；查表须同时传入 `realm` 与 `stage`。
  * （mortal_journey 旧版 `realm_state.js` 中化神为单行 `stage: null`，本文件数据与 API 已按三期拆分。）
  *
- * 表中十维字段与 `playInfo.PlayerBaseStats` 一致；英→中对照用 `zhPlayerStats.PLAYER_STAT_KEY_TO_ZH`。
+ * 表中十维字段与 `playInfo.PlayerBaseStats` 一致；英→中对照用 `PLAYER_STAT_KEY_TO_ZH`。
+ *
+ * 此外包含：
+ * - 灵根与基础属性对应及大境界倍率（原 `leegen.ts`）
+ * - 品阶属性 / 伤害倍率查表（原 `item_grade_attri.ts`）
  */
 
-import type { PlayerBaseStats } from "../types/playInfo";
-import {
-  PLAYER_STAT_BONUS_KEYS,
-  PLAYER_STAT_KEY_TO_ZH,
-  type PlayerStatBonusKey,
-  type ZhPlayerStatBonusKey,
-} from "../types/zhPlayerStats";
+import type { PlayerBaseStats, PlayerStatBonusKey } from "./playInfo";
+import { PLAYER_STAT_BONUS_KEYS, PLAYER_STAT_KEY_TO_ZH, type ZhPlayerStatBonusKey } from "./playInfo";
 
 // ---------------------------------------------------------------------------
 // 类型
@@ -477,3 +476,131 @@ export const RealmState = {
   REALM_EQUIP_BONUS_RATIO_TABLE,
   getEquipBonusRealmRatio,
 } as const;
+
+// ===========================================================================
+// 灵根（原 leegen.ts）
+// ===========================================================================
+
+export const ELEMENT_CHARS = ["金", "木", "水", "火", "土"] as const;
+
+export type FiveElement = (typeof ELEMENT_CHARS)[number];
+
+export const ELEMENT_TO_STATS = {
+  金: ["patk"],
+  木: ["matk"],
+  水: ["mp"],
+  火: ["hp"],
+  土: ["pdef", "mdef"],
+} as const satisfies Readonly<Record<FiveElement, readonly PlayerStatBonusKey[]>>;
+
+export const REALM_LINGGEN_MULT = {
+  练气: 1.05,
+  筑基: 1.1,
+  结丹: 1.2,
+  元婴: 1.5,
+  化神: 2.0,
+} as const satisfies Readonly<Record<string, number>>;
+
+export const DEFAULT_LINGGEN_REALM_MULT = 1.0;
+
+export function normalizeLinggenRealm(realm: string | null | undefined): string {
+  if (realm == null) return "";
+  let s = String(realm).trim();
+  if (s.endsWith("期")) s = s.slice(0, -1).trim();
+  return s;
+}
+
+export function getRealmLinggenMultiplier(realm: string): number {
+  const key = normalizeLinggenRealm(realm);
+  const m = (REALM_LINGGEN_MULT as Readonly<Record<string, number>>)[key];
+  return typeof m === "number" && Number.isFinite(m) ? m : DEFAULT_LINGGEN_REALM_MULT;
+}
+
+export function parseLinggenElements(linggenText: string | null | undefined): FiveElement[] {
+  if (linggenText == null || linggenText === "") return [];
+  const text = String(linggenText);
+  const seen = new Set<FiveElement>();
+  const out: FiveElement[] = [];
+  const allowed = new Set<string>(ELEMENT_CHARS);
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charAt(i);
+    if (!allowed.has(ch)) continue;
+    const el = ch as FiveElement;
+    if (seen.has(el)) continue;
+    seen.add(el);
+    out.push(el);
+  }
+  return out;
+}
+
+export function getAffectedStatKeysByElement(element: string): readonly PlayerStatBonusKey[] {
+  if (element in ELEMENT_TO_STATS) {
+    return ELEMENT_TO_STATS[element as FiveElement];
+  }
+  return [];
+}
+
+export function applyLinggenToPlayerBase(
+  baseStats: PlayerBaseStats,
+  realm: string,
+  linggenText: string,
+): PlayerBaseStats {
+  const out: PlayerBaseStats = { ...baseStats };
+  const elements = parseLinggenElements(linggenText);
+  if (elements.length === 0) return out;
+
+  const mult = getRealmLinggenMultiplier(realm);
+  if (mult === DEFAULT_LINGGEN_REALM_MULT) return out;
+
+  for (const el of elements) {
+    const stats = ELEMENT_TO_STATS[el];
+    if (!stats) continue;
+    for (const key of stats) {
+      const v = out[key];
+      if (typeof v !== "number" || !Number.isFinite(v)) continue;
+      out[key] = v * mult;
+    }
+  }
+
+  return out;
+}
+
+// ===========================================================================
+// 品阶属性 / 伤害倍率查表（原 item_grade_attri.ts）
+// ===========================================================================
+
+export interface ItemGradeAttriRow {
+  grade: string,
+  hp: [number, number],
+  mp: [number, number],
+  patk: [number, number],
+  pdef: [number, number],
+  matk: [number, number],
+  mdef: [number, number],
+  sense: [number, number],
+  luck: [number, number],
+  dodge: [number, number],
+  tenacity: [number, number],
+}
+
+export const ITEM_GRADE_ATTRI_TABLE = [
+  { grade: "下品", hp: [50, 100], mp: [5, 10], patk: [5, 10], pdef: [5, 10], matk: [5, 10], mdef: [5, 10],
+    sense: [5, 10], luck: [5, 10], dodge: [5, 10], tenacity: [5, 10] },
+  { grade: "中品", hp: [100, 200], mp: [10, 20], patk: [10, 20], pdef: [10, 20], matk: [10, 20], mdef: [10, 20],
+    sense: [10, 20], luck: [10, 20], dodge: [10, 20], tenacity: [10, 20] },
+  { grade: "上品", hp: [200, 300], mp: [20, 30], patk: [20, 30], pdef: [20, 30], matk: [20, 30], mdef: [20, 30],
+    sense: [20, 30], luck: [20, 30], dodge: [20, 30], tenacity: [20, 30] },
+  { grade: "极品", hp: [300, 400], mp: [30, 40], patk: [30, 40], pdef: [30, 40], matk: [30, 40], mdef: [30, 40],
+    sense: [30, 40], luck: [30, 40], dodge: [30, 40], tenacity: [30, 40] },
+  { grade: "仙品", hp: [400, 500], mp: [40, 50], patk: [40, 50], pdef: [40, 50], matk: [40, 50], mdef: [40, 50],
+    sense: [40, 50], luck: [40, 50], dodge: [40, 50], tenacity: [40, 50] },
+] as const satisfies readonly ItemGradeAttriRow[];
+
+export const MAGIFICATION_TABLE = [
+  { grade: "下品", magnification: [1.0, 1.1] },
+  { grade: "中品", magnification: [1.1, 1.2] },
+  { grade: "上品", magnification: [1.2, 1.4] },
+  { grade: "上品", magnification: [1.4, 1.6] },
+  { grade: "极品", magnification: [1.6, 1.8] },
+  { grade: "仙品", magnification: [1.8, 2.0] },
+] as const satisfies readonly { grade: string, magnification: [number, number] }[];

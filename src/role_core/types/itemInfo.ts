@@ -6,7 +6,7 @@
  */
 
 import type { SpiritStoneInventoryStack } from "./spiritStone";
-import type { ZhStatBonusMap } from "./zhPlayerStats";
+import type { ZhStatBonusMap } from "./playInfo";
 
 // ---------------------------------------------------------------------------
 // 共用枚举与基底

@@ -15,8 +15,8 @@ import type {
   MiscItemDefinition,
   SpiritStoneInventoryStack,
   WeaponItemDefinition,
-} from "../types/itemInfo";
-import type { GongfaSlotsState, InventoryStackItem, ProtagonistPlayInfo } from "../types/playInfo";
+} from "./types/itemInfo";
+import type { GongfaSlotsState, InventoryStackItem, ProtagonistPlayInfo } from "./types/playInfo";
 import {
   createSpiritStoneInventoryStack,
   SPIRIT_STONE_TABLE_KEY_HIGH,
@@ -25,8 +25,8 @@ import {
   SPIRIT_STONE_TABLE_KEY_MEDIUM,
   SPIRIT_STONE_TABLE_KEY_TOP,
   type SpiritStoneName,
-} from "../types/spiritStone";
-import { getBaseStats, getProtagonistNarrativeAge, getShouyuanForRealm } from "../config/realm_state";
+} from "./types/spiritStone";
+import { getBaseStats, getProtagonistNarrativeAge, getShouyuanForRealm } from "./types/realm_state";
 import { getProtagonistDerivedStats } from "./protagonistDerivedStats";
 import type { InitStateParsed } from "../ai/init_state_generate";
 import {

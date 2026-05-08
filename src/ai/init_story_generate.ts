@@ -4,8 +4,8 @@
 
 import { INIT_STORY_SYSTEM_PRESET } from "./init_preset";
 import { completeChatWithMessagesJson, type JsonChatRequestPayload } from "./openAiChatBridge";
-import { formatLinggenElements, formatRealmLine } from "../lib/protagonistPanelDisplay";
-import type { NarrationPerson, ProtagonistPlayInfo, TraitEntry } from "../types/playInfo";
+import { formatLinggenElements, formatRealmLine } from "../role_core/protagonistPanelDisplay";
+import type { NarrationPerson, ProtagonistPlayInfo, TraitEntry } from "../role_core/types/playInfo";
 
 /** 调用网关所需字段 + 生成参数；`messages` 由本模块拼装，不必传入。 */
 export interface InitStoryApiConfig {

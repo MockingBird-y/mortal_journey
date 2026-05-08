@@ -2,15 +2,15 @@
  * @fileoverview 主角左栏 UI 纯函数：与 `PlayerInfoPanel.vue` 模板解耦，便于单测与后续复杂展示逻辑。
  */
 
-import { getCultivationRequired } from "../config/realm_state";
-import type { WearableItemDefinition } from "../types/itemInfo";
+import { getCultivationRequired } from "./types/realm_state";
+import type { WearableItemDefinition } from "./types/itemInfo";
 import type {
   GongfaItemDefinition,
   InventoryStackItem,
   PlayerBaseStats,
   ProtagonistPlayInfo,
   TraitEntry,
-} from "../types/playInfo";
+} from "./types/playInfo";
 
 /** 储物袋展示用网格列数（与 `mainScreenPlayerPanel.css`、`protagonistFromFateChoice.INVENTORY_SLOT_EXPAND_STEP` 一致） */
 export const INVENTORY_BAG_GRID_COLUMNS = 4;

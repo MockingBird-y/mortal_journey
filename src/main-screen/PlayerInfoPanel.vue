@@ -4,8 +4,8 @@
  * 展示派生逻辑见 `lib/protagonistPanelDisplay.ts`；详情弹窗见 `ProtagonistDetailModal.vue`。
  */
 import { computed, ref } from "vue";
-import type { ProtagonistPlayInfo } from "../types/playInfo";
-import { PLAYER_STAT_KEY_TO_ZH } from "../types/zhPlayerStats";
+import type { ProtagonistPlayInfo } from "../role_core/types/playInfo";
+import { PLAYER_STAT_KEY_TO_ZH } from "../role_core/types/playInfo";
 import {
   buildGongfaDetailPayload,
   buildInventoryStackDetailPayload,
@@ -13,9 +13,9 @@ import {
   buildWearableDetailPayload,
   type ProtagonistDetailAction,
   type ProtagonistDetailPayload,
-} from "../lib/protagonistDetailPayload";
-import { getProtagonistDerivedStats } from "../lib/protagonistDerivedStats";
-import { applyProtagonistDetailAction } from "../lib/protagonistManager";
+} from "../role_core/protagonistDetailPayload";
+import { getProtagonistDerivedStats } from "../role_core/protagonistDerivedStats";
+import { applyProtagonistDetailAction } from "../role_core/protagonistManager";
 import {
   formatLinggenElements,
   formatRealmLine,
@@ -33,13 +33,13 @@ import {
   traitSlotRarity,
   traitSlotTitle,
   type EquipSlotKey,
-} from "../lib/protagonistPanelDisplay";
+} from "../role_core/protagonistPanelDisplay";
 import ProtagonistDetailModal from "./ProtagonistDetailModal.vue";
 import {
   calendarYearsElapsed,
   formatWorldTimeZhDisplay,
   type WorldTime,
-} from "../lib/worldTime";
+} from "../role_core/worldTime";
 
 const props = defineProps<{
   protagonist: ProtagonistPlayInfo | null;

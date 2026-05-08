@@ -16,14 +16,52 @@ import type {
   InventoryStackItem,
   WeaponItemDefinition,
 } from "./itemInfo";
-import type { PlayerStatBonusKey } from "./zhPlayerStats";
 
 // ---------------------------------------------------------------------------
-// 属性键（zhPlayerStats）
+// 属性键（原 zhPlayerStats）
 // ---------------------------------------------------------------------------
 
-export type { PlayerStatBonusKey, ZhPlayerStatBonusKey, ZhStatBonusMap } from "./zhPlayerStats";
-export { PLAYER_STAT_BONUS_KEYS, PLAYER_STAT_KEY_TO_ZH } from "./zhPlayerStats";
+export const PLAYER_STAT_BONUS_KEYS = [
+  "hp",
+  "mp",
+  "patk",
+  "pdef",
+  "matk",
+  "mdef",
+  "sense",
+  "luck",
+  "dodge",
+  "tenacity",
+] as const;
+
+export type PlayerStatBonusKey = (typeof PLAYER_STAT_BONUS_KEYS)[number];
+
+export type ZhPlayerStatBonusKey =
+  | "血量"
+  | "法力"
+  | "物攻"
+  | "物防"
+  | "法攻"
+  | "法防"
+  | "神识"
+  | "气运"
+  | "闪避"
+  | "韧性";
+
+export const PLAYER_STAT_KEY_TO_ZH: Readonly<Record<PlayerStatBonusKey, ZhPlayerStatBonusKey>> = {
+  hp: "血量",
+  mp: "法力",
+  patk: "物攻",
+  pdef: "物防",
+  matk: "法攻",
+  mdef: "法防",
+  sense: "神识",
+  luck: "气运",
+  dodge: "闪避",
+  tenacity: "韧性",
+};
+
+export type ZhStatBonusMap = Partial<Record<ZhPlayerStatBonusKey, number>>;
 
 // ---------------------------------------------------------------------------
 // 常量 · 境界 · 十维属性

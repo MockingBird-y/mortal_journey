@@ -16,9 +16,9 @@ import type {
   MiscItemDefinition,
   SpiritStoneInventoryStack,
   WeaponItemDefinition,
-} from "../types/itemInfo";
-import type { CultivationRealm, TraitEntry } from "../types/playInfo";
-import { getEquipBonusRealmRatio } from "../config/realm_state";
+} from "./types/itemInfo";
+import type { CultivationRealm, TraitEntry } from "./types/playInfo";
+import { getEquipBonusRealmRatio } from "./types/realm_state";
 import { gradeToTraitRarity, type EquipSlotKey } from "./protagonistPanelDisplay";
 
 /**

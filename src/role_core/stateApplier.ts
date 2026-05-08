@@ -9,12 +9,12 @@ import {
   addToInventory,
   setInventorySlot,
 } from "./protagonistManager";
-import type { ProtagonistPlayInfo } from "../types/playInfo";
+import type { ProtagonistPlayInfo } from "./types/playInfo";
 import {
   createSpiritStoneInventoryStack,
   SPIRIT_STONE_TABLE_KEYS_ORDERED,
   type SpiritStoneName,
-} from "../types/spiritStone";
+} from "./types/spiritStone";
 import { gameLog } from "../log/gameLog";
 
 function mergeOrAddStone(p: ProtagonistPlayInfo, name: SpiritStoneName, count: number): void {

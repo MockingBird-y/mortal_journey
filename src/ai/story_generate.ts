@@ -9,8 +9,8 @@ import {
   type JsonChatRequestPayload,
   type ChatMessage,
 } from "./openAiChatBridge";
-import { formatLinggenElements, formatRealmLine } from "../lib/protagonistPanelDisplay";
-import type { NarrationPerson, ProtagonistPlayInfo, EquippedSlotsState, GongfaSlotsState, InventoryStackItem } from "../types/playInfo";
+import { formatLinggenElements, formatRealmLine } from "../role_core/protagonistPanelDisplay";
+import type { NarrationPerson, ProtagonistPlayInfo, EquippedSlotsState, GongfaSlotsState, InventoryStackItem } from "../role_core/types/playInfo";
 
 export interface StoryApiConfig {
   apiUrl: string;

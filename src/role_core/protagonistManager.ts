@@ -14,10 +14,10 @@ import type {
   PlayerBaseStats,
   ProtagonistPlayInfo,
   WeaponItemDefinition,
-} from "../types/playInfo";
-import { GONGFA_SLOT_COUNT } from "../types/playInfo";
-import type { WearableItemDefinition } from "../types/itemInfo";
-import { PLAYER_STAT_BONUS_KEYS } from "../types/zhPlayerStats";
+} from "./types/playInfo";
+import { GONGFA_SLOT_COUNT } from "./types/playInfo";
+import type { WearableItemDefinition } from "./types/itemInfo";
+import { PLAYER_STAT_BONUS_KEYS } from "./types/playInfo";
 import {
   buildProtagonistPlayInfoFromFateChoice,
   DEFAULT_INVENTORY_SLOT_COUNT,
@@ -25,7 +25,7 @@ import {
 } from "./protagonistFromFateChoice";
 import type { ProtagonistDetailAction } from "./protagonistDetailPayload";
 import { gameLog } from "../log/gameLog";
-import type { NarrationPerson } from "../types/playInfo";
+import type { NarrationPerson } from "./types/playInfo";
 import type { EquipSlotKey } from "./protagonistPanelDisplay";
 
 /** 当前主角运行时状态；无主角时为 `null`。 */

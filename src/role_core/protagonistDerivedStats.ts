@@ -3,11 +3,11 @@
  * 顺序与 mortal_journey `leegen_state.applyToBase` 一致：先加算，再按灵根对负责属性相乘。
  */
 
-import { getBaseStats, getEquipBonusRealmRatio } from "../config/realm_state";
-import { applyLinggenToPlayerBase } from "../config/leegen";
-import type { ItemBonusMap } from "../types/itemInfo";
-import type { CharacterPlayInfoCommon, PlayerBaseStats, ProtagonistPlayInfo } from "../types/playInfo";
-import { PLAYER_STAT_BONUS_KEYS, PLAYER_STAT_KEY_TO_ZH, type PlayerStatBonusKey } from "../types/zhPlayerStats";
+import { getBaseStats, getEquipBonusRealmRatio } from "./types/realm_state";
+import { applyLinggenToPlayerBase } from "./types/realm_state";
+import type { ItemBonusMap } from "./types/itemInfo";
+import type { CharacterPlayInfoCommon, PlayerBaseStats, ProtagonistPlayInfo } from "./types/playInfo";
+import { PLAYER_STAT_BONUS_KEYS, PLAYER_STAT_KEY_TO_ZH, type PlayerStatBonusKey } from "./types/playInfo";
 
 /** 中文加成键 → 运行时 `PlayerBaseStats` 键（与 `PLAYER_STAT_KEY_TO_ZH` 互逆）。 */
 const ZH_BONUS_TO_PLAYER_KEY: Readonly<Record<string, PlayerStatBonusKey>> = (() => {

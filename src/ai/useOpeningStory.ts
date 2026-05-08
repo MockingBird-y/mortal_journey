@@ -6,14 +6,14 @@ import { ref, watch, type ComputedRef, type Ref } from "vue";
 import { generateInitStory } from "./init_story_generate";
 import { generateInitState } from "./init_state_generate";
 import { generateState } from "./state_generate";
-import { applyInitStateToProtagonist } from "../lib/protagonistFromFateChoice";
+import { applyInitStateToProtagonist } from "../role_core/protagonistFromFateChoice";
 import { gameLog } from "../log/gameLog";
 import {
   cloneWorldTime,
   createDefaultWorldTime,
   type WorldTime,
-} from "../lib/worldTime";
-import { clearProtagonist, loadFromFateChoice, protagonist } from "../lib/protagonistManager";
+} from "../role_core/worldTime";
+import { clearProtagonist, loadFromFateChoice, protagonist } from "../role_core/protagonistManager";
 import type { FateChoiceResult } from "../fate_choice/types";
 
 export type OpeningStoryPhase = "idle" | "loading" | "ready" | "error";

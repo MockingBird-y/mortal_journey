@@ -6,8 +6,8 @@ import { ref, watch } from "vue";
 import type { OpeningStoryPhase } from "../ai/useOpeningStory";
 import { generateStory, type StoryChatEntry, type StoryParsed } from "../ai/story_generate";
 import { generateState, type StateParsed } from "../ai/state_generate";
-import { protagonist } from "../lib/protagonistManager";
-import { applyStateChanges } from "../lib/stateApplier";
+import { protagonist } from "../role_core/protagonistManager";
+import { applyStateChanges } from "../role_core/stateApplier";
 import { gameLog } from "../log/gameLog";
 
 const props = withDefaults(
