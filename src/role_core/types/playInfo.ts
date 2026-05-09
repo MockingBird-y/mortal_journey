@@ -165,6 +165,18 @@ export interface ProtagonistPlayInfo extends CharacterPlayInfoCommon {
 // 自 itemInfo 再导出（模块顺序与 itemInfo.ts 一致）
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// UI 详情弹窗动作类型（原 protagonistDetailPayload.ts / protagonistPanelDisplay.ts）
+// ---------------------------------------------------------------------------
+
+export type EquipSlotKey = "weapon" | "faqi" | "armor";
+
+export type ProtagonistDetailAction =
+  | { id: "unequipWear"; equipSlot: EquipSlotKey }
+  | { id: "unequipGongfa"; gongfaIndex: number }
+  | { id: "equipWearFromBag"; inventoryIndex: number }
+  | { id: "equipGongfaFromBag"; inventoryIndex: number };
+
 export type {
   WearableItemDefinition,
   WeaponItemDefinition,

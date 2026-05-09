@@ -2,17 +2,18 @@
  * @fileoverview 主角左栏 UI 纯函数：与 `PlayerInfoPanel.vue` 模板解耦，便于单测与后续复杂展示逻辑。
  */
 
-import { getCultivationRequired } from "./types/realm_state";
-import type { WearableItemDefinition } from "./types/itemInfo";
+import { getCultivationRequired } from "../role_core/types/realm_state";
+import type { WearableItemDefinition } from "../role_core/types/itemInfo";
 import type {
+  EquipSlotKey,
   GongfaItemDefinition,
   InventoryStackItem,
   PlayerBaseStats,
   ProtagonistPlayInfo,
   TraitEntry,
-} from "./types/playInfo";
+} from "../role_core/types/playInfo";
 
-/** 储物袋展示用网格列数（与 `mainScreenPlayerPanel.css`、`protagonistFromFateChoice.INVENTORY_SLOT_EXPAND_STEP` 一致） */
+/** 储物袋展示用网格列数（与 `mainScreenPlayerPanel.css`、`Protagonist.INVENTORY_SLOT_EXPAND_STEP` 一致） */
 export const INVENTORY_BAG_GRID_COLUMNS = 4;
 
 /** 储物袋最少展示格数：不足时在末尾补空位；超过则全部展示并由外层滚动 */
@@ -61,29 +62,6 @@ export function clampPct(n: number): number {
 export function displayStatInt(value: number | undefined | null): number {
   if (value == null || !Number.isFinite(value)) return 0;
   return Math.round(value);
-}
-
-/**
- * 将灵根元素名数组格式化为无分隔拼接展示串。
- *
- * @param elements - 元素名列表。
- * @returns 非空时拼接为连续字符串；否则为「—」。
- */
-export function formatLinggenElements(elements: string[]): string {
-  const els = elements.map((e) => String(e).trim()).filter(Boolean);
-  return els.length ? els.join("") : "—";
-}
-
-/**
- * 将境界对象格式化为单行展示
- *
- * @param realm - 主角 `realm` 字段。
- * @returns 一行境界文案。
- */
-export function formatRealmLine(realm: ProtagonistPlayInfo["realm"]): string {
-  const major = realm.major?.trim() || "—";
-  const minor = realm.minor?.trim() || "";
-  return minor ? `${major}${minor}` : major;
 }
 
 /**
@@ -251,9 +229,7 @@ export function gongfaTypeClass(sub: string): string {
   return "mj-gongfa-slot-type mj-gongfa-slot-type--other";
 }
 
-/** 穿戴槽在数据层与 UI 行中的键。 */
-export type EquipSlotKey = "weapon" | "faqi" | "armor";
-
+/** 穿戴槽在数据层与 UI 行中的键（从 playInfo 再导出，保持兼容）。 */
 /**
  * 单条穿戴槽行：键、中文标签、当前装备。
  */

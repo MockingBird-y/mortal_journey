@@ -4,8 +4,8 @@
  * 展示派生逻辑见 `lib/protagonistPanelDisplay.ts`；详情弹窗见 `ProtagonistDetailModal.vue`。
  */
 import { computed, ref } from "vue";
-import type { ProtagonistPlayInfo } from "../role_core/types/playInfo";
-import { PLAYER_STAT_KEY_TO_ZH } from "../role_core/types/playInfo";
+import { Protagonist } from "../role_core/Protagonist";
+import { PLAYER_STAT_KEY_TO_ZH, type EquipSlotKey } from "../role_core/types/playInfo";
 import {
   buildGongfaDetailPayload,
   buildInventoryStackDetailPayload,
@@ -13,12 +13,8 @@ import {
   buildWearableDetailPayload,
   type ProtagonistDetailAction,
   type ProtagonistDetailPayload,
-} from "../role_core/protagonistDetailPayload";
-import { getProtagonistDerivedStats } from "../role_core/protagonistDerivedStats";
-import { applyProtagonistDetailAction } from "../role_core/protagonistManager";
+} from "./protagonistDetailPayload";
 import {
-  formatLinggenElements,
-  formatRealmLine,
   getCultivationUiState,
   getEquipSlotRows,
   getHpMpBarState,
@@ -32,8 +28,7 @@ import {
   traitSlotInnerText,
   traitSlotRarity,
   traitSlotTitle,
-  type EquipSlotKey,
-} from "../role_core/protagonistPanelDisplay";
+} from "./protagonistPanelDisplay";
 import ProtagonistDetailModal from "./ProtagonistDetailModal.vue";
 import {
   calendarYearsElapsed,
@@ -42,7 +37,7 @@ import {
 } from "../role_core/worldTime";
 
 const props = defineProps<{
-  protagonist: ProtagonistPlayInfo | null;
+  protagonist: Protagonist | null;
   worldTime: WorldTime;
   worldTimeBaseline: WorldTime;
 }>();
@@ -60,7 +55,7 @@ const panelAgeForDisplay = computed(() => {
 });
 
 const cultivationUi = computed(() => getCultivationUiState(props.protagonist));
-const derivedStats = computed(() => getProtagonistDerivedStats(props.protagonist));
+const derivedStats = computed(() => props.protagonist?.getDerivedStats() ?? null);
 const hpMp = computed(() => getHpMpBarState(props.protagonist, derivedStats.value));
 const equipSlots = computed(() => getEquipSlotRows(props.protagonist));
 const traitSlots = computed(() => getTraitSlots(props.protagonist));
@@ -114,7 +109,7 @@ function onBagSlotClick(index: number) {
 }
 
 function onDetailAction(a: ProtagonistDetailAction) {
-  applyProtagonistDetailAction(a);
+  props.protagonist?.applyDetailAction(a);
   closeDetail();
 }
 
@@ -152,7 +147,7 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
           <div class="mj-player-name-vertical">{{ protagonist.displayName }}</div>
         </div>
 
-        <p class="mj-realm-line">{{ formatRealmLine(protagonist.realm) }}</p>
+        <p class="mj-realm-line">{{ Protagonist.formatRealm(protagonist.realm) }}</p>
 
         <div class="mj-resource-row">
           <div class="mj-cultivation-head">
@@ -191,7 +186,7 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
             </div>
             <div class="mj-stat-cell">
               <span class="mj-stat-k">灵根</span>
-              <span class="mj-stat-v">{{ formatLinggenElements(protagonist.linggen) }}</span>
+              <span class="mj-stat-v">{{ Protagonist.formatLinggenElements(protagonist.linggen) }}</span>
             </div>
           </div>
           <div class="mj-stat-pair-row">

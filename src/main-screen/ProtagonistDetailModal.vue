@@ -3,7 +3,7 @@
  * 主角详情弹窗：结构与 `mortal_journey/main.html` 中 `mj-item-detail-root` / `mj-trait-detail-root` 一致。
  */
 import { onMounted, onUnmounted, ref, watch } from "vue";
-import type { ProtagonistDetailAction, ProtagonistDetailPayload } from "../role_core/protagonistDetailPayload";
+import type { ProtagonistDetailAction, ProtagonistDetailPayload } from "./protagonistDetailPayload";
 
 const props = defineProps<{
   open: boolean;

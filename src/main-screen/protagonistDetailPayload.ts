@@ -16,10 +16,10 @@ import type {
   MiscItemDefinition,
   SpiritStoneInventoryStack,
   WeaponItemDefinition,
-} from "./types/itemInfo";
-import type { CultivationRealm, TraitEntry } from "./types/playInfo";
-import { getEquipBonusRealmRatio } from "./types/realm_state";
-import { gradeToTraitRarity, type EquipSlotKey } from "./protagonistPanelDisplay";
+} from "../role_core/types/itemInfo";
+import type { CultivationRealm, EquipSlotKey, TraitEntry } from "../role_core/types/playInfo";
+import { getEquipBonusRealmRatio } from "../role_core/types/realm_state";
+import { gradeToTraitRarity } from "./protagonistPanelDisplay";
 
 /**
  * 详情弹窗底部按钮所触发的动作；由 `protagonistManager.applyProtagonistDetailAction` 执行。

@@ -6,8 +6,7 @@ import { ref, watch } from "vue";
 import type { OpeningStoryPhase } from "../ai/useOpeningStory";
 import { generateStory, type StoryChatEntry, type StoryParsed } from "../ai/story_generate";
 import { generateState, type StateParsed } from "../ai/state_generate";
-import { protagonist } from "../role_core/protagonistManager";
-import { applyStateChanges } from "../role_core/stateApplier";
+import { protagonist } from "../role_core/Protagonist";
 import { gameLog } from "../log/gameLog";
 
 const props = withDefaults(
@@ -126,7 +125,7 @@ async function handleSend(): Promise<void> {
             signal: ac.signal,
           });
           if (abortCtl !== ac) return;
-          applyStateChanges(stateResult);
+          protagonist.value?.applyStateChanges(stateResult);
         }
       } catch (se) {
         gameLog.warn("[StoryChat] 状态更新失败（不影响剧情显示）：" + (se instanceof Error ? se.message : String(se)));

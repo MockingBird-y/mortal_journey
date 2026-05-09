@@ -6,14 +6,13 @@ import { ref, watch, type ComputedRef, type Ref } from "vue";
 import { generateInitStory } from "./init_story_generate";
 import { generateInitState } from "./init_state_generate";
 import { generateState } from "./state_generate";
-import { applyInitStateToProtagonist } from "../role_core/protagonistFromFateChoice";
 import { gameLog } from "../log/gameLog";
 import {
   cloneWorldTime,
   createDefaultWorldTime,
   type WorldTime,
 } from "../role_core/worldTime";
-import { clearProtagonist, loadFromFateChoice, protagonist } from "../role_core/protagonistManager";
+import { Protagonist, protagonist } from "../role_core/Protagonist";
 import type { FateChoiceResult } from "../fate_choice/types";
 
 export type OpeningStoryPhase = "idle" | "loading" | "ready" | "error";
@@ -26,7 +25,7 @@ export interface OpeningStoryApiSlice {
 }
 
 /**
- * 监听 `fateChoice`：非空时 `loadFromFateChoice` 并拉取开局剧情；空时清空主角与剧情 UI。
+ * 监听 `fateChoice`：非空时 `Protagonist.loadFromFateChoice` 并拉取开局剧情；空时清空主角与剧情 UI。
  *
  * @param fateChoice - 通常 `toRef(props, "fateChoice")`
  * @param api - 通常 `computed(() => ({ apiUrl, apiKey, apiModel }))`，在发起请求时读取最新值
@@ -73,12 +72,12 @@ export function useOpeningStoryFromFateChoice(
       abortCtl = null;
 
       if (!fc) {
-        clearProtagonist();
+        Protagonist.clear();
         resetStoryOnly();
         return;
       }
 
-      loadFromFateChoice(fc);
+      Protagonist.loadFromFateChoice(fc);
       storyBody.value = "";
       errorMessage.value = "";
       resetWorldClock();
@@ -128,8 +127,7 @@ export function useOpeningStoryFromFateChoice(
             if (abortCtl !== ac) return;
             const current = protagonist.value;
             if (current) {
-              applyInitStateToProtagonist(current, stateParsed);
-              protagonist.value = { ...current };
+              current.applyInitState(stateParsed);
             }
           } catch (e2) {
             gameLog.warn("[OpeningStory] 开局状态生成失败（不影响剧情显示）：" + (e2 instanceof Error ? e2.message : String(e2)));

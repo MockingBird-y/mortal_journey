@@ -9,7 +9,7 @@ import {
   type JsonChatRequestPayload,
   type ChatMessage,
 } from "./openAiChatBridge";
-import { formatLinggenElements, formatRealmLine } from "../role_core/protagonistPanelDisplay";
+import { Protagonist } from "../role_core/Protagonist";
 import type { NarrationPerson, ProtagonistPlayInfo, EquippedSlotsState, GongfaSlotsState, InventoryStackItem } from "../role_core/types/playInfo";
 
 export interface StoryApiConfig {
@@ -146,8 +146,8 @@ function buildStoryUserSummary(protagonist: ProtagonistPlayInfo, currentWorldLoc
     `姓名：${p.displayName}`,
     `性别：${p.gender || "—"}`,
     narrationPersonLine(p.narrationPerson),
-    `境界：${formatRealmLine(p.realm)}`,
-    `灵根：${formatLinggenElements(p.linggen)}`,
+    `境界：${Protagonist.formatRealm(p.realm)}`,
+    `灵根：${Protagonist.formatLinggenElements(p.linggen)}`,
     locationHint,
     "",
     "【装备】",

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, toRef } from "vue";
 import { useOpeningStoryFromFateChoice } from "../ai/useOpeningStory";
-import { protagonist } from "../role_core/protagonistManager";
+import { protagonist } from "../role_core/Protagonist";
 import type { FateChoiceResult } from "../fate_choice/types";
 import SideToolbarPanel from "./SideToolbarPanel.vue";
 import PlayerInfoPanel from "./PlayerInfoPanel.vue";

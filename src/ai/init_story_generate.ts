@@ -4,7 +4,7 @@
 
 import { INIT_STORY_SYSTEM_PRESET } from "./init_preset";
 import { completeChatWithMessagesJson, type JsonChatRequestPayload } from "./openAiChatBridge";
-import { formatLinggenElements, formatRealmLine } from "../role_core/protagonistPanelDisplay";
+import { Protagonist } from "../role_core/Protagonist";
 import type { NarrationPerson, ProtagonistPlayInfo, TraitEntry } from "../role_core/types/playInfo";
 
 /** 调用网关所需字段 + 生成参数；`messages` 由本模块拼装，不必传入。 */
@@ -116,8 +116,8 @@ export function buildInitStoryUserContent(protagonist: ProtagonistPlayInfo, user
     `姓名：${p.displayName}`,
     `性别：${p.gender || "—"}`,
     narrationPersonLine(p.narrationPerson),
-    `境界：${formatRealmLine(p.realm)}`,
-    `灵根：${formatLinggenElements(p.linggen)}`,
+    `境界：${Protagonist.formatRealm(p.realm)}`,
+    `灵根：${Protagonist.formatLinggenElements(p.linggen)}`,
     `出身地点：${place}`,
     "",
     "【出身情况】",

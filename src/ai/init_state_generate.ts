@@ -1,6 +1,6 @@
 import { INIT_STORY_SYSTEM_PRESET } from "./init_state";
 import { completeChatWithMessagesJson, type JsonChatRequestPayload } from "./openAiChatBridge";
-import { formatLinggenElements, formatRealmLine } from "../role_core/protagonistPanelDisplay";
+import { Protagonist } from "../role_core/Protagonist";
 import { ITEM_GRADE_ATTRI_TABLE, MAGIFICATION_TABLE } from "../role_core/types/realm_state";
 import {
   createSpiritStoneInventoryStack,
@@ -542,8 +542,8 @@ function buildInitStateUserContent(protagonist: ProtagonistPlayInfo, storyBody: 
     "",
     `姓名：${p.displayName}`,
     `性别：${p.gender || "—"}`,
-    `境界：${formatRealmLine(p.realm)}`,
-    `灵根：${formatLinggenElements(p.linggen)}`,
+    `境界：${Protagonist.formatRealm(p.realm)}`,
+    `灵根：${Protagonist.formatLinggenElements(p.linggen)}`,
     `出身地点：${p.birthPlace?.trim() || "—"}`,
     "",
     "【出身情况】",
