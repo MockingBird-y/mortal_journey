@@ -288,69 +288,60 @@
   margin-bottom: 10px;
 }
 
-.main-panel--player .mj-equip-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-  width: 100%;
-}
-
-.main-panel--player .mj-equip-row--three {
-  grid-template-columns: repeat(3, 1fr);
-}
-
-.main-panel--player .mj-equip-slot {
-  min-width: 0;
-  min-height: 0;
-  width: 100%;
-  max-width: 100%;
-  aspect-ratio: 1;
-  padding: 5px 4px;
-  border-radius: 6px;
-  border: 1px solid rgba(140, 120, 83, 0.45);
-  background: rgba(0, 0, 0, 0.22);
+.main-panel--player .mj-treasure-grid .mj-inventory-slot {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  text-align: center;
+  padding: 4px 5px;
   box-sizing: border-box;
+}
+
+.main-panel--player .mj-treasure-slot-label {
+  width: 100%;
+  max-height: 100%;
+  font-size: var(--mj-player-content-font);
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   overflow: hidden;
+  color: var(--mj-text);
 }
 
-.main-panel--player .mj-equip-slot--empty {
-  border-style: dashed;
-  opacity: 0.85;
-}
-
-.main-panel--player .mj-equip-slot--filled {
+.main-panel--player .mj-treasure-grid .mj-inventory-slot.mj-treasure-slot--filled {
   border-style: solid;
-  border-color: rgba(232, 197, 71, 0.55);
+  border-color: rgba(232, 197, 71, 0.5);
   background: rgba(232, 197, 71, 0.06);
 }
 
-.main-panel--player .mj-equip-slot-k {
-  font-size: var(--mj-player-content-font);
-  color: var(--mj-muted);
-  letter-spacing: 0.04em;
+.main-panel--player .mj-treasure-grid .mj-inventory-slot.mj-treasure-slot--filled[data-rarity="平庸"] {
+  border-color: #808080;
+  box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.25);
+  background: rgba(0, 0, 0, 0.28);
 }
-
-.main-panel--player .mj-equip-slot-name {
-  font-size: var(--mj-player-content-font);
-  line-height: 1.2;
-  color: var(--mj-text);
-  max-width: 100%;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  word-break: break-word;
+.main-panel--player .mj-treasure-grid .mj-inventory-slot.mj-treasure-slot--filled[data-rarity="普通"] {
+  border-color: #4caf50;
+  background: rgba(0, 0, 0, 0.28);
 }
-
-.main-panel--player .mj-equip-slot--empty .mj-equip-slot-name {
-  color: var(--mj-muted);
+.main-panel--player .mj-treasure-grid .mj-inventory-slot.mj-treasure-slot--filled[data-rarity="稀有"] {
+  border-color: #4fc3f7;
+  background: rgba(79, 195, 247, 0.08);
+}
+.main-panel--player .mj-treasure-grid .mj-inventory-slot.mj-treasure-slot--filled[data-rarity="史诗"] {
+  border-color: #ba68c8;
+  background: rgba(186, 104, 200, 0.1);
+}
+.main-panel--player .mj-treasure-grid .mj-inventory-slot.mj-treasure-slot--filled[data-rarity="传说"] {
+  border-color: #e8c547;
+  background: rgba(232, 197, 71, 0.12);
+}
+.main-panel--player .mj-treasure-grid .mj-inventory-slot.mj-treasure-slot--filled[data-rarity="神迹"] {
+  border-color: #ff5252;
+  background: rgba(255, 82, 82, 0.12);
 }
 
 .main-panel--player .mj-player-bag-stack {
@@ -564,42 +555,16 @@
   background: rgba(255, 82, 82, 0.12);
 }
 
-.main-panel--player .mj-equip-slot--filled[data-rarity="平庸"] {
-  border-color: #808080;
-  box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.25);
-  background: rgba(0, 0, 0, 0.22);
-}
-.main-panel--player .mj-equip-slot--filled[data-rarity="普通"] {
-  border-color: #4caf50;
-  background: rgba(0, 0, 0, 0.22);
-}
-.main-panel--player .mj-equip-slot--filled[data-rarity="稀有"] {
-  border-color: #4fc3f7;
-  background: rgba(79, 195, 247, 0.08);
-}
-.main-panel--player .mj-equip-slot--filled[data-rarity="史诗"] {
-  border-color: #ba68c8;
-  background: rgba(186, 104, 200, 0.1);
-}
-.main-panel--player .mj-equip-slot--filled[data-rarity="传说"] {
-  border-color: #e8c547;
-  background: rgba(232, 197, 71, 0.12);
-}
-.main-panel--player .mj-equip-slot--filled[data-rarity="神迹"] {
-  border-color: #ff5252;
-  background: rgba(255, 82, 82, 0.12);
-}
-
 /* 可点击槽位（详情弹窗） */
 .main-panel--player .mj-talent-block .mj-trait-slot--filled,
-.main-panel--player .mj-equip-slot--filled,
+.main-panel--player .mj-treasure-grid .mj-inventory-slot.mj-treasure-slot--filled,
 .main-panel--player .mj-inventory-slot.mj-gongfa-slot--filled,
 .main-panel--player .mj-inventory-grid:not(.mj-gongfa-grid) .mj-inventory-slot--filled {
   cursor: pointer;
 }
 
 .main-panel--player .mj-talent-block .mj-trait-slot--filled:focus-visible,
-.main-panel--player .mj-equip-slot--filled:focus-visible,
+.main-panel--player .mj-treasure-grid .mj-inventory-slot.mj-treasure-slot--filled:focus-visible,
 .main-panel--player .mj-inventory-slot.mj-gongfa-slot--filled:focus-visible,
 .main-panel--player .mj-inventory-grid:not(.mj-gongfa-grid) .mj-inventory-slot--filled:focus-visible {
   outline: 2px solid var(--mj-gold, #e8c547);

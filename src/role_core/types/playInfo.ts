@@ -10,11 +10,9 @@
 export type NarrationPerson = "first" | "second" | "third";
 
 import type {
-  ArmorItemDefinition,
-  FaqiItemDefinition,
+  TreasureItemDefinition,
   GongfaItemDefinition,
   InventoryStackItem,
-  WeaponItemDefinition,
 } from "./itemInfo";
 
 // ---------------------------------------------------------------------------
@@ -67,8 +65,8 @@ export type ZhStatBonusMap = Partial<Record<ZhPlayerStatBonusKey, number>>;
 // 常量 · 境界 · 十维属性
 // ---------------------------------------------------------------------------
 
-/** 佩戴栏槽位数（武器 / 法器 / 防具），与 `EquippedSlotsState` 一致 */
-export const EQUIP_SLOT_COUNT = 3;
+/** 法宝栏槽位数（4 格统一法宝栏），与 `EquippedSlotsState` 长度一致 */
+export const EQUIP_SLOT_COUNT = 4;
 
 /** 功法栏格数（如 2×4），与 `GongfaSlotsState` 长度一致 */
 export const GONGFA_SLOT_COUNT = 8;
@@ -87,14 +85,10 @@ export interface CultivationRealm {
 // ---------------------------------------------------------------------------
 
 /**
- * 三佩戴槽：各槽位仅接受对应 `itemInfo` 装备分支；空位为 `null`。
- * （与 `WearableItemDefinition` 三支一一对应，按槽位收窄类型。）
+ * 四格法宝栏：所有法宝统一存放，不区分武器/法器/防具；空位为 `null`。
+ * 长度恒为 `EQUIP_SLOT_COUNT`（4）。
  */
-export interface EquippedSlotsState {
-  weapon: WeaponItemDefinition | null;
-  faqi: FaqiItemDefinition | null;
-  armor: ArmorItemDefinition | null;
-}
+export type EquippedSlotsState = Array<TreasureItemDefinition | null>;
 
 type Tuple8<T> = [T, T, T, T, T, T, T, T];
 
@@ -169,7 +163,8 @@ export interface ProtagonistPlayInfo extends CharacterPlayInfoCommon {
 // UI 详情弹窗动作类型（原 protagonistDetailPayload.ts / protagonistPanelDisplay.ts）
 // ---------------------------------------------------------------------------
 
-export type EquipSlotKey = "weapon" | "faqi" | "armor";
+/** 法宝栏槽位下标（0 ~ EQUIP_SLOT_COUNT-1） */
+export type EquipSlotKey = number;
 
 export type ProtagonistDetailAction =
   | { id: "unequipWear"; equipSlot: EquipSlotKey }
@@ -178,10 +173,7 @@ export type ProtagonistDetailAction =
   | { id: "equipGongfaFromBag"; inventoryIndex: number };
 
 export type {
-  WearableItemDefinition,
-  WeaponItemDefinition,
-  FaqiItemDefinition,
-  ArmorItemDefinition,
+  TreasureItemDefinition,
   AttackGongfaDefinition,
   AssistGongfaDefinition,
   GongfaItemDefinition,
@@ -192,9 +184,7 @@ export type {
   MiscItemDefinition,
   CategorizedItemDefinition,
   SpiritStoneInventoryStack,
-  WeaponBagStack,
-  FaqiBagStack,
-  ArmorBagStack,
+  TreasureBagStack,
   AttackGongfaBagStack,
   AssistGongfaBagStack,
   ElixirBagStack,

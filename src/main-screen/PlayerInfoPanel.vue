@@ -28,6 +28,7 @@ import {
   traitSlotInnerText,
   traitSlotRarity,
   traitSlotTitle,
+  treasureCellName,
 } from "./protagonistPanelDisplay";
 import ProtagonistDetailModal from "./ProtagonistDetailModal.vue";
 import {
@@ -281,20 +282,20 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
         </div>
 
         <div class="mj-equip-block">
-          <h3 class="mj-attr-section-title">装备佩戴</h3>
-          <div class="mj-equip-row mj-equip-row--three" role="group">
+          <h3 class="mj-attr-section-title">法宝</h3>
+          <div class="mj-inventory-grid mj-treasure-grid" aria-label="法宝栏四格">
             <div
               v-for="slot in equipSlots"
               :key="slot.key"
-              class="mj-equip-slot"
-              :class="slot.item ? 'mj-equip-slot--filled' : 'mj-equip-slot--empty'"
+              class="mj-inventory-slot"
+              :class="slot.item ? 'mj-treasure-slot--filled' : ''"
               :data-rarity="slot.item ? gradeToTraitRarity(slot.item.grade) : undefined"
+              :title="slot.item ? `${treasureCellName(slot.item)}\n（点击查看详情）` : '法宝空位'"
               :tabindex="slot.item ? 0 : -1"
               @click="slot.item && onEquipSlotClick(slot.key)"
               @keydown="slot.item && onSlotKeydown($event, () => onEquipSlotClick(slot.key))"
             >
-              <span class="mj-equip-slot-k">{{ slot.label }}</span>
-              <span class="mj-equip-slot-name">{{ slot.item ? slot.item.name : "—" }}</span>
+              <span class="mj-treasure-slot-label">{{ slot.item ? treasureCellName(slot.item) : "" }}</span>
             </div>
           </div>
         </div>

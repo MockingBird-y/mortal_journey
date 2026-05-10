@@ -252,7 +252,7 @@ function narrationPersonLine(person: NarrationPerson): string {
   }
 }
 
-function formatEquipSlot(label: string, slot: EquippedSlotsState[keyof EquippedSlotsState]): string {
+function formatEquipSlot(label: string, slot: EquippedSlotsState[number]): string {
   if (!slot) return `${label}：无`;
   return `${label}：${slot.name}（${slot.grade}）`;
 }
@@ -293,9 +293,7 @@ function buildStateUserContent(protagonist: ProtagonistPlayInfo, storyBody: stri
     `当前法力：${p.currentMp}/${p.maxMp}`,
     "",
     "【当前装备】",
-    formatEquipSlot("武器", p.equippedSlots.weapon),
-    formatEquipSlot("法器", p.equippedSlots.faqi),
-    formatEquipSlot("防具", p.equippedSlots.armor),
+    ...p.equippedSlots.map((slot, i) => formatEquipSlot(`法宝${i + 1}`, slot)),
     "",
     "【当前功法】",
     formatGongfaSlots(p.gongfaSlots),

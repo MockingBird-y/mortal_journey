@@ -1,16 +1,14 @@
 /**
- * @fileoverview 主角穿戴槽 & 功法栏操作：装备/卸下、功法装备/卸下、详情弹窗动作。
+ * @fileoverview 主角法宝栏 & 功法栏操作：法宝装备/卸下、功法装备/卸下、详情弹窗动作。
  * 以模块函数形式提供，由 `Protagonist` 类的实例方法委托调用。
  */
 
 import type {
-  ArmorItemDefinition,
-  FaqiItemDefinition,
+  TreasureItemDefinition,
   GongfaItemDefinition,
-  WearableItemDefinition,
-  WeaponItemDefinition,
 } from "./types/itemInfo";
 import {
+  EQUIP_SLOT_COUNT,
   GONGFA_SLOT_COUNT,
   type EquipSlotKey,
   type ProtagonistDetailAction,
@@ -18,17 +16,17 @@ import {
 import type { Protagonist } from "./Protagonist";
 import { compactInventorySlotsInPlace, findFirstEmptyInventorySlotOrExpand } from "./ProtagonistInventory";
 
-export function isWearableItem(x: unknown): x is WearableItemDefinition {
+export function isTreasureItem(x: unknown): x is TreasureItemDefinition {
   if (!x || typeof x !== "object") return false;
   const o = x as Record<string, unknown>;
-  return o.itemType === "装备" && (o.equipType === "武器" || o.equipType === "法器" || o.equipType === "防具");
+  return o.itemType === "法宝";
 }
 
-export function equipSlotForItem(item: WearableItemDefinition): EquipSlotKey | null {
-  if (item.equipType === "武器") return "weapon";
-  if (item.equipType === "法器") return "faqi";
-  if (item.equipType === "防具") return "armor";
-  return null;
+export function findFirstEmptyEquipSlot(p: Protagonist): number {
+  for (let i = 0; i < EQUIP_SLOT_COUNT; i++) {
+    if (p.equippedSlots[i] == null) return i;
+  }
+  return -1;
 }
 
 export function setGongfaSlot(p: Protagonist, index: number, item: GongfaItemDefinition | null): boolean {
@@ -68,33 +66,27 @@ export function equipGongfaFromInventory(p: Protagonist, inventoryIndex: number)
   return true;
 }
 
-export function setEquippedSlot(p: Protagonist, slot: EquipSlotKey, item: WearableItemDefinition | null): boolean {
-  if (item != null) {
-    const sk = equipSlotForItem(item);
-    if (sk !== slot) return false;
-  }
-  if (slot === "weapon") p.equippedSlots.weapon = item as WeaponItemDefinition | null;
-  else if (slot === "faqi") p.equippedSlots.faqi = item as FaqiItemDefinition | null;
-  else p.equippedSlots.armor = item as ArmorItemDefinition | null;
+export function setEquippedSlot(p: Protagonist, slot: EquipSlotKey, item: TreasureItemDefinition | null): boolean {
+  if (slot < 0 || slot >= EQUIP_SLOT_COUNT) return false;
+  p.equippedSlots[slot] = item;
   return true;
 }
 
 export function equipFromInventory(p: Protagonist, inventoryIndex: number): boolean {
   if (inventoryIndex < 0 || inventoryIndex >= p.inventorySlots.length) return false;
   const cell = p.inventorySlots[inventoryIndex];
-  if (!cell || !isWearableItem(cell)) return false;
-  const slot = equipSlotForItem(cell);
-  if (!slot) return false;
+  if (!cell || !isTreasureItem(cell)) return false;
+  const slot = findFirstEmptyEquipSlot(p);
+  if (slot < 0) return false;
   const prev = p.equippedSlots[slot];
-  if (slot === "weapon") p.equippedSlots.weapon = cell as WeaponItemDefinition;
-  else if (slot === "faqi") p.equippedSlots.faqi = cell as FaqiItemDefinition;
-  else p.equippedSlots.armor = cell as ArmorItemDefinition;
+  p.equippedSlots[slot] = cell;
   p.inventorySlots[inventoryIndex] = prev;
   compactInventorySlotsInPlace(p);
   return true;
 }
 
 export function unequipToInventory(p: Protagonist, slot: EquipSlotKey): boolean {
+  if (slot < 0 || slot >= EQUIP_SLOT_COUNT) return false;
   const cur = p.equippedSlots[slot];
   if (!cur) return true;
   const empty = findFirstEmptyInventorySlotOrExpand(p);

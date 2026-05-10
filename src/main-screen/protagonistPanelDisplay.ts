@@ -3,7 +3,7 @@
  */
 
 import { getCultivationRequired } from "../role_core/types/realm_state";
-import type { WearableItemDefinition } from "../role_core/types/itemInfo";
+import type { TreasureItemDefinition } from "../role_core/types/itemInfo";
 import type {
   EquipSlotKey,
   GongfaItemDefinition,
@@ -12,6 +12,7 @@ import type {
   ProtagonistPlayInfo,
   TraitEntry,
 } from "../role_core/types/playInfo";
+import { EQUIP_SLOT_COUNT } from "../role_core/types/playInfo";
 
 /** 储物袋展示用网格列数（与 `mainScreenPlayerPanel.css`、`Protagonist.INVENTORY_SLOT_EXPAND_STEP` 一致） */
 export const INVENTORY_BAG_GRID_COLUMNS = 4;
@@ -231,30 +232,42 @@ export function gongfaTypeClass(sub: string): string {
 
 /** 穿戴槽在数据层与 UI 行中的键（从 playInfo 再导出，保持兼容）。 */
 /**
- * 单条穿戴槽行：键、中文标签、当前装备。
+ * 单条法宝槽行：键与当前法宝。
  */
 export interface EquipSlotRow {
-  /** 槽位键。 */
+  /** 槽位下标。 */
   key: EquipSlotKey;
-  /** 行标题（武器 / 法器 / 防具）。 */
-  label: string;
-  /** 该槽已装备物品或空。 */
-  item: WearableItemDefinition | null;
+  /** 该槽已装备法宝或空。 */
+  item: TreasureItemDefinition | null;
 }
 
 /**
- * 构建三行穿戴槽列表，供左栏模板遍历。
+ * 构建法宝槽列表，供左栏模板遍历。
  *
- * @param p - 主角信息；`null` 时返回空数组。
- * @returns `EquipSlotRow` 数组。
+ * @param p 主角信息；`null` 时返回空数组。
+ * @returns `EquipSlotRow` 数组（长度为 `EQUIP_SLOT_COUNT`）。
  */
 export function getEquipSlotRows(p: ProtagonistPlayInfo | null): EquipSlotRow[] {
   if (!p) return [];
-  return [
-    { key: "weapon", label: "武器", item: p.equippedSlots.weapon },
-    { key: "faqi", label: "法器", item: p.equippedSlots.faqi },
-    { key: "armor", label: "防具", item: p.equippedSlots.armor },
-  ];
+  const rows: EquipSlotRow[] = [];
+  for (let i = 0; i < EQUIP_SLOT_COUNT; i++) {
+    rows.push({
+      key: i,
+      item: p.equippedSlots[i] ?? null,
+    });
+  }
+  return rows;
+}
+
+/**
+ * 从法宝格数据提取名称，供格子展示。
+ *
+ * @param cell 法宝定义或空。
+ * @returns 名称；空格时为空串。
+ */
+export function treasureCellName(cell: TreasureItemDefinition | null): string {
+  if (!cell) return "";
+  return cell.name;
 }
 
 /** 天赋展示固定槽位数。 */

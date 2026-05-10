@@ -4,18 +4,16 @@
  */
 
 import type {
-  ArmorItemDefinition,
   AttackGongfaDefinition,
   BreakthroughElixirDefinition,
   CategorizedItemDefinition,
   ElixirItemDefinition,
-  FaqiItemDefinition,
   GongfaItemDefinition,
   InventoryStackItem,
   MaterialItemDefinition,
   MiscItemDefinition,
   SpiritStoneInventoryStack,
-  WeaponItemDefinition,
+  TreasureItemDefinition,
 } from "../role_core/types/itemInfo";
 import type { CultivationRealm, EquipSlotKey, TraitEntry } from "../role_core/types/playInfo";
 import { getEquipBonusRealmRatio } from "../role_core/types/realm_state";
@@ -182,24 +180,25 @@ export function buildTraitDetailPayload(t: TraitEntry): ProtagonistDetailPayload
 }
 
 /**
- * 根据装备定义生成副标题（装备类型文案）。
+ * 根据法宝定义生成副标题。
  *
- * @param it - 武器、法器或防具定义。
- * @returns 与 `equipType` 一致的副标题字符串。
+ * @param it 法宝定义。
+ * @returns 固定返回「法宝」。
  */
-function wearableSubtitle(it: WeaponItemDefinition | FaqiItemDefinition | ArmorItemDefinition): string {
-  return `${it.equipType}`;
+function wearableSubtitle(it: TreasureItemDefinition): string {
+  return "法宝";
 }
 
 /**
- * 构建可穿戴装备（武器 / 法器 / 防具）的详情弹窗数据，并按来源附加「卸下」或「装备」操作。
+ * 构建法宝的详情弹窗数据，并按来源附加「卸下」或「装备」操作。
  *
- * @param it - 装备物品定义。
- * @param source - 可选来源：已装备槽位或储物袋索引；省略则无底部操作。
+ * @param it 法宝物品定义。
+ * @param source 可选来源：已装备槽位或储物袋索引；省略则无底部操作。
+ * @param realm 可选境界（用于计算境界加成显示）。
  * @returns 完整的 `ProtagonistDetailPayload`。
  */
 export function buildWearableDetailPayload(
-  it: WeaponItemDefinition | FaqiItemDefinition | ArmorItemDefinition,
+  it: TreasureItemDefinition,
   source?: WearableDetailSource,
   realm?: CultivationRealm | null,
 ): ProtagonistDetailPayload {
@@ -211,8 +210,8 @@ export function buildWearableDetailPayload(
       ? formatZhBonusWithRealmEquip(it.bonus as Record<string, number>, realm)
       : formatZhBonus(it.bonus as Record<string, number>);
   if (bonus) pushSec(sections, "属性加成", bonus);
-  if (it.equipType === "武器") {
-    const mag = formatMagnification((it as WeaponItemDefinition).magnification);
+  if (it.magnification) {
+    const mag = formatMagnification(it.magnification);
     if (mag) pushSec(sections, "伤害倍率", mag);
   }
   pushSec(sections, "数量", it.count);
@@ -365,7 +364,7 @@ export function buildInventoryStackDetailPayload(
 
   const it = cell;
   switch (it.itemType) {
-    case "装备":
+    case "法宝":
       return buildWearableDetailPayload(
         it,
         bagIndex != null ? { type: "bag", inventoryIndex: bagIndex } : undefined,

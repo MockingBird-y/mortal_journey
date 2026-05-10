@@ -1,5 +1,5 @@
 /**
- * 物品领域模型：武器 / 法器 / 防具、攻击·辅助功法、丹药与突破丹药、材料、杂物。
+ * 物品领域模型：法宝、攻击·辅助功法、丹药与突破丹药、材料、杂物。
  * 对齐 mortal_journey 中 worldbook（init_state_rules）、state_generate.ensureGeneratedItemStats、
  * normalizeBagItem 等口径。
  * 储物袋单格为 discriminated union（`InventoryStackItem`），避免丹药带 magnification、功法带 recover 等混用。
@@ -15,14 +15,11 @@ import type { ZhStatBonusMap } from "./playInfo";
 /** worldbook：品阶仅能为以下之一 */
 export type ItemGrade = "下品" | "中品" | "上品" | "极品" | "仙品";
 
-/** 佩戴类部位（主界面三槽为 武器 / 法器 / 防具） */
-export type WearEquipType = "武器" | "法器" | "防具";
-
 /**
  * 储物袋 / item_add 等 JSON 里常见的大类（突破丹药在运行时常规化为 type「丹药」并带 breakthrough效果）。
  */
 export type ItemCategoryLabel =
-  | WearEquipType
+  | "法宝"
   | "攻击功法"
   | "辅助功法"
   | "丹药"
@@ -73,32 +70,14 @@ export interface ItemDefinitionBase {
 }
 
 // ---------------------------------------------------------------------------
-// 佩戴装备（武器 / 法器 / 防具）
+// 法宝（武器 / 法器 / 防具 统一为法宝）
 // ---------------------------------------------------------------------------
 
-export interface WeaponItemDefinition extends ItemDefinitionBase {
-  itemType: "装备";
-  equipType: "武器";
+export interface TreasureItemDefinition extends ItemDefinitionBase {
+  itemType: "法宝";
   bonus: ItemBonusMap;
-  magnification: ItemMagnificationMap;
+  magnification?: ItemMagnificationMap;
 }
-
-export interface FaqiItemDefinition extends ItemDefinitionBase {
-  itemType: "装备";
-  equipType: "法器";
-  bonus: ItemBonusMap;
-}
-
-export interface ArmorItemDefinition extends ItemDefinitionBase {
-  itemType: "装备";
-  equipType: "防具";
-  bonus: ItemBonusMap;
-}
-
-export type WearableItemDefinition =
-  | WeaponItemDefinition
-  | FaqiItemDefinition
-  | ArmorItemDefinition;
 
 // ---------------------------------------------------------------------------
 // 功法（攻击 / 辅助）
@@ -158,7 +137,7 @@ export interface MiscItemDefinition extends ItemDefinitionBase {
 // ---------------------------------------------------------------------------
 
 export type CategorizedItemDefinition =
-  | WearableItemDefinition
+  | TreasureItemDefinition
   | GongfaItemDefinition
   | PillItemDefinition
   | MaterialItemDefinition
@@ -172,12 +151,10 @@ export type CategorizedItemDefinition =
 export type { SpiritStoneInventoryStack };
 
 /**
- * 储物袋非灵石格与上方 `CategorizedItemDefinition` 同形，避免装备/功法/丹药各写两套类型。
+ * 储物袋非灵石格与上方 `CategorizedItemDefinition` 同形，避免法宝/功法/丹药各写两套类型。
  * 下列别名仅语义提示，便于对照旧脚本里的「bag」命名。
  */
-export type WeaponBagStack = WeaponItemDefinition;
-export type FaqiBagStack = FaqiItemDefinition;
-export type ArmorBagStack = ArmorItemDefinition;
+export type TreasureBagStack = TreasureItemDefinition;
 export type AttackGongfaBagStack = AttackGongfaDefinition;
 export type AssistGongfaBagStack = AssistGongfaDefinition;
 export type ElixirBagStack = ElixirItemDefinition;
@@ -187,7 +164,7 @@ export type MiscBagStack = MiscItemDefinition;
 
 /**
  * 储物袋一格：灵石栈 + 与配置表一致的物品定义联合。
- * 判别：灵石用五档灵石名且 `type` 为「灵石」而无 `itemType`；其余用 `itemType` / `equipType` / `subtype`。
+ * 判别：灵石用五档灵石名且 `type` 为「灵石」而无 `itemType`；其余用 `itemType` / `subtype`。
  */
 export type InventoryStackItem =
   | SpiritStoneInventoryStack

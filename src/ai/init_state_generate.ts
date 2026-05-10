@@ -8,18 +8,17 @@ import {
   type SpiritStoneName,
 } from "../role_core/types/spiritStone";
 import type {
-  ArmorItemDefinition,
   AttackGongfaDefinition,
   AssistGongfaDefinition,
   BreakthroughElixirDefinition,
   ElixirItemDefinition,
-  FaqiItemDefinition,
   ItemGrade,
   MaterialItemDefinition,
   MiscItemDefinition,
-  WeaponItemDefinition,
+  TreasureItemDefinition,
 } from "../role_core/types/itemInfo";
 import type { InventoryStackItem, ProtagonistPlayInfo, GongfaSlotsState, EquippedSlotsState } from "../role_core/types/playInfo";
+import { EQUIP_SLOT_COUNT } from "../role_core/types/playInfo";
 import type { ZhPlayerStatBonusKey } from "../role_core/types/playInfo";
 import { PLAYER_STAT_KEY_TO_ZH, type PlayerStatBonusKey, PLAYER_STAT_BONUS_KEYS } from "../role_core/types/playInfo";
 
@@ -272,44 +271,20 @@ function resolveEquipBonus(equip: AiEquipItem, primary: ZhPlayerStatBonusKey[]):
   return generateBonusForGrade(equip.grade, merged);
 }
 
-function buildWeapon(item: AiEquipItem): WeaponItemDefinition {
-  const stats = pickStatForEquipType("武器");
-  return {
+function buildTreasure(item: AiEquipItem): TreasureItemDefinition {
+  const stats = pickStatForEquipType(item.type === "武器" ? "武器" : item.type === "法器" ? "法器" : "防具");
+  const result: TreasureItemDefinition = {
     name: item.name,
     desc: item.intro,
     grade: item.grade as ItemGrade,
     count: 1,
-    itemType: "装备",
-    equipType: "武器",
-    bonus: resolveEquipBonus(item, stats),
-    magnification: generateMagnificationForGrade(item.grade, ["物攻"]),
-  };
-}
-
-function buildFaqi(item: AiEquipItem): FaqiItemDefinition {
-  const stats = pickStatForEquipType("法器");
-  return {
-    name: item.name,
-    desc: item.intro,
-    grade: item.grade as ItemGrade,
-    count: 1,
-    itemType: "装备",
-    equipType: "法器",
+    itemType: "法宝",
     bonus: resolveEquipBonus(item, stats),
   };
-}
-
-function buildArmor(item: AiEquipItem): ArmorItemDefinition {
-  const stats = pickStatForEquipType("防具");
-  return {
-    name: item.name,
-    desc: item.intro,
-    grade: item.grade as ItemGrade,
-    count: 1,
-    itemType: "装备",
-    equipType: "防具",
-    bonus: resolveEquipBonus(item, stats),
-  };
+  if (item.type === "武器") {
+    result.magnification = generateMagnificationForGrade(item.grade, ["物攻"]);
+  }
+  return result;
 }
 
 function buildAttackGongfa(item: AiGongfaItem): AttackGongfaDefinition {
@@ -463,25 +438,17 @@ export function parseInitStateAiResponse(raw: string): InitStateParsed {
 }
 
 export function buildEquippedSlotsFromParsed(parsed: InitStateParsed): EquippedSlotsState {
-  let weapon: WeaponItemDefinition | null = null;
-  let faqi: FaqiItemDefinition | null = null;
-  let armor: ArmorItemDefinition | null = null;
+  const slots: EquippedSlotsState = Array.from({ length: EQUIP_SLOT_COUNT }, () => null);
 
   for (const item of parsed.equips) {
-    switch (item.type) {
-      case "武器":
-        if (!weapon) weapon = buildWeapon(item);
-        break;
-      case "法器":
-        if (!faqi) faqi = buildFaqi(item);
-        break;
-      case "防具":
-        if (!armor) armor = buildArmor(item);
-        break;
+    const treasure = buildTreasure(item);
+    const emptyIdx = slots.findIndex((s) => s === null);
+    if (emptyIdx >= 0) {
+      slots[emptyIdx] = treasure;
     }
   }
 
-  return { weapon, faqi, armor };
+  return slots;
 }
 
 export function buildGongfaSlotsFromParsed(parsed: InitStateParsed): GongfaSlotsState {

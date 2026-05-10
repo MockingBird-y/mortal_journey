@@ -2,23 +2,21 @@
  * @fileoverview 主角玩家类：聚合所有角色数据（境界/属性/HPMP/装备/功法/储物袋），
  * 提供统一的读写方法与派生计算。全局单例通过 `Protagonist.current` 访问（Vue ref）。
  *
- * 储物袋操作见 `ProtagonistInventory.ts`；穿戴/功法操作见 `ProtagonistEquip.ts`。
+ * 储物袋操作见 `ProtagonistInventory.ts`；法宝/功法操作见 `ProtagonistEquip.ts`。
  */
 
 import { ref, type Ref } from "vue";
 import type { FateChoiceResult } from "../fate_choice/types";
 import type {
-  ArmorItemDefinition,
-  FaqiItemDefinition,
   GongfaItemDefinition,
   InventoryStackItem,
-  WearableItemDefinition,
-  WeaponItemDefinition,
+  TreasureItemDefinition,
 } from "./types/itemInfo";
 import {
   PLAYER_STAT_BONUS_KEYS,
   type CultivationRealm,
   type EquippedSlotsState,
+  EQUIP_SLOT_COUNT,
   GONGFA_SLOT_COUNT,
   type GongfaSlotsState,
   type NarrationPerson,
@@ -34,7 +32,6 @@ import {
   getEquipBonusRealmRatio,
   getProtagonistNarrativeAge,
   getShouyuanForRealm,
-  applyLinggenToPlayerBase,
 } from "./types/realm_state";
 import {
   SPIRIT_STONE_TABLE_KEYS_ORDERED,
@@ -56,7 +53,7 @@ import {
   removeSpiritStone as invRemoveStone,
 } from "./ProtagonistInventory";
 import {
-  isWearableItem,
+  isTreasureItem,
   setGongfaSlot as eqSetGongfa,
   unequipGongfaToInventory as eqUnequipGf,
   equipGongfaFromInventory as eqEquipGf,
@@ -66,7 +63,7 @@ import {
   applyDetailAction as eqApply,
 } from "./ProtagonistEquip";
 
-/** 主角玩家类：聚合境界、属性、装备、功法、储物袋等全部角色状态。 */
+/** 主角玩家类：聚合境界、属性、法宝、功法、储物袋等全部角色状态。 */
 export class Protagonist {
 
   /**
@@ -144,7 +141,7 @@ export class Protagonist {
   currentHp: number;
   /** 当前法力。 */
   currentMp: number;
-  /** 三佩戴槽（武器/法器/防具）。 */
+  /** 法宝栏（4 格统一法宝槽）。 */
   equippedSlots: EquippedSlotsState;
   /** 功法栏（8 格固定）。 */
   gongfaSlots: GongfaSlotsState;
@@ -198,15 +195,6 @@ export class Protagonist {
   })();
 
   /**
-   * 将灵根数组展平为可被 `parseLinggenElements` 扫描的连续字符串。
-   *
-   * @returns 无空格拼接的五行字符串；空数组时返回空串。
-   */
-  private linggenElementsToParseText(): string {
-    return this.linggen.map((x) => String(x).trim()).filter(Boolean).join("");
-  }
-
-  /**
    * 获取境界表底数；若查表失败则回退为实例内存储的 `playerBase`。
    *
    * @returns 境界表行克隆或 `playerBase` 快照。
@@ -247,51 +235,23 @@ export class Protagonist {
    */
   private addEquippedAndGongfaBonuses(target: PlayerBaseStats): void {
     const ratio = getEquipBonusRealmRatio(this.realm.major, this.realm.minor);
-    const { weapon, faqi, armor } = this.equippedSlots;
-    if (weapon) Protagonist.addZhItemBonusInto(target, weapon.bonus, ratio);
-    if (faqi) Protagonist.addZhItemBonusInto(target, faqi.bonus, ratio);
-    if (armor) Protagonist.addZhItemBonusInto(target, armor.bonus, ratio);
+    for (const eq of this.equippedSlots) {
+      if (eq) Protagonist.addZhItemBonusInto(target, eq.bonus, ratio);
+    }
     for (const gf of this.gongfaSlots) {
       if (gf) Protagonist.addZhItemBonusInto(target, gf.bonus, ratio);
     }
   }
 
   /**
-   * 计算灵根倍率前的面板十维：境界表底数 + 装备/功法平面加成。
-   *
-   * @returns 新 `PlayerBaseStats` 对象。
-   */
-  getStatsBeforeLinggen(): PlayerBaseStats {
-    const merged = this.realmTableBaseOrStored();
-    this.addEquippedAndGongfaBonuses(merged);
-    return merged;
-  }
-
-  /**
-   * 完整推导链的分步数据，便于调试或 UI 展示「来源」。
-   *
-   * @returns 包含 `realmTableBase`、`preLinggen`、`final` 三段快照的对象。
-   */
-  getDerivedStatsBreakdown(): {
-    realmTableBase: PlayerBaseStats;
-    preLinggen: PlayerBaseStats;
-    final: PlayerBaseStats;
-  } {
-    const realmTableBase = this.realmTableBaseOrStored();
-    const preLinggen = { ...realmTableBase };
-    this.addEquippedAndGongfaBonuses(preLinggen);
-    const final = applyLinggenToPlayerBase({ ...preLinggen }, this.realm.major, this.linggenElementsToParseText());
-    return { realmTableBase, preLinggen, final };
-  }
-
-  /**
-   * 角色面板应展示的十维最终值：境界底数 + 装备/功法平面加成 + 灵根倍率。
+   * 角色面板应展示的十维最终值：境界底数 + 装备/功法平面加成。
    *
    * @returns 新 `PlayerBaseStats` 对象。
    */
   getDerivedStats(): PlayerBaseStats {
-    const pre = this.getStatsBeforeLinggen();
-    return applyLinggenToPlayerBase(pre, this.realm.major, this.linggenElementsToParseText());
+    const merged = this.realmTableBaseOrStored();
+    this.addEquippedAndGongfaBonuses(merged);
+    return merged;
   }
 
   // ===================================================================
@@ -489,18 +449,18 @@ export class Protagonist {
   // ===================================================================
 
   /**
-   * 直接设置某一穿戴槽的物品；非 `null` 时物品类型须与槽位匹配。
+   * 直接设置法宝栏指定格的物品。
    *
-   * @param slot 槽位键（`"weapon"` / `"faqi"` / `"armor"`）。
-   * @param item 装备实例或 `null`（卸下）。
-   * @returns 写入成功时为 `true`；类型不匹配时为 `false`。
+   * @param slot 法宝栏下标（`0 ~ EQUIP_SLOT_COUNT-1`）。
+   * @param item 法宝实例或 `null`（卸下）。
+   * @returns 下标合法且已写入时为 `true`。
    */
-  setEquippedSlot(slot: EquipSlotKey, item: WearableItemDefinition | null): boolean {
+  setEquippedSlot(slot: EquipSlotKey, item: TreasureItemDefinition | null): boolean {
     return eqSetEquip(this, slot, item);
   }
 
   /**
-   * 从储物袋指定格装备可穿戴物品到对应槽位；若该槽已有装备则交换到袋中该格。
+   * 从储物袋指定格装备法宝到第一个空法宝格；若法宝栏已满则交换到袋中该格。
    *
    * @param inventoryIndex 储物袋下标。
    * @returns 装备成功时为 `true`。
@@ -510,9 +470,9 @@ export class Protagonist {
   }
 
   /**
-   * 将指定穿戴槽的物品卸下放入储物袋首个空位；袋满时自动扩容。
+   * 将法宝栏指定格的物品卸下放入储物袋首个空位；袋满时自动扩容。
    *
-   * @param slot 要卸下的槽位。
+   * @param slot 法宝栏下标。
    * @returns 槽为空（视为成功）或成功放入时为 `true`。
    */
   unequipToInventory(slot: EquipSlotKey): boolean {
@@ -524,7 +484,7 @@ export class Protagonist {
   // ===================================================================
 
   /**
-   * 执行主角详情弹窗底部按钮对应的装备/卸下/功法装卸逻辑。
+   * 执行主角详情弹窗底部按钮对应的法宝/功法装卸逻辑。
    *
    * @param a 详情弹窗动作判别联合。
    * @returns 操作成功时为 `true`。
@@ -713,14 +673,22 @@ export class Protagonist {
     const currentMp = typeof o.currentMp === "number" && Number.isFinite(o.currentMp) ? Math.max(0, Math.round(o.currentMp)) : maxMp;
 
     const eq = o.equippedSlots;
-    let equippedSlots: EquippedSlotsState = { weapon: null, faqi: null, armor: null };
-    if (eq && typeof eq === "object") {
+    let equippedSlots: EquippedSlotsState = Array.from({ length: EQUIP_SLOT_COUNT }, () => null);
+    if (Array.isArray(eq)) {
+      for (let i = 0; i < EQUIP_SLOT_COUNT; i++) {
+        const raw = eq[i];
+        equippedSlots[i] = isTreasureItem(raw) ? raw as TreasureItemDefinition : null;
+      }
+    } else if (eq && typeof eq === "object") {
       const e = eq as Record<string, unknown>;
-      equippedSlots = {
-        weapon: isWearableItem(e.weapon) && (e.weapon as WearableItemDefinition).equipType === "武器" ? (e.weapon as WeaponItemDefinition) : null,
-        faqi: isWearableItem(e.faqi) && (e.faqi as WearableItemDefinition).equipType === "法器" ? (e.faqi as FaqiItemDefinition) : null,
-        armor: isWearableItem(e.armor) && (e.armor as WearableItemDefinition).equipType === "防具" ? (e.armor as ArmorItemDefinition) : null,
-      };
+      const legacy: unknown[] = [
+        e.weapon,
+        e.faqi,
+        e.armor,
+      ];
+      for (let i = 0; i < Math.min(legacy.length, EQUIP_SLOT_COUNT); i++) {
+        equippedSlots[i] = isTreasureItem(legacy[i]) ? legacy[i] as TreasureItemDefinition : null;
+      }
     }
 
     const npRaw = o.narrationPerson;
@@ -805,7 +773,7 @@ export class Protagonist {
       shouyuan: sy,
       inventorySlots: Array.from({ length: DEFAULT_INVENTORY_SLOT_COUNT }, () => null),
       gongfaSlots: [null, null, null, null, null, null, null, null],
-      equippedSlots: { weapon: null, faqi: null, armor: null },
+      equippedSlots: Array.from({ length: EQUIP_SLOT_COUNT }, () => null),
       traits,
       xiuwei: 0,
     });
