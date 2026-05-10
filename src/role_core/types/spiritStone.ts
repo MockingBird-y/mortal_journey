@@ -1,5 +1,6 @@
 /**
- * 灵石：描述表、表键、储物袋堆叠形态与构造方法。
+ * 灵石：名称、品阶、描述表、表键与储物袋堆叠类型定义。
+ * 功能函数见 `spiritStoneUtils.ts`。
  */
 
 // ---------------------------------------------------------------------------
@@ -84,14 +85,8 @@ export interface SpiritStoneInventoryStack {
   type: typeof SPIRIT_STONE_INVENTORY_KIND;
 }
 
-/**
- * 由描述表构造单格灵石堆叠。
- */
-export function createSpiritStoneInventoryStack(name: SpiritStoneName, count: number): SpiritStoneInventoryStack {
-  return {
-    name,
-    count,
-    ...mjDescribeSpiritStones[name],
-    type: SPIRIT_STONE_INVENTORY_KIND,
-  };
-}
+// ---------------------------------------------------------------------------
+// 从 spiritStoneUtils 再导出功能函数（保持旧 import 路径兼容）
+// ---------------------------------------------------------------------------
+
+export { createSpiritStoneInventoryStack } from "../spiritStoneUtils";

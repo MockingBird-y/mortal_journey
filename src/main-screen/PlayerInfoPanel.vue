@@ -5,8 +5,9 @@
  */
 import { computed, ref } from "vue";
 import { Protagonist } from "../role_core/Protagonist";
-import { PLAYER_STAT_KEY_TO_ZH, type EquipSlotKey } from "../role_core/types/playInfo";
+import { PRIMARY_STAT_KEY_TO_ZH, PRIMARY_STAT_KEYS, type EquipSlotKey } from "../role_core/types/playInfo";
 import {
+  buildBaseStatsPayload,
   buildGongfaDetailPayload,
   buildInventoryStackDetailPayload,
   buildTraitDetailPayload,
@@ -20,8 +21,7 @@ import {
   getHpMpBarState,
   getInventoryBagDisplaySlots,
   getTraitSlots,
-  gongfaCellParts,
-  gongfaTypeClass,
+  gongfaCellName,
   displayStatInt,
   gradeToTraitRarity,
   inventorySlotParts,
@@ -107,6 +107,12 @@ function onBagSlotClick(index: number) {
   const cell = p.inventorySlots[index];
   if (!cell) return;
   openDetail(buildInventoryStackDetailPayload(cell, index, p.linggen));
+}
+
+function onBaseStatsClick() {
+  const p = props.protagonist;
+  if (!p) return;
+  openDetail(buildBaseStatsPayload(p.getDerivedStats()));
 }
 
 function onDetailAction(a: ProtagonistDetailAction) {
@@ -226,38 +232,24 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
         </div>
 
         <div class="mj-combat-stats">
-          <h3 class="mj-attr-section-title mj-attr-section-title--first">属性</h3>
-          <div class="mj-stat-pair-row">
-            <div v-for="k in ['patk', 'pdef'] as const" :key="k" class="mj-stat-cell">
-              <span class="mj-stat-k">{{ PLAYER_STAT_KEY_TO_ZH[k] }}</span>
-              <span class="mj-stat-v">{{
-                displayStatInt(derivedStats?.[k] ?? protagonist.playerBase[k])
-              }}</span>
-            </div>
+          <div class="mj-attr-section-header">
+            <h3 class="mj-attr-section-title mj-attr-section-title--first">属性</h3>
+            <button
+              type="button"
+              class="mj-base-stats-btn"
+              title="查看基础属性（血量 / 法力 / 物攻 / 防御）"
+              @click="onBaseStatsClick"
+            >
+              基础属性
+            </button>
           </div>
-          <div class="mj-stat-pair-row">
-            <div v-for="k in ['matk', 'mdef'] as const" :key="k" class="mj-stat-cell">
-              <span class="mj-stat-k">{{ PLAYER_STAT_KEY_TO_ZH[k] }}</span>
-              <span class="mj-stat-v">{{
-                displayStatInt(derivedStats?.[k] ?? protagonist.playerBase[k])
-              }}</span>
-            </div>
-          </div>
-          <div class="mj-stat-pair-row">
-            <div v-for="k in ['sense', 'luck'] as const" :key="k" class="mj-stat-cell">
-              <span class="mj-stat-k">{{ PLAYER_STAT_KEY_TO_ZH[k] }}</span>
-              <span class="mj-stat-v">{{
-                displayStatInt(derivedStats?.[k] ?? protagonist.playerBase[k])
-              }}</span>
-            </div>
-          </div>
-          <div class="mj-stat-pair-row">
-            <div v-for="k in ['dodge', 'tenacity'] as const" :key="k" class="mj-stat-cell">
-              <span class="mj-stat-k">{{ PLAYER_STAT_KEY_TO_ZH[k] }}</span>
-              <span class="mj-stat-v">{{
-                displayStatInt(derivedStats?.[k] ?? protagonist.playerBase[k])
-              }}</span>
-            </div>
+          <div v-for="row in Math.ceil(PRIMARY_STAT_KEYS.length / 2)" :key="row" class="mj-stat-pair-row">
+            <template v-for="col in [0, 1]" :key="col">
+              <div v-if="PRIMARY_STAT_KEYS[(row - 1) * 2 + col]" class="mj-stat-cell">
+                <span class="mj-stat-k">{{ PRIMARY_STAT_KEY_TO_ZH[PRIMARY_STAT_KEYS[(row - 1) * 2 + col]] }}</span>
+                <span class="mj-stat-v">0</span>
+              </div>
+            </template>
           </div>
         </div>
 
@@ -310,19 +302,12 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
                 class="mj-inventory-slot"
                 :class="cell ? 'mj-gongfa-slot--filled' : ''"
                 :data-rarity="cell ? gradeToTraitRarity(cell.grade) : undefined"
-                :title="cell ? `${gongfaCellParts(cell).name}\n（点击查看详情）` : '功法空位'"
+                :title="cell ? `${gongfaCellName(cell)}\n（点击查看详情）` : '功法空位'"
                 :tabindex="cell ? 0 : -1"
                 @click="cell && onGongfaSlotClick(gi)"
                 @keydown="cell && onSlotKeydown($event, () => onGongfaSlotClick(gi))"
               >
-                <div class="mj-gongfa-slot-stack">
-                  <template v-if="cell">
-                    <span class="mj-gongfa-slot-label">{{ gongfaCellParts(cell).name }}</span>
-                    <span :class="gongfaTypeClass(gongfaCellParts(cell).subtype)">{{
-                      gongfaCellParts(cell).subtype
-                    }}</span>
-                  </template>
-                </div>
+                <span class="mj-gongfa-slot-label">{{ cell ? gongfaCellName(cell) : "" }}</span>
               </div>
             </div>
           </div>

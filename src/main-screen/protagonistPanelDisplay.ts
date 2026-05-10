@@ -2,8 +2,11 @@
  * @fileoverview 主角左栏 UI 纯函数：与 `PlayerInfoPanel.vue` 模板解耦，便于单测与后续复杂展示逻辑。
  */
 
-import { getCultivationRequired } from "../role_core/types/realm_state";
 import type { TreasureItemDefinition } from "../role_core/types/itemInfo";
+import {
+  getCultivationRequired,
+  EQUIP_SLOT_COUNT,
+} from "../role_core/types/playInfo";
 import type {
   EquipSlotKey,
   GongfaItemDefinition,
@@ -12,7 +15,6 @@ import type {
   ProtagonistPlayInfo,
   TraitEntry,
 } from "../role_core/types/playInfo";
-import { EQUIP_SLOT_COUNT } from "../role_core/types/playInfo";
 
 /** 储物袋展示用网格列数（与 `mainScreenPlayerPanel.css`、`Protagonist.INVENTORY_SLOT_EXPAND_STEP` 一致） */
 export const INVENTORY_BAG_GRID_COLUMNS = 4;
@@ -208,26 +210,14 @@ export function inventorySlotParts(cell: InventoryStackItem | null): InventorySl
 }
 
 /**
- * 从功法格数据提取名称与子类型，供格子展示。
+ * 从功法格数据提取名称，供格子展示。
  *
- * @param cell - 功法定义或空。
- * @returns `name` 与 `subtype`；空格时二者均为空串。
+ * @param cell 功法定义或空。
+ * @returns 名称；空格时为空串。
  */
-export function gongfaCellParts(cell: GongfaItemDefinition | null): { name: string; subtype: string } {
-  if (!cell) return { name: "", subtype: "" };
-  return { name: cell.name, subtype: cell.subtype };
-}
-
-/**
- * 根据功法子类型返回用于角标样式的 CSS class 字符串。
- *
- * @param sub - `subtype` 文案（如「辅助」「攻击」）。
- * @returns 拼接好的 class 名。
- */
-export function gongfaTypeClass(sub: string): string {
-  if (sub === "辅助") return "mj-gongfa-slot-type mj-gongfa-slot-type--support";
-  if (sub === "攻击") return "mj-gongfa-slot-type mj-gongfa-slot-type--attack";
-  return "mj-gongfa-slot-type mj-gongfa-slot-type--other";
+export function gongfaCellName(cell: GongfaItemDefinition | null): string {
+  if (!cell) return "";
+  return cell.name;
 }
 
 /** 穿戴槽在数据层与 UI 行中的键（从 playInfo 再导出，保持兼容）。 */

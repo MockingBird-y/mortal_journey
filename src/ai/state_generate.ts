@@ -262,9 +262,7 @@ function formatGongfaSlots(slots: GongfaSlotsState): string {
   for (let i = 0; i < slots.length; i++) {
     const g = slots[i];
     if (!g) continue;
-    const sub = "subtype" in g ? g.subtype : "";
-    const label = sub ? `${sub}功法` : "功法";
-    lines.push(`${label}：${g.name}（${g.grade}）`);
+    lines.push(`功法：${g.name}（${g.grade}）`);
   }
   return lines.length > 0 ? lines.join("\n") : "无";
 }

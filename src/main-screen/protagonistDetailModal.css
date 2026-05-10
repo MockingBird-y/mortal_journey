@@ -75,6 +75,20 @@
   color: var(--mj-text, #e8e4dc);
 }
 
+.mj-protagonist-detail-root .mj-trait-modal-body--grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+}
+
+.mj-protagonist-detail-root .mj-trait-modal-body--grid .mj-trait-modal-section {
+  margin-top: 10px;
+}
+
+.mj-protagonist-detail-root .mj-trait-modal-body--grid .mj-trait-modal-section:nth-child(-n+2) {
+  margin-top: 0;
+}
+
 .mj-protagonist-detail-root .mj-trait-modal-section {
   margin-top: 12px;
 }

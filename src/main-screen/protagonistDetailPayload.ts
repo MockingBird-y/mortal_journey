@@ -4,7 +4,6 @@
  */
 
 import type {
-  AttackGongfaDefinition,
   BreakthroughElixirDefinition,
   CategorizedItemDefinition,
   ElixirItemDefinition,
@@ -16,7 +15,7 @@ import type {
   TreasureItemDefinition,
 } from "../role_core/types/itemInfo";
 import type { CultivationRealm, EquipSlotKey, TraitEntry } from "../role_core/types/playInfo";
-import { getEquipBonusRealmRatio } from "../role_core/types/realm_state";
+import { BASE_STAT_KEYS, DERIVED_STAT_KEY_TO_ZH, getEquipBonusRealmRatio, type PlayerBaseStats } from "../role_core/types/playInfo";
 import { gradeToTraitRarity } from "./protagonistPanelDisplay";
 
 /**
@@ -59,6 +58,8 @@ export interface ProtagonistDetailPayload {
   sections: ProtagonistDetailSection[];
   dataRarity?: string;
   actions?: ProtagonistDetailActionButton[];
+  /** 以两列网格布局展示 sections */
+  gridSections?: boolean;
 }
 
 /**
@@ -205,15 +206,6 @@ export function buildWearableDetailPayload(
   const sections: ProtagonistDetailSection[] = [];
   pushSec(sections, "简介", it.desc);
   pushSec(sections, "品级", it.grade);
-  const bonus =
-    source?.type === "equipped" && realm
-      ? formatZhBonusWithRealmEquip(it.bonus as Record<string, number>, realm)
-      : formatZhBonus(it.bonus as Record<string, number>);
-  if (bonus) pushSec(sections, "属性加成", bonus);
-  if (it.magnification) {
-    const mag = formatMagnification(it.magnification);
-    if (mag) pushSec(sections, "伤害倍率", mag);
-  }
   pushSec(sections, "数量", it.count);
 
   const actions: ProtagonistDetailActionButton[] = [];
@@ -264,19 +256,12 @@ export function buildGongfaDetailPayload(
 ): ProtagonistDetailPayload {
   const sections: ProtagonistDetailSection[] = [];
   pushSec(sections, "简介", gf.desc);
-  pushSec(sections, "类型", gf.subtype);
   pushSec(sections, "品级", gf.grade);
   const bonus =
     source?.type === "bar" && realm
       ? formatZhBonusWithRealmEquip(gf.bonus as Record<string, number>, realm)
       : formatZhBonus(gf.bonus as Record<string, number>);
   if (bonus) pushSec(sections, "修炼加成", bonus);
-  if (gf.subtype === "攻击") {
-    const atk = gf as AttackGongfaDefinition;
-    pushSec(sections, "法力消耗", atk.manacost);
-    const mag = formatMagnification(atk.magnification);
-    if (mag) pushSec(sections, "伤害倍率", mag);
-  }
   pushSec(sections, "数量", gf.count);
 
   const actions: ProtagonistDetailActionButton[] = [];
@@ -440,4 +425,25 @@ export function buildInventoryStackDetailPayload(
       };
     }
   }
+}
+
+/**
+ * 构建基础属性详情弹窗数据。
+ *
+ * @param playerBase 玩家当前基础属性（四维：血量/法力/物攻/防御）。
+ * @returns 完整的 `ProtagonistDetailPayload`。
+ */
+export function buildBaseStatsPayload(playerBase: PlayerBaseStats): ProtagonistDetailPayload {
+  const sections: ProtagonistDetailSection[] = [];
+  for (const k of BASE_STAT_KEYS) {
+    const zh = DERIVED_STAT_KEY_TO_ZH[k] ?? k;
+    const v = playerBase[k];
+    sections.push({ label: zh, text: String(typeof v === "number" ? Math.round(v) : v) });
+  }
+  return {
+    title: "基础属性",
+    subtitle: "",
+    sections,
+    gridSections: true,
+  };
 }

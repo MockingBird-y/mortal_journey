@@ -13,7 +13,6 @@ import type {
   TreasureItemDefinition,
 } from "./types/itemInfo";
 import {
-  PLAYER_STAT_BONUS_KEYS,
   type CultivationRealm,
   type EquippedSlotsState,
   EQUIP_SLOT_COUNT,
@@ -25,14 +24,17 @@ import {
   type TraitEntry,
   type EquipSlotKey,
   type ProtagonistDetailAction,
+  BASE_STAT_KEYS,
+  DERIVED_STAT_DEFAULTS,
+  PRIMARY_STAT_KEY_TO_ZH,
+  type PrimaryStatKey,
 } from "./types/playInfo";
-import { PLAYER_STAT_KEY_TO_ZH, type PlayerStatBonusKey } from "./types/playInfo";
 import {
   getBaseStats,
   getEquipBonusRealmRatio,
   getProtagonistNarrativeAge,
   getShouyuanForRealm,
-} from "./types/realm_state";
+} from "./types/playInfo";
 import {
   SPIRIT_STONE_TABLE_KEYS_ORDERED,
   type SpiritStoneName,
@@ -131,7 +133,7 @@ export class Protagonist {
   realm: CultivationRealm;
   /** 当前修为值。 */
   xiuwei: number;
-  /** 基础属性十维（境界表底数）。 */
+  /** 基础属性（境界表底数 + 法宝/功法加成推导）。 */
   playerBase: PlayerBaseStats;
   /** 生命上限。 */
   maxHp: number;
@@ -185,11 +187,11 @@ export class Protagonist {
   // 派生属性
   // ===================================================================
 
-  /** 中文加成键 → 英文运行时属性键的正向映射（由 `PLAYER_STAT_KEY_TO_ZH` 逆推）。 */
-  private static readonly ZH_BONUS_TO_PLAYER_KEY: Readonly<Record<string, PlayerStatBonusKey>> = (() => {
-    const o: Record<string, PlayerStatBonusKey> = {};
-    for (const en of PLAYER_STAT_BONUS_KEYS) {
-      o[PLAYER_STAT_KEY_TO_ZH[en]] = en;
+  /** 中文加成键 → 英文运行时属性键的正向映射（由八维主属性中文映射逆推）。 */
+  private static readonly ZH_BONUS_TO_PLAYER_KEY: Readonly<Record<string, PrimaryStatKey>> = (() => {
+    const o: Record<string, PrimaryStatKey> = {};
+    for (const en of Object.keys(PRIMARY_STAT_KEY_TO_ZH) as PrimaryStatKey[]) {
+      o[PRIMARY_STAT_KEY_TO_ZH[en]] = en;
     }
     return o;
   })();
@@ -205,16 +207,16 @@ export class Protagonist {
   }
 
   /**
-   * 将物品 `bonus`（中文键）按境界倍率加算到目标 `PlayerBaseStats` 上。
+   * 将物品 `bonus`（中文键）按境界倍率加算到目标属性对象上。
    * 与 `getEquipBonusRealmRatio` 搭配：每项按 `Math.trunc(value × ratio)` 累加。
    *
-   * @param target 被原地累加的十维对象。
+   * @param target 被原地累加的对象。
    * @param bonus 装备或功法的 `bonus` 对象；`undefined` 或非对象时无操作。
    * @param realmRatio 境界倍率；默认 `1`（不乘）。
    */
   private static addZhItemBonusInto(
-    target: PlayerBaseStats,
-    bonus: Record<string, number> | undefined,
+    target: Record<string, number>,
+    bonus: Record<string, number | undefined> | undefined,
     realmRatio = 1,
   ): void {
     if (!bonus || typeof bonus !== "object") return;
@@ -223,28 +225,25 @@ export class Protagonist {
       if (typeof v !== "number" || !Number.isFinite(v)) continue;
       const key = Protagonist.ZH_BONUS_TO_PLAYER_KEY[zh];
       if (!key) continue;
-      target[key] += Math.trunc(v * r);
+      target[key] = (target[key] ?? 0) + Math.trunc(v * r);
     }
   }
 
   /**
-   * 将三佩戴槽与功法栏中所有物品的 `bonus` 累加到目标 `PlayerBaseStats`。
+   * 将功法栏中所有物品的 `bonus` 累加到目标属性对象。
    * 每项均按当前境界的装备倍率计算。
    *
    * @param target 被原地累加的十维对象。
    */
   private addEquippedAndGongfaBonuses(target: PlayerBaseStats): void {
     const ratio = getEquipBonusRealmRatio(this.realm.major, this.realm.minor);
-    for (const eq of this.equippedSlots) {
-      if (eq) Protagonist.addZhItemBonusInto(target, eq.bonus, ratio);
-    }
     for (const gf of this.gongfaSlots) {
       if (gf) Protagonist.addZhItemBonusInto(target, gf.bonus, ratio);
     }
   }
 
   /**
-   * 角色面板应展示的十维最终值：境界底数 + 装备/功法平面加成。
+   * 角色面板应展示的最终属性：境界底数 + 功法加成。
    *
    * @returns 新 `PlayerBaseStats` 对象。
    */
@@ -347,12 +346,12 @@ export class Protagonist {
   }
 
   /**
-   * 合并更新 `playerBase` 中出现在 `PLAYER_STAT_BONUS_KEYS` 内的数值字段。
+   * 合并更新 `playerBase` 中出现在 `BASE_STAT_KEYS` 内的数值字段。
    *
-   * @param partial 仅需覆盖的键值对；不在十维键集中的键会被静默忽略。
+   * @param partial 仅需覆盖的键值对；不在键集中的键会被静默忽略。
    */
   patchPlayerBase(partial: Partial<PlayerBaseStats>): void {
-    for (const k of PLAYER_STAT_BONUS_KEYS) {
+    for (const k of BASE_STAT_KEYS) {
       if (Object.prototype.hasOwnProperty.call(partial, k)) {
         const v = partial[k];
         if (typeof v === "number" && Number.isFinite(v)) this.playerBase[k] = v;
@@ -661,7 +660,7 @@ export class Protagonist {
     const base = Protagonist.emptyPlayerBase();
     if (pbRaw && typeof pbRaw === "object") {
       const pbo = pbRaw as Record<string, number>;
-      for (const k of PLAYER_STAT_BONUS_KEYS) {
+      for (const k of BASE_STAT_KEYS) {
         const v = pbo[k];
         if (typeof v === "number" && Number.isFinite(v)) base[k] = v;
       }
@@ -794,13 +793,18 @@ export class Protagonist {
   // ===================================================================
 
   /**
-   * 构造各项为 0 的十维属性占位对象。
+   * 构造按默认值初始化的属性占位对象。
    *
-   * @returns 全零 `PlayerBaseStats`。
+   * 境界提供的属性（hp/mp/atk/def）初始为 0（等待从境界表填充），
+   * 其余属性取 `DERIVED_STAT_DEFAULTS` 中的配置值。
+   *
+   * @returns 默认化的 `PlayerBaseStats`。
    */
   private static emptyPlayerBase(): PlayerBaseStats {
     const o: Record<string, number> = {};
-    for (const k of PLAYER_STAT_BONUS_KEYS) o[k] = 0;
+    for (const k of BASE_STAT_KEYS) {
+      o[k] = (DERIVED_STAT_DEFAULTS as Record<string, number | undefined>)[k] ?? 0;
+    }
     return o as PlayerBaseStats;
   }
 

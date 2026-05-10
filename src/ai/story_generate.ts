@@ -89,10 +89,7 @@ function narrationPersonLine(person: NarrationPerson): string {
 
 function formatEquipSlot(label: string, slot: EquippedSlotsState[number]): string {
   if (!slot) return `${label}：无`;
-  const bonusStr = slot.bonus && Object.keys(slot.bonus).length > 0
-    ? "，加成：" + Object.entries(slot.bonus).map(([k, v]) => `${k}+${v}`).join("、")
-    : "";
-  return `${label}：${slot.name}（${slot.grade}）${slot.desc ? "—" + slot.desc : ""}${bonusStr}`;
+  return `${label}：${slot.name}（${slot.grade}）${slot.desc ? "—" + slot.desc : ""}`;
 }
 
 function formatEquippedSlots(slots: EquippedSlotsState): string {
@@ -111,9 +108,7 @@ function formatGongfaSlots(slots: GongfaSlotsState): string {
     const bonusStr = g.bonus && Object.keys(g.bonus).length > 0
       ? "，加成：" + Object.entries(g.bonus).map(([k, v]) => `${k}+${v}`).join("、")
       : "";
-    const sub = "subtype" in g ? g.subtype : "";
-    const label = sub ? `${sub}功法` : "功法";
-    lines.push(`${label}：${g.name}（${g.grade}）${g.desc ? "—" + g.desc : ""}${bonusStr}`);
+    lines.push(`功法：${g.name}（${g.grade}）${g.desc ? "—" + g.desc : ""}${bonusStr}`);
   }
   return lines.length > 0 ? lines.join("\n") : "无";
 }

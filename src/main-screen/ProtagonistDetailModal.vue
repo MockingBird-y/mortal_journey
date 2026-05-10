@@ -77,7 +77,10 @@ onUnmounted(() => {
         </button>
         <h4 class="mj-trait-modal-title">{{ payload.title }}</h4>
         <div class="mj-trait-modal-rarity">{{ payload.subtitle }}</div>
-        <div class="mj-trait-modal-body">
+        <div
+          class="mj-trait-modal-body"
+          :class="{ 'mj-trait-modal-body--grid': payload.gridSections }"
+        >
           <div v-for="(s, si) in payload.sections" :key="si" class="mj-trait-modal-section">
             <span class="mj-trait-modal-k">{{ s.label }}</span>
             <div class="mj-trait-modal-v">{{ s.text }}</div>

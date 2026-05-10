@@ -15,26 +15,8 @@ import type { ZhStatBonusMap } from "./playInfo";
 /** worldbook：品阶仅能为以下之一 */
 export type ItemGrade = "下品" | "中品" | "上品" | "极品" | "仙品";
 
-/**
- * 储物袋 / item_add 等 JSON 里常见的大类（突破丹药在运行时常规化为 type「丹药」并带 breakthrough效果）。
- */
-export type ItemCategoryLabel =
-  | "法宝"
-  | "攻击功法"
-  | "辅助功法"
-  | "丹药"
-  | "突破丹药"
-  | "材料"
-  | "杂物";
-
-/** 功法子类（与 player_base_runtime 推断「攻击」「辅助」一致） */
-export type GongfaSubtype = "攻击" | "辅助";
-
 /** 配置表或 AI 条目上的中文加成；允许表外键 */
 export type ItemBonusMap = ZhStatBonusMap | Record<string, number>;
-
-/** 倍率块（如 物攻 / 法攻 伤害倍率） */
-export type ItemMagnificationMap = Record<string, number>;
 
 /** 普通丹药：按品阶生成的恢复量（无恢复的一侧填 0） */
 export interface PillRecoverEffect {
@@ -75,29 +57,16 @@ export interface ItemDefinitionBase {
 
 export interface TreasureItemDefinition extends ItemDefinitionBase {
   itemType: "法宝";
-  bonus: ItemBonusMap;
-  magnification?: ItemMagnificationMap;
 }
 
 // ---------------------------------------------------------------------------
-// 功法（攻击 / 辅助）
+// 功法（统一，不区分攻击/辅助）
 // ---------------------------------------------------------------------------
 
-export interface AttackGongfaDefinition extends ItemDefinitionBase {
+export interface GongfaItemDefinition extends ItemDefinitionBase {
   itemType: "功法";
-  subtype: "攻击";
-  manacost: number;
-  bonus: ItemBonusMap;
-  magnification: ItemMagnificationMap;
-}
-
-export interface AssistGongfaDefinition extends ItemDefinitionBase {
-  itemType: "功法";
-  subtype: "辅助";
   bonus: ItemBonusMap;
 }
-
-export type GongfaItemDefinition = AttackGongfaDefinition | AssistGongfaDefinition;
 
 // ---------------------------------------------------------------------------
 // 丹药（含突破丹药）
@@ -155,8 +124,7 @@ export type { SpiritStoneInventoryStack };
  * 下列别名仅语义提示，便于对照旧脚本里的「bag」命名。
  */
 export type TreasureBagStack = TreasureItemDefinition;
-export type AttackGongfaBagStack = AttackGongfaDefinition;
-export type AssistGongfaBagStack = AssistGongfaDefinition;
+export type GongfaBagStack = GongfaItemDefinition;
 export type ElixirBagStack = ElixirItemDefinition;
 export type BreakthroughElixirBagStack = BreakthroughElixirDefinition;
 export type MaterialBagStack = MaterialItemDefinition;

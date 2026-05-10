@@ -1,15 +1,14 @@
 import { INIT_STORY_SYSTEM_PRESET } from "./init_state";
 import { completeChatWithMessagesJson, type JsonChatRequestPayload } from "./openAiChatBridge";
 import { Protagonist } from "../role_core/Protagonist";
-import { ITEM_GRADE_ATTRI_TABLE, MAGIFICATION_TABLE } from "../role_core/types/realm_state";
+import { ITEM_GRADE_ATTRI_TABLE } from "../role_core/types/playInfo";
 import {
   createSpiritStoneInventoryStack,
   SPIRIT_STONE_TABLE_KEYS_ORDERED,
   type SpiritStoneName,
 } from "../role_core/types/spiritStone";
 import type {
-  AttackGongfaDefinition,
-  AssistGongfaDefinition,
+  GongfaItemDefinition,
   BreakthroughElixirDefinition,
   ElixirItemDefinition,
   ItemGrade,
@@ -18,9 +17,7 @@ import type {
   TreasureItemDefinition,
 } from "../role_core/types/itemInfo";
 import type { InventoryStackItem, ProtagonistPlayInfo, GongfaSlotsState, EquippedSlotsState } from "../role_core/types/playInfo";
-import { EQUIP_SLOT_COUNT } from "../role_core/types/playInfo";
-import type { ZhPlayerStatBonusKey } from "../role_core/types/playInfo";
-import { PLAYER_STAT_KEY_TO_ZH, type PlayerStatBonusKey, PLAYER_STAT_BONUS_KEYS } from "../role_core/types/playInfo";
+import { EQUIP_SLOT_COUNT, PRIMARY_STAT_KEY_TO_ZH, PRIMARY_STAT_KEYS } from "../role_core/types/playInfo";
 
 export interface InitStateApiConfig {
   apiUrl: string;
@@ -49,73 +46,12 @@ const REALM_GRADE_MAP: Record<string, ItemGrade> = {
   "化神": "仙品",
 };
 
-const ZH_TO_EN_KEY: Readonly<Record<string, PlayerStatBonusKey>> = (() => {
-  const o: Record<string, PlayerStatBonusKey> = {};
-  for (const en of Object.keys(PLAYER_STAT_KEY_TO_ZH) as PlayerStatBonusKey[]) {
-    o[PLAYER_STAT_KEY_TO_ZH[en]] = en;
-  }
-  return o;
-})();
-
-const WEAPON_PRIMARY_STATS: ZhPlayerStatBonusKey[] = ["物攻"];
-const ATTACK_GONGFA_PRIMARY_STATS: ZhPlayerStatBonusKey[] = ["法攻"];
-
-function randomArmorPrimaryStat(): ZhPlayerStatBonusKey {
-  return Math.random() < 0.5 ? "物防" : "法防";
-}
-
-function gradeIndexOf(grade: string): number {
-  return GRADE_ORDER.indexOf(grade as ItemGrade);
-}
-
-function pickStatForEquipType(type: string): ZhPlayerStatBonusKey[] {
-  switch (type) {
-    case "武器": return WEAPON_PRIMARY_STATS;
-    case "法器": return [];
-    case "防具": return [randomArmorPrimaryStat()];
-    default: return ["物攻"];
-  }
-}
-
-function pickStatForGongfaType(type: string): ZhPlayerStatBonusKey[] {
-  switch (type) {
-    case "攻击功法": return ATTACK_GONGFA_PRIMARY_STATS;
-    case "辅助功法": return [];
-    default: return ["法攻"];
-  }
-}
-
 function randInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 function getGradeRow(grade: string) {
   return ITEM_GRADE_ATTRI_TABLE.find(r => r.grade === grade) ?? ITEM_GRADE_ATTRI_TABLE[0];
-}
-
-function generateBonusForGrade(grade: string, statKeys: ZhPlayerStatBonusKey[]): Record<string, number> {
-  const row = getGradeRow(grade);
-  const bonus: Record<string, number> = {};
-  for (const zhKey of statKeys) {
-    const enKey = ZH_TO_EN_KEY[zhKey];
-    if (!enKey) continue;
-    const range = row[enKey as keyof typeof row] as unknown as readonly [number, number] | undefined;
-    if (range && Array.isArray(range) && range.length === 2) {
-      bonus[zhKey] = randInt(range[0], range[1]);
-    }
-  }
-  return bonus;
-}
-
-function generateMagnificationForGrade(grade: string, statKeys: ZhPlayerStatBonusKey[]): Record<string, number> {
-  const row = MAGIFICATION_TABLE.find(r => r.grade === grade) ?? MAGIFICATION_TABLE[0];
-  const [lo, hi] = row.magnification;
-  const val = Math.round((lo + Math.random() * (hi - lo)) * 100) / 100;
-  const mag: Record<string, number> = {};
-  for (const key of statKeys) {
-    mag[key] = val;
-  }
-  return mag;
 }
 
 interface AiEquipItem {
@@ -206,116 +142,56 @@ function safeCount(val: unknown): number {
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 1;
 }
 
-const ALIAS_TO_STANDARD: Readonly<Record<string, ZhPlayerStatBonusKey>> = {
-  "攻击": "物攻",
-  "防御": "物防",
-  "血量": "血量",
-  "法力": "法力",
-  "物攻": "物攻",
-  "物防": "物防",
-  "法攻": "法攻",
-  "法防": "法防",
-  "神识": "神识",
-  "气运": "气运",
-  "闪避": "闪避",
-  "韧性": "韧性",
-};
-
-function normalizeStatName(raw: string): ZhPlayerStatBonusKey | null {
-  const trimmed = raw.trim();
-  if (ALIAS_TO_STANDARD[trimmed]) return ALIAS_TO_STANDARD[trimmed];
-  return null;
-}
-
 function normalizeBonus(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.map(s => String(s)).filter(Boolean);
   if (typeof raw === "object" && raw !== null) return Object.keys(raw);
   return [];
 }
 
-const ALL_ZH_STATS: ZhPlayerStatBonusKey[] = PLAYER_STAT_BONUS_KEYS.map(k => PLAYER_STAT_KEY_TO_ZH[k]);
-
-function pickRandomExcluding(exclude: Set<string>): ZhPlayerStatBonusKey {
-  const candidates = ALL_ZH_STATS.filter(s => !exclude.has(s));
-  if (candidates.length === 0) return ALL_ZH_STATS[0];
-  return candidates[Math.floor(Math.random() * candidates.length)];
-}
-
-function ensureTwoStats(primary: ZhPlayerStatBonusKey[], aiNames: string[]): ZhPlayerStatBonusKey[] {
-  const seen = new Set<string>(primary);
-  const merged = [...primary];
-  for (const n of aiNames) {
-    if (merged.length >= 2) break;
-    const mapped = normalizeStatName(n);
-    if (!mapped) continue;
-    if (!seen.has(mapped)) {
-      seen.add(mapped);
-      merged.push(mapped);
-    } else {
-      const replacement = pickRandomExcluding(seen);
-      seen.add(replacement);
-      merged.push(replacement);
-    }
-  }
-  while (merged.length < 2) {
-    const extra = pickRandomExcluding(seen);
-    seen.add(extra);
-    merged.push(extra);
-  }
-  return merged.slice(0, 2);
-}
-
-function resolveEquipBonus(equip: AiEquipItem, primary: ZhPlayerStatBonusKey[]): Record<string, number> {
-  const aiNames = normalizeBonus(equip.bonus);
-  const merged = ensureTwoStats(primary, aiNames);
-  return generateBonusForGrade(equip.grade, merged);
-}
-
 function buildTreasure(item: AiEquipItem): TreasureItemDefinition {
-  const stats = pickStatForEquipType(item.type === "武器" ? "武器" : item.type === "法器" ? "法器" : "防具");
-  const result: TreasureItemDefinition = {
+  return {
     name: item.name,
     desc: item.intro,
     grade: item.grade as ItemGrade,
     count: 1,
     itemType: "法宝",
-    bonus: resolveEquipBonus(item, stats),
   };
-  if (item.type === "武器") {
-    result.magnification = generateMagnificationForGrade(item.grade, ["物攻"]);
+}
+
+const ALL_PRIMARY_ZH: string[] = PRIMARY_STAT_KEYS.map(k => PRIMARY_STAT_KEY_TO_ZH[k]);
+
+function pickRandomPrimaryStats(count: number): string[] {
+  const shuffled = [...ALL_PRIMARY_ZH].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+}
+
+function generatePrimaryBonusForGrade(grade: string, zhStats: string[]): Record<string, number> {
+  const row = getGradeRow(grade);
+  const bonus: Record<string, number> = {};
+  for (const zhKey of zhStats) {
+    const lo = 1;
+    const hi = Math.max(lo, Math.round((row.hp[0] + row.hp[1]) / 8));
+    bonus[zhKey] = randInt(lo, Math.max(lo, hi));
   }
-  return result;
+  return bonus;
 }
 
-function buildAttackGongfa(item: AiGongfaItem): AttackGongfaDefinition {
-  const primary = pickStatForGongfaType("攻击功法");
+function buildGongfa(item: AiGongfaItem): GongfaItemDefinition {
   const aiNames = normalizeBonus(item.bonus);
-  const merged = ensureTwoStats(primary, aiNames);
+  let statNames: string[];
+  if (aiNames.length > 0) {
+    const valid = aiNames.filter(n => ALL_PRIMARY_ZH.includes(n));
+    statNames = valid.length > 0 ? valid.slice(0, 2) : pickRandomPrimaryStats(2);
+  } else {
+    statNames = pickRandomPrimaryStats(2);
+  }
   return {
     name: item.name,
     desc: item.intro,
     grade: item.grade as ItemGrade,
     count: 1,
     itemType: "功法",
-    subtype: "攻击",
-    manacost: randInt(5, 20),
-    bonus: generateBonusForGrade(item.grade, merged),
-    magnification: generateMagnificationForGrade(item.grade, ["法攻"]),
-  };
-}
-
-function buildAssistGongfa(item: AiGongfaItem): AssistGongfaDefinition {
-  const primary = pickStatForGongfaType("辅助功法");
-  const aiNames = normalizeBonus(item.bonus);
-  const merged = ensureTwoStats(primary, aiNames);
-  return {
-    name: item.name,
-    desc: item.intro,
-    grade: item.grade as ItemGrade,
-    count: 1,
-    itemType: "功法",
-    subtype: "辅助",
-    bonus: generateBonusForGrade(item.grade, merged),
+    bonus: generatePrimaryBonusForGrade(item.grade, statNames),
   };
 }
 
@@ -452,30 +328,17 @@ export function buildEquippedSlotsFromParsed(parsed: InitStateParsed): EquippedS
 }
 
 export function buildGongfaSlotsFromParsed(parsed: InitStateParsed): GongfaSlotsState {
-  let attack: AttackGongfaDefinition | null = null;
-  let assist: AssistGongfaDefinition | null = null;
+  const slots: GongfaSlotsState = [null, null, null, null, null, null, null, null];
 
   for (const item of parsed.gongfas) {
-    switch (item.type) {
-      case "攻击功法":
-        if (!attack) attack = buildAttackGongfa(item);
-        break;
-      case "辅助功法":
-        if (!assist) assist = buildAssistGongfa(item);
-        break;
+    const gf = buildGongfa(item);
+    const emptyIdx = slots.findIndex((s) => s === null);
+    if (emptyIdx >= 0) {
+      slots[emptyIdx] = gf;
     }
   }
 
-  return [
-    attack,
-    assist,
-    null,
-    null,
-    null,
-    null,
-    null,
-    null,
-  ];
+  return slots;
 }
 
 export function buildInventoryFromParsed(parsed: InitStateParsed, realmMajor: string, slotCount: number): Array<InventoryStackItem | null> {
