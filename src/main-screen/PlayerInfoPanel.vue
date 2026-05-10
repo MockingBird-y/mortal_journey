@@ -57,6 +57,7 @@ const panelAgeForDisplay = computed(() => {
 
 const cultivationUi = computed(() => getCultivationUiState(props.protagonist));
 const derivedStats = computed(() => props.protagonist?.getDerivedStats() ?? null);
+const primaryStats = computed(() => props.protagonist?.getPrimaryStats() ?? null);
 const hpMp = computed(() => getHpMpBarState(props.protagonist, derivedStats.value));
 const equipSlots = computed(() => getEquipSlotRows(props.protagonist));
 const traitSlots = computed(() => getTraitSlots(props.protagonist));
@@ -237,7 +238,7 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
             <button
               type="button"
               class="mj-base-stats-btn"
-              title="查看基础属性（血量 / 法力 / 物攻 / 防御）"
+              title="查看完整派生属性详情"
               @click="onBaseStatsClick"
             >
               基础属性
@@ -247,7 +248,7 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
             <template v-for="col in [0, 1]" :key="col">
               <div v-if="PRIMARY_STAT_KEYS[(row - 1) * 2 + col]" class="mj-stat-cell">
                 <span class="mj-stat-k">{{ PRIMARY_STAT_KEY_TO_ZH[PRIMARY_STAT_KEYS[(row - 1) * 2 + col]] }}</span>
-                <span class="mj-stat-v">0</span>
+                <span class="mj-stat-v">{{ primaryStats ? (primaryStats[PRIMARY_STAT_KEYS[(row - 1) * 2 + col]] ?? 0) : 0 }}</span>
               </div>
             </template>
           </div>

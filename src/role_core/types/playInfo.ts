@@ -42,6 +42,25 @@ export const PRIMARY_STAT_KEY_TO_ZH: Readonly<Record<PrimaryStatKey, string>> = 
   fortune: "气运",
 };
 
+/**
+ * 主属性 → 派生属性映射表。
+ * `pctKeys` 内的键按百分比方式计算（基数 × (1 + 主属性 × 比例)），其余键按绝对值加算。
+ * 例：体魄 100 点 → hp 基数放大 10%、recovery +10。
+ */
+export const PRIMARY_TO_DERIVED_MAP: Readonly<Record<PrimaryStatKey, ReadonlyArray<{ key: DerivedStatKey; per100: number }>>> = {
+  physique: [{ key: "hp", per100: 10 }, { key: "recovery", per100: 10 }],
+  spirit: [{ key: "mp", per100: 10 }, { key: "castSpeed", per100: 10 }],
+  guard: [{ key: "def", per100: 10 }, { key: "controlResist", per100: 10 }],
+  perception: [{ key: "hitRate", per100: 10 }],
+  agility: [{ key: "dodgeRate", per100: 10 }],
+  crit: [{ key: "critRate", per100: 10 }, { key: "actionSpeed", per100: 10 }],
+  insight: [{ key: "cultivationSpeed", per100: 10 }],
+  fortune: [],
+};
+
+/** 按百分比计算的派生属性键（基数来自境界表，主属性对其做乘法放大） */
+export const PCT_DERIVED_KEYS: ReadonlySet<string> = new Set(["hp", "mp", "def"]);
+
 export const DERIVED_STAT_KEYS = [
   "hp",
   "mp",
@@ -159,8 +178,8 @@ export const TABLE: readonly RealmBaseStatsRow[] = (REALM_ORDER as readonly stri
 // 一、数据 — 修为需求表（几何增长：base × growth^(level-1)）
 // ═══════════════════════════════════════════════════════════════════════════
 
-const CULTIVATION_BASE = 100;
-const CULTIVATION_EXPONENT = 2.0;
+const CULTIVATION_BASE = 1000;
+const CULTIVATION_EXPONENT = 1.5;
 
 function computeCultivation(level: number): number {
   return Math.round(CULTIVATION_BASE * Math.pow(level, CULTIVATION_EXPONENT));

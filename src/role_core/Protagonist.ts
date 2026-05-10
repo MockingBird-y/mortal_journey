@@ -26,6 +26,9 @@ import {
   type ProtagonistDetailAction,
   BASE_STAT_KEYS,
   DERIVED_STAT_DEFAULTS,
+  PRIMARY_STAT_KEYS,
+  PRIMARY_TO_DERIVED_MAP,
+  PCT_DERIVED_KEYS,
   PRIMARY_STAT_KEY_TO_ZH,
   type PrimaryStatKey,
 } from "./types/playInfo";
@@ -230,27 +233,71 @@ export class Protagonist {
   }
 
   /**
-   * 将功法栏中所有物品的 `bonus` 累加到目标属性对象。
-   * 每项均按当前境界的装备倍率计算。
+   * 收集功法栏中所有物品的 bonus，按境界倍率加算到主属性字典。
    *
-   * @param target 被原地累加的十维对象。
+   * @returns 主属性名 → 数值的映射对象。
    */
-  private addEquippedAndGongfaBonuses(target: PlayerBaseStats): void {
+  private collectPrimaryBonuses(): Record<string, number> {
+    const primaryStats: Record<string, number> = {};
     const ratio = getEquipBonusRealmRatio(this.realm.major, this.realm.minor);
     for (const gf of this.gongfaSlots) {
-      if (gf) Protagonist.addZhItemBonusInto(target, gf.bonus, ratio);
+      if (gf) Protagonist.addZhItemBonusInto(primaryStats, gf.bonus, ratio);
+    }
+    return primaryStats;
+  }
+
+  /**
+   * 根据主属性 → 派生属性映射表，将主属性值按比例换算并累加到目标派生属性对象上。
+   * hp/mp/def 按百分比乘法（基数 × (1 + 主属性值 × per100 / 10000)），其余属性按绝对值加算。
+   *
+   * @param primaryStats 主属性值字典。
+   * @param target 被原地累加的派生属性对象。
+   */
+  private static applyPrimaryToDerived(
+    primaryStats: Record<string, number>,
+    target: PlayerBaseStats,
+  ): void {
+    const t = target as Record<string, number>;
+    for (const pk of PRIMARY_STAT_KEYS) {
+      const statValue = primaryStats[pk];
+      if (typeof statValue !== "number" || statValue <= 0) continue;
+      const entries = PRIMARY_TO_DERIVED_MAP[pk];
+      for (const entry of entries) {
+        const factor = (statValue * entry.per100) / 100;
+        if (PCT_DERIVED_KEYS.has(entry.key)) {
+          t[entry.key] = Math.round(t[entry.key] * (1 + factor / 100));
+        } else {
+          t[entry.key] += Math.round(factor);
+        }
+      }
     }
   }
 
   /**
-   * 角色面板应展示的最终属性：境界底数 + 功法加成。
+   * 角色面板应展示的最终派生属性：
+   * 境界底数 + 主属性按映射表换算的加成。
    *
    * @returns 新 `PlayerBaseStats` 对象。
    */
   getDerivedStats(): PlayerBaseStats {
     const merged = this.realmTableBaseOrStored();
-    this.addEquippedAndGongfaBonuses(merged);
+    const primaryStats = this.collectPrimaryBonuses();
+    Protagonist.applyPrimaryToDerived(primaryStats, merged);
     return merged;
+  }
+
+  /**
+   * 获取当前八维主属性值（仅来自功法加成，不含境界底数）。
+   *
+   * @returns 主属性键 → 数值的映射（未装备功法的属性值为 0）。
+   */
+  getPrimaryStats(): Readonly<Record<PrimaryStatKey, number>> {
+    const bonuses = this.collectPrimaryBonuses();
+    const result: Record<string, number> = {};
+    for (const k of PRIMARY_STAT_KEYS) {
+      result[k] = bonuses[k] ?? 0;
+    }
+    return result as Readonly<Record<PrimaryStatKey, number>>;
   }
 
   // ===================================================================
