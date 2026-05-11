@@ -64,7 +64,7 @@ export function getEquipBonusRealmRatio(
  * 遍历 `BASE_STAT_KEYS`（当前为 14 维派生属性），
  * 若键在境界表行中存在则取值，否则取 `DERIVED_STAT_DEFAULTS` 中的默认值
  * （未配置默认值的回退为 0）。
- * 意味着 hp/mp/atk/def 由境界表提供，
+ * 意味着 hp/mp/patk/matk/pdef/mdef 由境界表提供，
  * 其余 10 维按各自配置的默认值初始化，后续由法宝/功法加成。
  *
  * @param row 境界表行。
@@ -94,7 +94,7 @@ export function getBaseStats(realm: string, stage?: string | null): PlayerBaseSt
 }
 
 /**
- * 查询境界表的原始行对象（仅含 realm/stage/hp/mp/atk/def）。
+ * 查询境界表的原始行对象（仅含 realm/stage/hp/mp/patk/matk/pdef/mdef）。
  *
  * @param realm 大境界。
  * @param stage 小境界，可省略。
@@ -104,7 +104,7 @@ export function getRow(realm: string, stage?: string | null): RealmBaseStatsRow 
   if (realm == null || realm === "" || stage == null || stage === "") return null;
   const r = getByKey()[realm + "\u0001" + stage];
   return r
-    ? { realm: r.realm, stage: r.stage, hp: r.hp, mp: r.mp, atk: r.atk, def: r.def }
+    ? { realm: r.realm, stage: r.stage, hp: r.hp, mp: r.mp, patk: r.patk, matk: r.matk, pdef: r.pdef, mdef: r.mdef }
     : null;
 }
 

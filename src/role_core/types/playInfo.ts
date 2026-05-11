@@ -44,14 +44,15 @@ export const PRIMARY_STAT_KEY_TO_ZH: Readonly<Record<PrimaryStatKey, string>> = 
 
 /**
  * 主属性 → 派生属性映射表。
- * `pctKeys` 内的键按百分比方式计算（基数 × (1 + 主属性 × 比例)），其余键按绝对值加算。
+ * `PCT_DERIVED_KEYS` 内的键按百分比方式计算（基数 × (1 + 主属性 × 比例 ÷ 10000)），
+ * 其余键按绝对值加算（主属性 × 比例 ÷ 100 取整）。
  * 例：体魄 100 点 → hp 基数放大 10%、recovery +10。
  */
 export const PRIMARY_TO_DERIVED_MAP: Readonly<Record<PrimaryStatKey, ReadonlyArray<{ key: DerivedStatKey; per100: number }>>> = {
   physique: [{ key: "hp", per100: 10 }, { key: "recovery", per100: 10 }],
   spirit: [{ key: "mp", per100: 10 }, { key: "castSpeed", per100: 10 }],
-  guard: [{ key: "def", per100: 10 }, { key: "controlResist", per100: 10 }],
-  perception: [{ key: "hitRate", per100: 10 }],
+  guard: [{ key: "pdef", per100: 10 }, { key: "mdef", per100: 10 }, { key: "controlResist", per100: 10 }],
+  perception: [{ key: "penetration", per100: 10 }],
   agility: [{ key: "dodgeRate", per100: 10 }],
   crit: [{ key: "critRate", per100: 10 }, { key: "actionSpeed", per100: 10 }],
   insight: [{ key: "cultivationSpeed", per100: 10 }],
@@ -59,13 +60,16 @@ export const PRIMARY_TO_DERIVED_MAP: Readonly<Record<PrimaryStatKey, ReadonlyArr
 };
 
 /** 按百分比计算的派生属性键（基数来自境界表，主属性对其做乘法放大） */
-export const PCT_DERIVED_KEYS: ReadonlySet<string> = new Set(["hp", "mp", "def"]);
+export const PCT_DERIVED_KEYS: ReadonlySet<string> = new Set(["hp", "mp", "pdef"]);
 
 export const DERIVED_STAT_KEYS = [
   "hp",
   "mp",
-  "atk",
-  "def",
+  "patk",
+  "matk",
+  "pdef",
+  "mdef",
+  "penetration",
   "hitRate",
   "dodgeRate",
   "critRate",
@@ -76,6 +80,10 @@ export const DERIVED_STAT_KEYS = [
   "effectChance",
   "cultivationSpeed",
   "controlResist",
+  "fireDamage",
+  "iceDamage",
+  "poisonDamage",
+  "lightningDamage",
 ] as const;
 
 export type DerivedStatKey = (typeof DERIVED_STAT_KEYS)[number];
@@ -83,8 +91,11 @@ export type DerivedStatKey = (typeof DERIVED_STAT_KEYS)[number];
 export const DERIVED_STAT_KEY_TO_ZH: Readonly<Record<DerivedStatKey, string>> = {
   hp: "血量",
   mp: "法力",
-  atk: "物攻",
-  def: "防御",
+  patk: "物攻",
+  matk: "法攻",
+  pdef: "物防",
+  mdef: "法防",
+  penetration: "穿透",
   hitRate: "命中率",
   dodgeRate: "闪避率",
   critRate: "暴击率",
@@ -95,10 +106,15 @@ export const DERIVED_STAT_KEY_TO_ZH: Readonly<Record<DerivedStatKey, string>> = 
   effectChance: "特效几率",
   cultivationSpeed: "修炼速率",
   controlResist: "控制抗性",
+  fireDamage: "火伤",
+  iceDamage: "冰伤",
+  poisonDamage: "毒伤",
+  lightningDamage: "雷伤",
 };
 
 /** 非境界派生属性的初始默认值（境界表不提供的属性按此初始化） */
 export const DERIVED_STAT_DEFAULTS: Readonly<Partial<Record<DerivedStatKey, number>>> = {
+  penetration: 0,
   hitRate: 100,
   dodgeRate: 0,
   critRate: 0,
@@ -109,6 +125,10 @@ export const DERIVED_STAT_DEFAULTS: Readonly<Partial<Record<DerivedStatKey, numb
   effectChance: 100,
   cultivationSpeed: 100,
   controlResist: 0,
+  fireDamage: 0,
+  iceDamage: 0,
+  poisonDamage: 0,
+  lightningDamage: 0,
 };
 
 export type ZhStatBonusMap = Partial<Record<string, number>>;
@@ -138,14 +158,16 @@ export interface RealmBaseStatsRow {
   stage: string;
   hp: number;
   mp: number;
-  atk: number;
-  def: number;
+  patk: number;
+  matk: number;
+  pdef: number;
+  mdef: number;
 }
 
-const BASE_VALUES: { hp: number; mp: number; atk: number; def: number } = {
-  hp: 200, mp: 50, atk: 10, def: 5,
+const BASE_VALUES = {
+  hp: 200, mp: 100, patk: 10, matk: 10, pdef: 5, mdef: 5,
 };
-const EXPONENT = 1.2;
+const EXPONENT = 1.5;
 
 export function realmStageIndex(realm: string, stage: string): number {
   const majorIdx = (REALM_ORDER as readonly string[]).indexOf(realm);
@@ -155,13 +177,15 @@ export function realmStageIndex(realm: string, stage: string): number {
   return majorIdx * SUB_STAGES.length + minorIdx + 1;
 }
 
-function computeStats(level: number): { hp: number; mp: number; atk: number; def: number } {
+function computeStats(level: number) {
   const factor = Math.pow(level, EXPONENT);
   return {
     hp: Math.round(BASE_VALUES.hp * factor),
     mp: Math.round(BASE_VALUES.mp * factor),
-    atk: Math.round(BASE_VALUES.atk * factor),
-    def: Math.round(BASE_VALUES.def * factor),
+    patk: Math.round(BASE_VALUES.patk * factor),
+    matk: Math.round(BASE_VALUES.matk * factor),
+    pdef: Math.round(BASE_VALUES.pdef * factor),
+    mdef: Math.round(BASE_VALUES.mdef * factor),
   };
 }
 
@@ -264,8 +288,11 @@ export const MIN_NARRATIVE_AGE_BY_MAJOR: Readonly<Record<string, number>> = {
 export type PlayerBaseStats = {
   hp: number;
   mp: number;
-  atk: number;
-  def: number;
+  patk: number;
+  matk: number;
+  pdef: number;
+  mdef: number;
+  penetration: number;
   hitRate: number;
   dodgeRate: number;
   critRate: number;
@@ -276,6 +303,10 @@ export type PlayerBaseStats = {
   effectChance: number;
   cultivationSpeed: number;
   controlResist: number;
+  fireDamage: number;
+  iceDamage: number;
+  poisonDamage: number;
+  lightningDamage: number;
 };
 
 export interface CultivationRealm {
@@ -381,4 +412,3 @@ export type {
   FateChoiceSliceForAge,
   GameSliceForNarrativeAge,
 } from "../realmUtils";
-
