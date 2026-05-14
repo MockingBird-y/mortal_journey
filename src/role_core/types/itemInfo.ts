@@ -7,6 +7,7 @@
 
 import type { SpiritStoneInventoryStack } from "./spiritStone";
 import type { ZhStatBonusMap } from "./playInfo";
+import type { SpecialEffect } from "./special_effects";
 
 // ---------------------------------------------------------------------------
 // 共用枚举与基底
@@ -49,6 +50,8 @@ export interface ItemDefinitionBase {
   desc: string;
   grade: ItemGrade;
   count: number;
+  /** 特殊效果（法宝/功法/丹药/符箓/阵法可携带） */
+  function?: SpecialEffect;
 }
 
 // ---------------------------------------------------------------------------
@@ -90,6 +93,18 @@ export interface BreakthroughElixirDefinition extends ItemDefinitionBase {
 export type PillItemDefinition = ElixirItemDefinition | BreakthroughElixirDefinition;
 
 // ---------------------------------------------------------------------------
+// 符箓与阵法
+// ---------------------------------------------------------------------------
+
+export interface TalismanItemDefinition extends ItemDefinitionBase {
+  itemType: "符箓";
+}
+
+export interface FormationItemDefinition extends ItemDefinitionBase {
+  itemType: "阵法";
+}
+
+// ---------------------------------------------------------------------------
 // 材料与杂物
 // ---------------------------------------------------------------------------
 
@@ -109,6 +124,8 @@ export type CategorizedItemDefinition =
   | TreasureItemDefinition
   | GongfaItemDefinition
   | PillItemDefinition
+  | TalismanItemDefinition
+  | FormationItemDefinition
   | MaterialItemDefinition
   | MiscItemDefinition;
 
@@ -127,6 +144,8 @@ export type TreasureBagStack = TreasureItemDefinition;
 export type GongfaBagStack = GongfaItemDefinition;
 export type ElixirBagStack = ElixirItemDefinition;
 export type BreakthroughElixirBagStack = BreakthroughElixirDefinition;
+export type TalismanBagStack = TalismanItemDefinition;
+export type FormationBagStack = FormationItemDefinition;
 export type MaterialBagStack = MaterialItemDefinition;
 export type MiscBagStack = MiscItemDefinition;
 

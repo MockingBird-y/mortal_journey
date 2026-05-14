@@ -7,15 +7,19 @@ import type {
   BreakthroughElixirDefinition,
   CategorizedItemDefinition,
   ElixirItemDefinition,
+  FormationItemDefinition,
   GongfaItemDefinition,
   InventoryStackItem,
   MaterialItemDefinition,
   MiscItemDefinition,
   SpiritStoneInventoryStack,
+  TalismanItemDefinition,
   TreasureItemDefinition,
 } from "../role_core/types/itemInfo";
 import type { CultivationRealm, EquipSlotKey, TraitEntry } from "../role_core/types/playInfo";
 import { BASE_STAT_KEYS, DERIVED_STAT_KEY_TO_ZH, getEquipBonusRealmRatio, type PlayerBaseStats } from "../role_core/types/playInfo";
+import type { SpecialEffect } from "../role_core/types/special_effects";
+import { COST_RESOURCE_TO_ZH, EFFECT_KEY_CATEGORY, EFFECT_KEY_TO_ZH, TRIGGER_TIMING_TO_ZH } from "../role_core/types/special_effects";
 import { gradeToTraitRarity } from "./protagonistPanelDisplay";
 
 /**
@@ -155,6 +159,60 @@ function formatMagnification(m: Record<string, number> | undefined): string | un
 }
 
 /**
+ * 将物品的 `function`（SpecialEffect）格式化为多行中文展示文本。
+ *
+ * 输出示例：
+ * ```
+ * 触发条件：主动行为触发
+ * 效果：恢复血量 +200（恢复）
+ * 持续回合：3
+ * 消耗：消耗法力 20
+ * ```
+ *
+ * @param fn - 物品携带的特殊效果；`null` / `undefined` 时返回 `undefined`。
+ * @returns 格式化后的多行文本，无有效数据时返回 `undefined`。
+ */
+function formatSpecialEffect(fn: SpecialEffect | undefined): string | undefined {
+  if (!fn) return undefined;
+  const lines: string[] = [];
+
+  const triggerZh = TRIGGER_TIMING_TO_ZH[fn.trigger];
+  if (triggerZh) lines.push(`触发条件：${triggerZh}`);
+
+  const effLabel = EFFECT_KEY_TO_ZH[fn.effect.label];
+  const effCat = EFFECT_KEY_CATEGORY[fn.effect.label];
+  if (effLabel) {
+    const sign = fn.effect.value >= 0 ? "+" : "";
+    const cat = effCat ? `（${effCat}）` : "";
+    lines.push(`效果：${effLabel} ${sign}${fn.effect.value}${cat}`);
+  }
+
+  if (typeof fn.duration === "number") {
+    lines.push(fn.duration > 0 ? `持续回合：${fn.duration}` : "持续回合：即时生效");
+  }
+
+  const costZh = COST_RESOURCE_TO_ZH[fn.cost.resource];
+  if (costZh && fn.cost.resource !== "none") {
+    lines.push(`消耗：${costZh} ${fn.cost.value}`);
+  } else if (costZh) {
+    lines.push(`消耗：${costZh}`);
+  }
+
+  return lines.length ? lines.join("\n") : undefined;
+}
+
+/**
+ * 若物品携带 `function` 字段，则将其格式化后追加到详情段落数组中。
+ *
+ * @param out - 目标段落数组。
+ * @param fn - 物品的特殊效果（可为 `undefined`）。
+ */
+function pushFunctionSection(out: ProtagonistDetailSection[], fn: SpecialEffect | undefined): void {
+  const text = formatSpecialEffect(fn);
+  if (text) pushSec(out, "功能", text);
+}
+
+/**
  * 根据天赋条目构建详情弹窗数据。
  *
  * @param t - 天赋条目；字符串视为仅名称的简项，对象则包含名称、稀有度与描述等。
@@ -207,6 +265,7 @@ export function buildWearableDetailPayload(
   pushSec(sections, "简介", it.desc);
   pushSec(sections, "品级", it.grade);
   pushSec(sections, "数量", it.count);
+  pushFunctionSection(sections, it.function);
 
   const actions: ProtagonistDetailActionButton[] = [];
   if (source?.type === "equipped") {
@@ -263,6 +322,7 @@ export function buildGongfaDetailPayload(
       : formatZhBonus(gf.bonus as Record<string, number>);
   if (bonus) pushSec(sections, "修炼加成", bonus);
   pushSec(sections, "数量", gf.count);
+  pushFunctionSection(sections, gf.function);
 
   const actions: ProtagonistDetailActionButton[] = [];
   if (source?.type === "bar") {
@@ -367,6 +427,7 @@ export function buildInventoryStackDetailPayload(
       const fx = formatRecover(pill);
       if (fx) pushSec(sections, "药效", fx);
       pushSec(sections, "数量", pill.count);
+      pushFunctionSection(sections, pill.function);
       return {
         title: pill.name,
         subtitle: `丹药`,
@@ -382,6 +443,7 @@ export function buildInventoryStackDetailPayload(
       const fx = formatBreakthrough(bt);
       if (fx) pushSec(sections, "突破效果", fx);
       pushSec(sections, "数量", bt.count);
+      pushFunctionSection(sections, bt.function);
       return {
         title: bt.name,
         subtitle: `突破丹药`,
@@ -413,6 +475,34 @@ export function buildInventoryStackDetailPayload(
         subtitle: `杂物`,
         sections,
         dataRarity: gradeToTraitRarity(misc.grade),
+      };
+    }
+    case "符箓": {
+      const tal = it as TalismanItemDefinition;
+      const sections: ProtagonistDetailSection[] = [];
+      pushSec(sections, "简介", tal.desc);
+      pushSec(sections, "品级", tal.grade);
+      pushSec(sections, "数量", tal.count);
+      pushFunctionSection(sections, tal.function);
+      return {
+        title: tal.name,
+        subtitle: "符箓",
+        sections,
+        dataRarity: gradeToTraitRarity(tal.grade),
+      };
+    }
+    case "阵法": {
+      const fm = it as FormationItemDefinition;
+      const sections: ProtagonistDetailSection[] = [];
+      pushSec(sections, "简介", fm.desc);
+      pushSec(sections, "品级", fm.grade);
+      pushSec(sections, "数量", fm.count);
+      pushFunctionSection(sections, fm.function);
+      return {
+        title: fm.name,
+        subtitle: "阵法",
+        sections,
+        dataRarity: gradeToTraitRarity(fm.grade),
       };
     }
     default: {

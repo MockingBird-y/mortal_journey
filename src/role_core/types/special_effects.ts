@@ -7,7 +7,7 @@
  * 物品可携带零或多个特殊效果，在特定时机触发，产生数值效果并消耗资源。
  */
 export interface SpecialEffect {
-  /** 触发时机，如 `"activeUse"`、`"battleStart"`、`"hpHalf"` */
+  /** 触发时机，如 `"on_attack"`、`"on_hit_taken"`、`"on_turn_start"` */
   trigger: TriggerTiming;
   /** 效果描述与数值，如 `{ label: "recoverHp", value: 200 }` */
   effect: SpecialEffectValue;
@@ -39,40 +39,49 @@ export type SpecialEffectTarget =
 
 /** 触发时机键（英文标识，供代码逻辑判断使用） */
 export const TRIGGER_TIMING_KEYS = [
-  "activeUse",
-  "battleStart",
-  "hpHalf",
-  "hpCritical",
-  "mpHalf",
-  "mpCritical",
-  "onHit",
-  "default",
+  "on_attack",
+  "on_skill_cast",
+  "on_crit",
+  "on_dodge",
+  "on_hit_taken",
+  "on_turn_start",
+  "on_low_hp",
+  "on_low_mana",
+  "on_full_mana",
+  "on_kill",
+  "on_default",
 ] as const;
 
 export type TriggerTiming = (typeof TRIGGER_TIMING_KEYS)[number];
 
 /** 触发时机英文 → 中文映射 */
 export const TRIGGER_TIMING_TO_ZH: Readonly<Record<TriggerTiming, string>> = {
-  activeUse: "主动使用",
-  battleStart: "战斗开始时触发",
-  hpHalf: "血量减半时触发",
-  hpCritical: "血量见底时触发",
-  mpHalf: "法力减半时触发",
-  mpCritical: "法力见底时触发",
-  onHit: "击中敌方时触发",
-  default: "默认触发",
+  on_attack: "主动行为触发",
+  on_skill_cast: "释放技能时",
+  on_crit: "暴击时",
+  on_dodge: "闪避时",
+  on_hit_taken: "受到攻击时",
+  on_turn_start: "回合开始",
+  on_low_hp: "低生命值",
+  on_low_mana: "灵力不足",
+  on_full_mana: "灵气满时",
+  on_kill: "击杀敌人",
+  on_default: "默认触发",
 };
 
 /** 触发时机分类 */
 export const TRIGGER_TIMING_CATEGORY: Readonly<Record<TriggerTiming, "主动" | "被动" | "默认">> = {
-  activeUse: "主动",
-  battleStart: "被动",
-  hpHalf: "被动",
-  hpCritical: "被动",
-  mpHalf: "被动",
-  mpCritical: "被动",
-  onHit: "被动",
-  default: "默认",
+  on_attack: "主动",
+  on_skill_cast: "主动",
+  on_crit: "被动",
+  on_dodge: "被动",
+  on_hit_taken: "被动",
+  on_turn_start: "被动",
+  on_low_hp: "被动",
+  on_low_mana: "被动",
+  on_full_mana: "被动",
+  on_kill: "被动",
+  on_default: "默认",
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -84,15 +93,6 @@ export const EFFECT_KEYS = [
   // 恢复
   "recoverHp",
   "recoverMp",
-  // 增加8维主属性
-  "boostPhysique",
-  "boostSpirit",
-  "boostGuard",
-  "boostPerception",
-  "boostAgility",
-  "boostCrit",
-  "boostInsight",
-  "boostFortune",
   // 增加派生属性
   "boostHp",
   "boostMp",
@@ -115,6 +115,28 @@ export const EFFECT_KEYS = [
   "boostIceDamage",
   "boostPoisonDamage",
   "boostLightningDamage",
+  // 减少派生属性
+  "reduceHp",
+  "reduceMp",
+  "reducePatk",
+  "reduceMatk",
+  "reducePdef",
+  "reduceMdef",
+  "reducePenetration",
+  "reduceHitRate",
+  "reduceDodgeRate",
+  "reduceCritRate",
+  "reduceCritDmg",
+  "reduceRecovery",
+  "reduceCastSpeed",
+  "reduceActionSpeed",
+  "reduceEffectChance",
+  "reduceCultivationSpeed",
+  "reduceControlResist",
+  "reduceFireDamage",
+  "reduceIceDamage",
+  "reducePoisonDamage",
+  "reduceLightningDamage",
   // 造成伤害
   "dealPhysicalDmg",
   "dealMagicDmg",
@@ -130,14 +152,6 @@ export type EffectKey = (typeof EFFECT_KEYS)[number];
 export const EFFECT_KEY_TO_ZH: Readonly<Record<EffectKey, string>> = {
   recoverHp: "恢复血量",
   recoverMp: "恢复法力",
-  boostPhysique: "增加体魄",
-  boostSpirit: "增加灵力",
-  boostGuard: "增加护体",
-  boostPerception: "增加神识",
-  boostAgility: "增加身法",
-  boostCrit: "增加会心",
-  boostInsight: "增加悟性",
-  boostFortune: "增加气运",
   boostHp: "增加血量",
   boostMp: "增加法力",
   boostPatk: "增加物攻",
@@ -159,6 +173,27 @@ export const EFFECT_KEY_TO_ZH: Readonly<Record<EffectKey, string>> = {
   boostIceDamage: "增加冰伤",
   boostPoisonDamage: "增加毒伤",
   boostLightningDamage: "增加雷伤",
+  reduceHp: "减少血量",
+  reduceMp: "减少法力",
+  reducePatk: "减少物攻",
+  reduceMatk: "减少法攻",
+  reducePdef: "减少物防",
+  reduceMdef: "减少法防",
+  reducePenetration: "减少穿透",
+  reduceHitRate: "减少命中率",
+  reduceDodgeRate: "减少闪避率",
+  reduceCritRate: "减少暴击率",
+  reduceCritDmg: "减少暴击伤害",
+  reduceRecovery: "减少恢复效果",
+  reduceCastSpeed: "减少施法速度",
+  reduceActionSpeed: "减少行动速度",
+  reduceEffectChance: "减少特效几率",
+  reduceCultivationSpeed: "减少修炼速率",
+  reduceControlResist: "减少控制抗性",
+  reduceFireDamage: "减少火伤",
+  reduceIceDamage: "减少冰伤",
+  reducePoisonDamage: "减少毒伤",
+  reduceLightningDamage: "减少雷伤",
   dealPhysicalDmg: "造成物伤",
   dealMagicDmg: "造成法伤",
   dealFireDmg: "造成火伤",
@@ -168,13 +203,14 @@ export const EFFECT_KEY_TO_ZH: Readonly<Record<EffectKey, string>> = {
 };
 
 /** 效果分类 */
-export type EffectCategory = "恢复" | "增益" | "伤害";
+export type EffectCategory = "恢复" | "增益" | "减益" | "伤害";
 
 /** 效果键 → 分类映射 */
 export const EFFECT_KEY_CATEGORY: Readonly<Record<EffectKey, EffectCategory>> = (() => {
   const o = {} as Record<string, EffectCategory>;
   for (const k of EFFECT_KEYS) {
     if (k.startsWith("recover")) o[k] = "恢复";
+    else if (k.startsWith("reduce")) o[k] = "减益";
     else if (k.startsWith("boost")) o[k] = "增益";
     else o[k] = "伤害";
   }
@@ -207,4 +243,105 @@ export interface CostResourceValue {
   resource: CostResourceKey;
   /** 消耗数值 */
   value: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AI 输出归一化
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 大小写不敏感匹配 `EffectKey`；匹配不到时返回 `undefined`。
+ *
+ * @param s AI 输出的原始效果字符串。
+ */
+export function matchEffectKeyLoose(s: string): EffectKey | undefined {
+  const lower = s.toLowerCase();
+  for (const k of EFFECT_KEYS) {
+    if (k.toLowerCase() === lower) return k;
+  }
+  return undefined;
+}
+
+/**
+ * 大小写不敏感匹配 `CostResourceKey`；匹配不到时 fallback 为 `"none"`。
+ *
+ * @param s AI 输出的原始消耗资源字符串。
+ */
+export function matchCostResourceLoose(s: string): CostResourceKey {
+  const lower = s.toLowerCase().trim();
+  for (const k of COST_RESOURCE_KEYS) {
+    if (k.toLowerCase() === lower) return k;
+  }
+  return "none";
+}
+
+/**
+ * 将 AI 原始 `function` 字段归一化为 `SpecialEffect`。
+ *
+ * AI 输出格式（无具体数值）：
+ * ```json
+ * { "trigger": "on_attack", "effect": "dealMagicDmg", "duration": 0, "cost": "mp" }
+ * ```
+ *
+ * 归一化规则：
+ * - `trigger`：精确匹配 `TRIGGER_TIMING_KEYS`，不匹配则 fallback `"on_default"`
+ * - `effect`：字符串做大小写不敏感匹配；对象则校验 `label`；`value` 用常量 `1`
+ * - `duration`：取原值，非数字时默认 `0`
+ * - `cost`：字符串匹配 `CostResourceKey`，`value` 用常量 `1`；对象则校验 `resource`
+ *
+ * @param raw AI 原始 function 字段（`unknown`）。
+ * @returns 归一化后的 `SpecialEffect`，无法识别时返回 `undefined`。
+ */
+export function normalizeAiFunction(raw: unknown): SpecialEffect | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const o = raw as Record<string, unknown>;
+
+  const rawTrigger = typeof o.trigger === "string" ? o.trigger.trim() : "";
+  const trigger = (TRIGGER_TIMING_KEYS as readonly string[]).includes(rawTrigger)
+    ? (rawTrigger as TriggerTiming)
+    : "on_default";
+
+  let effectLabel: EffectKey | undefined;
+  let effectValue = 1;
+  const rawEffect = o.effect;
+  if (typeof rawEffect === "string") {
+    effectLabel = matchEffectKeyLoose(rawEffect);
+  } else if (rawEffect && typeof rawEffect === "object") {
+    const eo = rawEffect as Record<string, unknown>;
+    if (typeof eo.label === "string") {
+      effectLabel = matchEffectKeyLoose(eo.label);
+    }
+    if (typeof eo.value === "number" && Number.isFinite(eo.value)) {
+      effectValue = eo.value;
+    }
+  }
+  if (!effectLabel) return undefined;
+
+  const rawDuration = o.duration;
+  const duration = typeof rawDuration === "number" && Number.isFinite(rawDuration) ? rawDuration : 0;
+
+  let costResource: CostResourceKey = "none";
+  let costValue = 0;
+  const rawCost = o.cost;
+  if (typeof rawCost === "string") {
+    costResource = matchCostResourceLoose(rawCost);
+    costValue = costResource !== "none" ? 1 : 0;
+  } else if (rawCost && typeof rawCost === "object") {
+    const co = rawCost as Record<string, unknown>;
+    if (typeof co.resource === "string") {
+      costResource = matchCostResourceLoose(co.resource);
+    }
+    if (typeof co.value === "number" && Number.isFinite(co.value)) {
+      costValue = co.value;
+    } else {
+      costValue = costResource !== "none" ? 1 : 0;
+    }
+  }
+
+  return {
+    trigger,
+    effect: { label: effectLabel, value: effectValue },
+    duration,
+    cost: { resource: costResource, value: costValue },
+  };
 }

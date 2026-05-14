@@ -58,6 +58,7 @@ export interface ItemAddEntry {
   grade: string;
   bonus?: string[] | Record<string, number>;
   count: number;
+  function?: unknown;
 }
 
 export interface ItemRemoveEntry {
@@ -181,7 +182,7 @@ export function parseStateAiResponse(raw: string): StateParsed {
       const bonus = Array.isArray(o.bonus) || (typeof o.bonus === "object" && o.bonus !== null)
         ? o.bonus as string[] | Record<string, number>
         : undefined;
-      return { type, name, intro, grade, bonus, count } as ItemAddEntry;
+      return { type, name, intro, grade, bonus, count, ...(o.function != null ? { function: o.function } : {}) } as ItemAddEntry;
     })
     .filter((e): e is ItemAddEntry => e !== null);
 

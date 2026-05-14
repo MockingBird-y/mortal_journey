@@ -4,7 +4,6 @@
 
 import { ref, watch, type ComputedRef, type Ref } from "vue";
 import { generateInitStory } from "./init_story_generate";
-import { generateInitState } from "./init_state_generate";
 import { generateState } from "./state_generate";
 import { gameLog } from "../log/gameLog";
 import {
@@ -104,7 +103,7 @@ export function useOpeningStoryFromFateChoice(
       phase.value = "loading";
 
       try {
-        const parsed = await generateInitStory({
+        const result = await generateInitStory({
           apiUrl: url,
           apiKey: String(apiKey || "").trim() || undefined,
           model,
@@ -112,25 +111,12 @@ export function useOpeningStoryFromFateChoice(
           signal: ac.signal,
         });
         if (abortCtl !== ac) return;
-        storyBody.value = parsed.storyBody;
-        worldLocation.value = parsed.worldLocation.trim();
-        if (parsed.storyBody.trim()) {
-          try {
-            const stateParsed = await generateInitState({
-              apiUrl: url,
-              apiKey: String(apiKey || "").trim() || undefined,
-              model,
-              protagonist: p,
-              storyBody: parsed.storyBody,
-              signal: ac.signal,
-            });
-            if (abortCtl !== ac) return;
-            const current = protagonist.value;
-            if (current) {
-              current.applyInitState(stateParsed);
-            }
-          } catch (e2) {
-            gameLog.warn("[OpeningStory] 开局状态生成失败（不影响剧情显示）：" + (e2 instanceof Error ? e2.message : String(e2)));
+        storyBody.value = result.story.storyBody;
+        worldLocation.value = result.story.worldLocation.trim();
+        if (result.story.storyBody.trim()) {
+          const current = protagonist.value;
+          if (current) {
+            current.applyInitState(result.state);
           }
           try {
             const latest = protagonist.value;
@@ -140,7 +126,7 @@ export function useOpeningStoryFromFateChoice(
                 apiKey: String(apiKey || "").trim() || undefined,
                 model,
                 protagonist: latest,
-                storyBody: parsed.storyBody,
+                storyBody: result.story.storyBody,
                 signal: ac.signal,
               });
               if (abortCtl !== ac) return;

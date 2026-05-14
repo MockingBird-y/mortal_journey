@@ -8,10 +8,13 @@
 import { ref, type Ref } from "vue";
 import type { FateChoiceResult } from "../fate_choice/types";
 import type {
+  CategorizedItemDefinition,
   GongfaItemDefinition,
   InventoryStackItem,
   TreasureItemDefinition,
 } from "./types/itemInfo";
+import type { SpecialEffect } from "./types/special_effects";
+import { normalizeAiFunction } from "./types/special_effects";
 import {
   type CultivationRealm,
   type EquippedSlotsState,
@@ -42,13 +45,13 @@ import {
   SPIRIT_STONE_TABLE_KEYS_ORDERED,
   type SpiritStoneName,
 } from "./types/spiritStone";
-import type { InitStateParsed } from "../ai/init_state_generate";
+import type { InitStateParsed } from "../ai/init_story_generate";
 import type { StateParsed } from "../ai/state_generate";
 import {
   buildEquippedSlotsFromParsed,
   buildGongfaSlotsFromParsed,
   buildInventoryFromParsed,
-} from "../ai/init_state_generate";
+} from "../ai/init_story_generate";
 import {
   DEFAULT_INVENTORY_SLOT_COUNT,
   INVENTORY_SLOT_EXPAND_STEP,
@@ -67,6 +70,10 @@ import {
   unequipToInventory as eqUnequip,
   applyDetailAction as eqApply,
 } from "./ProtagonistEquip";
+
+const VALID_ITEM_TYPES: ReadonlySet<string> = new Set([
+  "法宝", "功法", "丹药", "突破丹药", "符箓", "阵法", "材料", "杂物",
+]);
 
 /** 主角玩家类：聚合境界、属性、法宝、功法、储物袋等全部角色状态。 */
 export class Protagonist {
@@ -583,13 +590,16 @@ export class Protagonist {
 
     for (const item of state.itemAdds) {
       if (item.type === "灵石") continue;
+      const itemType = VALID_ITEM_TYPES.has(item.type) ? item.type as CategorizedItemDefinition["itemType"] : "杂物";
+      const fn: SpecialEffect | undefined = normalizeAiFunction(item.function);
       this.addToInventory({
         name: item.name,
         desc: item.intro,
         grade: item.grade as "下品" | "中品" | "上品" | "极品" | "仙品",
         count: item.count,
-        itemType: "杂物",
-      } as any);
+        itemType,
+        ...(fn ? { function: fn } : {}),
+      } as InventoryStackItem);
     }
 
     for (const item of state.itemRemoves) {
