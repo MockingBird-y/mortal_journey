@@ -30,8 +30,6 @@ export const INIT_STORY_SYSTEM_PRESET = `
 
 [灵石规则]
 1. 灵石只能是下品灵石、中品灵石、上品灵石、极品灵石、仙品灵石中的一个，不能出现其他灵石。
-2. 灵石价值体系：下品灵石价值10，中品灵石价值100，上品灵石价值1000，极品灵石价值10000，仙品灵石价值100000。
-3. 灵石品阶兑换体系：不同品阶灵石兑换按照价值体系计算，比如一个中品灵石兑换10个下品灵石，一个极品灵石兑换1000个下品灵石。
 4. 灵石数量指标：
 4.1 练气修士而言，10下品灵石以下为少量灵石，50下品灵石为中等数量灵石，100下品灵石以上为大量灵石。
 4.2 筑基修士而言，10中品灵石以下为少量灵石，50中品灵石为中等数量灵石，100中品灵石以上为大量灵石。
@@ -54,11 +52,13 @@ export const INIT_STORY_SYSTEM_PRESET = `
 [法宝功法丹药符箓阵法function生成规则]
 1. 法宝、功法、丹药、符箓、阵法携带一个 function 字典，每个 function 为一条特殊功能条目，必须有。
 2. 每个 function 对象包含四个字段：trigger（触发时机）、effect（效果）、duration（持续回合）、cost（消耗）。
-3. trigger 触发时机可选值（与游戏逻辑一致的英文键）：
+3. 丹药的effect效果不能是造成伤害和减益效果。
+4. trigger触发时机是默认触发时，不能是造成伤害的效果。
+5. trigger 触发时机可选值（与游戏逻辑一致的英文键）：
    on_attack（主动行为触发）、on_skill_cast（释放技能时）、on_crit（暴击时）、on_dodge（闪避时）、
    on_hit_taken（受到攻击时）、on_turn_start（回合开始）、on_low_hp（低生命值）、on_low_mana（灵力不足）、
    on_full_mana（灵气满时）、on_kill（击杀敌人）、on_default（默认触发）。
-4. effect 效果键可选值（与游戏逻辑一致的英文键）：
+6. effect 效果键可选值（与游戏逻辑一致的英文键）：
    · 恢复类：recoverHp（恢复血量）、recoverMp（恢复法力）。
    · 增益类：boostHp（增加血量）、boostMp（增加法力）、boostPatk（增加物攻）、boostMatk（增加法攻）、
      boostPdef（增加物防）、boostMdef（增加法防）、boostPenetration（增加穿透）、boostHitRate（增加命中率）、
@@ -72,10 +72,10 @@ export const INIT_STORY_SYSTEM_PRESET = `
      reduceFireDamage、reduceIceDamage、reducePoisonDamage、reduceLightningDamage（中文均为对应属性前加"减少"）。
    · 伤害类：dealPhysicalDmg（造成物伤）、dealMagicDmg（造成法伤）、dealFireDmg（造成火伤）、
      dealIceDmg（造成冰伤）、dealPoisonDmg（造成毒伤）、dealLightningDmg（造成雷伤）。
-6. duration 为持续回合数：0 表示即时生效不持续，正数表示持续该回合数。
-7. cost 消耗资源可选值：none（无消耗）、mp（消耗法力）、hp（消耗血量）。
-8. function 功能必须与物品的名称和介绍描述契合，不能凭空生成与物品功能无关的功能。
-9. 输出示例（function 为 JSON 数组，无效果时填 {}）：
+7. duration 为持续回合数：0 表示即时生效不持续，正数表示持续该回合数。
+8. cost 消耗资源可选值：none（无消耗）、mp（消耗法力）、hp（消耗血量）。
+9. function 功能必须与物品的名称和介绍描述契合，不能凭空生成与物品功能无关的功能。
+10. 输出示例（function 为 JSON 数组，无效果时填 {}）：
    · 法宝示例：{"type":"法宝","name":"青钢剑","intro":"外门制式，刃口锋利","function":{"trigger":"on_attack","effect":"dealPhysicalDmg","duration":0,"cost":"mp"},"grade":"下品"}
    · 带效果示例：{"type":"丹药","name":"回春丹","intro":"疗伤丹药","function":{"trigger":"on_attack","effect":"recoverHp","duration":0,"cost":"none"},"grade":"中品","count":2}
 

@@ -33,6 +33,7 @@ import {
   type EffectKey,
   type CostResourceKey,
   type SpecialEffect,
+  applyFunctionOverrides,
 } from "../role_core/types/special_effects";
 
 /** 调用网关所需字段 + 生成参数 */
@@ -294,7 +295,7 @@ function parseEquipObject(e: unknown): TreasureItemDefinition {
     desc: safeStr(obj.intro, ""),
     grade: safeGrade(obj.grade, "下品"),
     count: 1,
-    function: validateAiFunction(obj.function) ?? undefined,
+    function: applyFunctionOverrides(validateAiFunction(obj.function) ?? undefined, "法宝"),
   };
 }
 
@@ -307,7 +308,7 @@ function parseGongfaObject(e: unknown): GongfaItemDefinition {
     grade: safeGrade(obj.grade, "下品"),
     count: 1,
     bonus: {},
-    function: validateAiFunction(obj.function) ?? undefined,
+    function: applyFunctionOverrides(validateAiFunction(obj.function) ?? undefined, "功法"),
   };
 }
 
@@ -326,9 +327,8 @@ function parseStorageObject(e: unknown): InventoryStackItem | null {
   const desc = safeStr(obj.intro, "");
   const grade = safeGrade(obj.grade, "下品");
   const count = safeCount(obj.count);
-  const fn = validateAiFunction(obj.function) ?? undefined;
-
   const itemType = TYPE_TO_ITEM_TYPE[typeStr] ?? "杂物";
+  const fn = applyFunctionOverrides(validateAiFunction(obj.function) ?? undefined, itemType);
 
   switch (itemType) {
     case "法宝":

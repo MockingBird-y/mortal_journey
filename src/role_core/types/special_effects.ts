@@ -56,7 +56,7 @@ export type TriggerTiming = (typeof TRIGGER_TIMING_KEYS)[number];
 
 /** 触发时机英文 → 中文映射 */
 export const TRIGGER_TIMING_TO_ZH: Readonly<Record<TriggerTiming, string>> = {
-  on_attack: "主动行为触发",
+  on_attack: "主动触发",
   on_skill_cast: "释放技能时",
   on_crit: "暴击时",
   on_dodge: "闪避时",
@@ -243,6 +243,53 @@ export interface CostResourceValue {
   resource: CostResourceKey;
   /** 消耗数值 */
   value: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 物品类型 function 强制约束
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** 物品类型的 function 字段强制约束；配置表中指定的字段会覆盖 AI 原值。 */
+export interface FunctionOverride {
+  trigger?: TriggerTiming;
+  cost?: CostResourceKey;
+  duration?: number;
+}
+
+/** 各物品类型的 function 约束配置表；增删约束只改此处。 */
+export const ITEM_TYPE_FUNCTION_OVERRIDES: Readonly<
+  Record<SpecialEffectTarget, FunctionOverride>
+> = {
+  法宝: {},
+  功法: {},
+  丹药: { trigger: "on_attack", cost: "none" },
+  符箓: { trigger: "on_attack" },
+  阵法: { trigger: "on_attack", duration: 5 },
+};
+
+/**
+ * 按物品类型强制覆盖 `function` 字段。
+ * 配置表中指定的字段会无条件覆盖，未指定的字段保留原值。
+ *
+ * @param fn 已归一化的 `SpecialEffect`。
+ * @param itemType 物品类型（如 `"丹药"`）。
+ * @returns 覆盖后的 `SpecialEffect`；`fn` 为 `undefined` 时原样返回。
+ */
+export function applyFunctionOverrides(
+  fn: SpecialEffect | undefined,
+  itemType: string,
+): SpecialEffect | undefined {
+  if (!fn) return fn;
+  const override = ITEM_TYPE_FUNCTION_OVERRIDES[itemType as SpecialEffectTarget];
+  if (!override) return fn;
+  return {
+    trigger: override.trigger ?? fn.trigger,
+    effect: fn.effect,
+    duration: override.duration ?? fn.duration,
+    cost: override.cost != null
+      ? { resource: override.cost, value: 0 }
+      : fn.cost,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
