@@ -4,7 +4,6 @@
  */
 
 import type {
-  BreakthroughElixirDefinition,
   CategorizedItemDefinition,
   ElixirItemDefinition,
   FormationItemDefinition,
@@ -264,7 +263,6 @@ export function buildWearableDetailPayload(
   const sections: ProtagonistDetailSection[] = [];
   pushSec(sections, "简介", it.desc);
   pushSec(sections, "品级", it.grade);
-  pushSec(sections, "数量", it.count);
   pushFunctionSection(sections, it.function);
 
   const actions: ProtagonistDetailActionButton[] = [];
@@ -321,7 +319,6 @@ export function buildGongfaDetailPayload(
       ? formatZhBonusWithRealmEquip(gf.bonus as Record<string, number>, realm)
       : formatZhBonus(gf.bonus as Record<string, number>);
   if (bonus) pushSec(sections, "修炼加成", bonus);
-  pushSec(sections, "数量", gf.count);
   pushFunctionSection(sections, gf.function);
 
   const actions: ProtagonistDetailActionButton[] = [];
@@ -361,23 +358,6 @@ function formatRecover(el: ElixirItemDefinition): string | undefined {
   const mp = typeof r.mp === "number" && r.mp > 0 ? `法力 +${r.mp}` : "";
   const parts = [hp, mp].filter(Boolean);
   return parts.length ? parts.join("，") : undefined;
-}
-
-/**
- * 将突破丹药的境界突破效果格式化为多行中文说明。
- *
- * @param bt - 突破丹药定义，读取 `effects.breakthrough` 数组。
- * @returns 每行一段「from → to（成功率 +x%）」；无数据时返回 `undefined`。
- */
-function formatBreakthrough(bt: BreakthroughElixirDefinition): string | undefined {
-  const arr = bt.effects?.breakthrough;
-  if (!Array.isArray(arr) || !arr.length) return undefined;
-  return arr
-    .map((e) => {
-      const pct = typeof e.chanceBonus === "number" ? Math.round(e.chanceBonus * 100) : 0;
-      return `${e.from} → ${e.to}（成功率 +${pct}%）`;
-    })
-    .join("\n");
 }
 
 /**
@@ -426,29 +406,13 @@ export function buildInventoryStackDetailPayload(
       pushSec(sections, "品级", pill.grade);
       const fx = formatRecover(pill);
       if (fx) pushSec(sections, "药效", fx);
-      pushSec(sections, "数量", pill.count);
       pushFunctionSection(sections, pill.function);
+      pushSec(sections, "数量", pill.count);
       return {
         title: pill.name,
         subtitle: `丹药`,
         sections,
         dataRarity: gradeToTraitRarity(pill.grade),
-      };
-    }
-    case "突破丹药": {
-      const bt = it as BreakthroughElixirDefinition;
-      const sections: ProtagonistDetailSection[] = [];
-      pushSec(sections, "简介", bt.desc);
-      pushSec(sections, "品级", bt.grade);
-      const fx = formatBreakthrough(bt);
-      if (fx) pushSec(sections, "突破效果", fx);
-      pushSec(sections, "数量", bt.count);
-      pushFunctionSection(sections, bt.function);
-      return {
-        title: bt.name,
-        subtitle: `突破丹药`,
-        sections,
-        dataRarity: gradeToTraitRarity(bt.grade),
       };
     }
     case "材料": {
@@ -482,8 +446,8 @@ export function buildInventoryStackDetailPayload(
       const sections: ProtagonistDetailSection[] = [];
       pushSec(sections, "简介", tal.desc);
       pushSec(sections, "品级", tal.grade);
-      pushSec(sections, "数量", tal.count);
       pushFunctionSection(sections, tal.function);
+      pushSec(sections, "数量", tal.count);
       return {
         title: tal.name,
         subtitle: "符箓",
@@ -496,8 +460,8 @@ export function buildInventoryStackDetailPayload(
       const sections: ProtagonistDetailSection[] = [];
       pushSec(sections, "简介", fm.desc);
       pushSec(sections, "品级", fm.grade);
-      pushSec(sections, "数量", fm.count);
       pushFunctionSection(sections, fm.function);
+      pushSec(sections, "数量", fm.count);
       return {
         title: fm.name,
         subtitle: "阵法",

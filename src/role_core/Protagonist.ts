@@ -72,7 +72,7 @@ import {
 } from "./ProtagonistEquip";
 
 const VALID_ITEM_TYPES: ReadonlySet<string> = new Set([
-  "法宝", "功法", "丹药", "突破丹药", "符箓", "阵法", "材料", "杂物",
+  "法宝", "功法", "丹药", "符箓", "阵法", "材料", "杂物",
 ]);
 
 /** 主角玩家类：聚合境界、属性、法宝、功法、储物袋等全部角色状态。 */

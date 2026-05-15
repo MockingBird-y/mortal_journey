@@ -23,7 +23,9 @@ import type {
   MaterialItemDefinition,
   MiscItemDefinition,
   CategorizedItemDefinition,
+  GradeDropRate,
 } from "../role_core/types/itemInfo";
+import { GRADE_DROP_TABLE } from "../role_core/types/itemInfo";
 import type { InventoryStackItem, ProtagonistPlayInfo, GongfaSlotsState, EquippedSlotsState, NarrationPerson, TraitEntry } from "../role_core/types/playInfo";
 import {
   TRIGGER_TIMING_KEYS,
@@ -72,11 +74,22 @@ const MJ_MAGIC_BODY_CLOSE = "</mj_magic_body>";
 const MJ_STORAGE_BODY_OPEN = "<mj_storage_body>";
 const MJ_STORAGE_BODY_CLOSE = "</mj_storage_body>";
 
-// ── 品阶常量 ──────────────────────────────────────────────────────────────
-
-const GRADE_ORDER: readonly ItemGrade[] = ["下品", "中品", "上品", "极品", "仙品"];
-
 // ── 工具函数 ──────────────────────────────────────────────────────────────
+
+const VALID_BONUS_NAMES: ReadonlySet<string> = new Set(["体魄", "灵力", "护体", "神识", "身法", "会心"]);
+const DEFAULT_BONUS_VALUE = 5;
+
+/**
+ * 将 AI 输出的 bonus 字段解析为属性加成对象。
+ * AI 输出为字符串（如 `"会心"`），转为 `{ "会心": 5 }`。
+ * 非 string 或不在六项之列时返回空对象。
+ */
+function parseBonusField(raw: unknown): Record<string, number> {
+  if (typeof raw !== "string") return {};
+  const name = raw.trim();
+  if (!VALID_BONUS_NAMES.has(name)) return {};
+  return { [name]: DEFAULT_BONUS_VALUE };
+}
 
 function extractTagContent(raw: string, openTag: string, closeTag: string): string {
   const i = raw.indexOf(openTag);
@@ -132,9 +145,23 @@ function safeStr(val: unknown, fallback: string): string {
   return typeof val === "string" && val.trim() ? val.trim() : fallback;
 }
 
-function safeGrade(val: unknown, fallback: ItemGrade): ItemGrade {
-  if (typeof val === "string" && GRADE_ORDER.includes(val as ItemGrade)) return val as ItemGrade;
-  return fallback;
+const GRADE_KEYS: readonly (keyof GradeDropRate)[] = ["下品", "中品", "上品", "极品", "仙品"];
+
+/**
+ * 根据主角境界从 `GRADE_DROP_TABLE` 按概率随机出一个品阶。
+ * 查不到对应境界时 fallback 为 `"下品"`。
+ */
+function rollGrade(realmMajor: string, realmMinor: string): ItemGrade {
+  const stage = GRADE_DROP_TABLE[realmMajor]?.[realmMinor];
+  if (!stage) return "下品";
+  const total = stage.下品 + stage.中品 + stage.上品 + stage.极品 + stage.仙品;
+  if (total <= 0) return "下品";
+  let roll = Math.random() * total;
+  for (const key of GRADE_KEYS) {
+    roll -= stage[key];
+    if (roll <= 0) return key;
+  }
+  return "下品";
 }
 
 function safeCount(val: unknown): number {
@@ -239,7 +266,6 @@ const TYPE_TO_ITEM_TYPE: Record<string, CategorizedItemDefinition["itemType"]> =
   "法宝": "法宝",
   "功法": "功法",
   "丹药": "丹药",
-  "突破丹药": "突破丹药",
   "符箓": "符箓",
   "阵法": "阵法",
   "材料": "材料",
@@ -287,32 +313,32 @@ export function parseInitStoryAiResponse(raw: string): InitStoryParsed {
   };
 }
 
-function parseEquipObject(e: unknown): TreasureItemDefinition {
+function parseEquipObject(e: unknown, realmMajor: string, realmMinor: string): TreasureItemDefinition {
   const obj = e as Record<string, unknown>;
   return {
     itemType: "法宝",
     name: safeStr(obj.name, "未命名法宝"),
     desc: safeStr(obj.intro, ""),
-    grade: safeGrade(obj.grade, "下品"),
+    grade: rollGrade(realmMajor, realmMinor),
     count: 1,
     function: applyFunctionOverrides(validateAiFunction(obj.function) ?? undefined, "法宝"),
   };
 }
 
-function parseGongfaObject(e: unknown): GongfaItemDefinition {
+function parseGongfaObject(e: unknown, realmMajor: string, realmMinor: string): GongfaItemDefinition {
   const obj = e as Record<string, unknown>;
   return {
     itemType: "功法",
     name: safeStr(obj.name, "未命名功法"),
     desc: safeStr(obj.intro, ""),
-    grade: safeGrade(obj.grade, "下品"),
+    grade: rollGrade(realmMajor, realmMinor),
     count: 1,
-    bonus: {},
+    bonus: parseBonusField(obj.bonus),
     function: applyFunctionOverrides(validateAiFunction(obj.function) ?? undefined, "功法"),
   };
 }
 
-function parseStorageObject(e: unknown): InventoryStackItem | null {
+function parseStorageObject(e: unknown, realmMajor: string, realmMinor: string): InventoryStackItem | null {
   const obj = e as Record<string, unknown>;
   const typeStr = safeStr(obj.type, "杂物");
 
@@ -325,7 +351,7 @@ function parseStorageObject(e: unknown): InventoryStackItem | null {
 
   const name = safeStr(obj.name, "未命名物品");
   const desc = safeStr(obj.intro, "");
-  const grade = safeGrade(obj.grade, "下品");
+  const grade = rollGrade(realmMajor, realmMinor);
   const count = safeCount(obj.count);
   const itemType = TYPE_TO_ITEM_TYPE[typeStr] ?? "杂物";
   const fn = applyFunctionOverrides(validateAiFunction(obj.function) ?? undefined, itemType);
@@ -334,15 +360,13 @@ function parseStorageObject(e: unknown): InventoryStackItem | null {
     case "法宝":
       return { itemType: "法宝", name, desc, grade, count, function: fn } as TreasureItemDefinition;
     case "功法":
-      return { itemType: "功法", name, desc, grade, count, bonus: {}, function: fn } as GongfaItemDefinition;
+      return { itemType: "功法", name, desc, grade, count, bonus: parseBonusField(obj.bonus), function: fn } as GongfaItemDefinition;
     case "符箓":
       return { itemType: "符箓", name, desc, grade, count, function: fn } as TalismanItemDefinition;
     case "阵法":
       return { itemType: "阵法", name, desc, grade, count, function: fn } as FormationItemDefinition;
     case "丹药":
       return { itemType: "丹药", name, desc, grade, count, effects: { recover: { hp: 0, mp: 0 } }, function: fn };
-    case "突破丹药":
-      return { itemType: "突破丹药", name, desc, grade, count, effects: { breakthrough: [] } };
     case "材料":
       return { itemType: "材料", name, desc, grade, count, function: fn } as MaterialItemDefinition;
     case "杂物":
@@ -351,7 +375,7 @@ function parseStorageObject(e: unknown): InventoryStackItem | null {
   }
 }
 
-export function parseInitStateAiResponse(raw: string): InitStateParsed {
+export function parseInitStateAiResponse(raw: string, realmMajor: string, realmMinor: string): InitStateParsed {
   const equipText = extractTagContent(raw, MJ_EQUIP_BODY_OPEN, MJ_EQUIP_BODY_CLOSE);
   const magicText = extractTagContent(raw, MJ_MAGIC_BODY_OPEN, MJ_MAGIC_BODY_CLOSE);
   const storageText = extractTagContent(raw, MJ_STORAGE_BODY_OPEN, MJ_STORAGE_BODY_CLOSE);
@@ -360,22 +384,22 @@ export function parseInitStateAiResponse(raw: string): InitStateParsed {
   const magicArr = tryParseJsonArray(magicText) ?? [];
   const storageArr = tryParseJsonArray(storageText) ?? [];
 
-  const equips: TreasureItemDefinition[] = equipArr.map((e: unknown) => parseEquipObject(e));
+  const equips: TreasureItemDefinition[] = equipArr.map((e: unknown) => parseEquipObject(e, realmMajor, realmMinor));
 
-  const gongfas: GongfaItemDefinition[] = magicArr.map((e: unknown) => parseGongfaObject(e));
+  const gongfas: GongfaItemDefinition[] = magicArr.map((e: unknown) => parseGongfaObject(e, realmMajor, realmMinor));
 
   const storage: InventoryStackItem[] = storageArr
-    .map((e: unknown) => parseStorageObject(e))
+    .map((e: unknown) => parseStorageObject(e, realmMajor, realmMinor))
     .filter((item): item is InventoryStackItem => item !== null);
 
   return { equips, gongfas, storage };
 }
 
 /** 解析 AI 完整返回：剧情 + 世界地点 + 开局状态 */
-export function parseInitStoryFull(raw: string): InitStoryFullResult {
+export function parseInitStoryFull(raw: string, realmMajor: string, realmMinor: string): InitStoryFullResult {
   return {
     story: parseInitStoryAiResponse(raw),
-    state: parseInitStateAiResponse(raw),
+    state: parseInitStateAiResponse(raw, realmMajor, realmMinor),
   };
 }
 
@@ -488,5 +512,6 @@ export function buildInitStoryRequestPayload(input: InitStoryGenerateInput): Jso
 /** 请求 AI 生成开局剧情 + 初始状态，返回完整解析结果 */
 export async function generateInitStory(input: InitStoryGenerateInput): Promise<InitStoryFullResult> {
   const raw = await completeChatWithMessagesJson(buildInitStoryRequestPayload(input));
-  return parseInitStoryFull(raw);
+  const r = input.protagonist.realm;
+  return parseInitStoryFull(raw, r.major, r.minor);
 }

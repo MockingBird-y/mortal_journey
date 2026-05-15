@@ -109,7 +109,6 @@ export const EFFECT_KEYS = [
   "boostCastSpeed",
   "boostActionSpeed",
   "boostEffectChance",
-  "boostCultivationSpeed",
   "boostControlResist",
   "boostFireDamage",
   "boostIceDamage",
@@ -131,7 +130,6 @@ export const EFFECT_KEYS = [
   "reduceCastSpeed",
   "reduceActionSpeed",
   "reduceEffectChance",
-  "reduceCultivationSpeed",
   "reduceControlResist",
   "reduceFireDamage",
   "reduceIceDamage",
@@ -167,7 +165,6 @@ export const EFFECT_KEY_TO_ZH: Readonly<Record<EffectKey, string>> = {
   boostCastSpeed: "增加施法速度",
   boostActionSpeed: "增加行动速度",
   boostEffectChance: "增加特效几率",
-  boostCultivationSpeed: "增加修炼速率",
   boostControlResist: "增加控制抗性",
   boostFireDamage: "增加火伤",
   boostIceDamage: "增加冰伤",
@@ -188,7 +185,6 @@ export const EFFECT_KEY_TO_ZH: Readonly<Record<EffectKey, string>> = {
   reduceCastSpeed: "减少施法速度",
   reduceActionSpeed: "减少行动速度",
   reduceEffectChance: "减少特效几率",
-  reduceCultivationSpeed: "减少修炼速率",
   reduceControlResist: "减少控制抗性",
   reduceFireDamage: "减少火伤",
   reduceIceDamage: "减少冰伤",
@@ -264,7 +260,7 @@ export const ITEM_TYPE_FUNCTION_OVERRIDES: Readonly<
   功法: {},
   丹药: { trigger: "on_attack", cost: "none" },
   符箓: { trigger: "on_attack" },
-  阵法: { trigger: "on_attack", duration: 5 },
+  阵法: { trigger: "on_attack"},
 };
 
 /**

@@ -1,7 +1,5 @@
 /**
- * 物品领域模型：法宝、攻击·辅助功法、丹药与突破丹药、材料、杂物。
- * 对齐 mortal_journey 中 worldbook（init_state_rules）、state_generate.ensureGeneratedItemStats、
- * normalizeBagItem 等口径。
+ * 物品领域模型：法宝、功法、丹药、符箓、阵法、材料、杂物。
  * 储物袋单格为 discriminated union（`InventoryStackItem`），避免丹药带 magnification、功法带 recover 等混用。
  */
 
@@ -25,21 +23,9 @@ export interface PillRecoverEffect {
   mp: number;
 }
 
-/** 突破丹药：大境界跃迁与成功率加成（chanceBonus 为比例，如 0.12 表示 +12%） */
-export interface BreakthroughEffectEntry {
-  from: string;
-  to: string;
-  chanceBonus: number;
-}
-
 /** 普通丹药效果 */
 export interface ItemElixirEffects {
   recover: PillRecoverEffect;
-}
-
-/** 突破丹药专用效果 */
-export interface BreakthroughElixirEffects {
-  breakthrough: BreakthroughEffectEntry[];
 }
 
 /**
@@ -72,25 +58,13 @@ export interface GongfaItemDefinition extends ItemDefinitionBase {
 }
 
 // ---------------------------------------------------------------------------
-// 丹药（含突破丹药）
+// 丹药
 // ---------------------------------------------------------------------------
 
 export interface ElixirItemDefinition extends ItemDefinitionBase {
   itemType: "丹药";
   effects: ItemElixirEffects;
 }
-
-/**
- * AI 原始类型「突破丹药」；入库后常与 ElixirItemDefinition 一样标 type「丹药」并带 effects.breakthrough。
- */
-export interface BreakthroughElixirDefinition extends ItemDefinitionBase {
-  itemType: "突破丹药";
-  /** 中品→练气筑基、上品→筑基结丹、极品→结丹元婴、仙品→元婴化神 */
-  grade: ItemGrade;
-  effects: BreakthroughElixirEffects;
-}
-
-export type PillItemDefinition = ElixirItemDefinition | BreakthroughElixirDefinition;
 
 // ---------------------------------------------------------------------------
 // 符箓与阵法
@@ -123,7 +97,7 @@ export interface MiscItemDefinition extends ItemDefinitionBase {
 export type CategorizedItemDefinition =
   | TreasureItemDefinition
   | GongfaItemDefinition
-  | PillItemDefinition
+  | ElixirItemDefinition
   | TalismanItemDefinition
   | FormationItemDefinition
   | MaterialItemDefinition
@@ -143,7 +117,6 @@ export type { SpiritStoneInventoryStack };
 export type TreasureBagStack = TreasureItemDefinition;
 export type GongfaBagStack = GongfaItemDefinition;
 export type ElixirBagStack = ElixirItemDefinition;
-export type BreakthroughElixirBagStack = BreakthroughElixirDefinition;
 export type TalismanBagStack = TalismanItemDefinition;
 export type FormationBagStack = FormationItemDefinition;
 export type MaterialBagStack = MaterialItemDefinition;
@@ -156,3 +129,47 @@ export type MiscBagStack = MiscItemDefinition;
 export type InventoryStackItem =
   | SpiritStoneInventoryStack
   | CategorizedItemDefinition;
+
+// ---------------------------------------------------------------------------
+// 品阶掉落概率表
+// ---------------------------------------------------------------------------
+
+/**
+ * 单条品阶概率（百分比，0~100，可为小数；每行之和应为 100）。
+ */
+export interface GradeDropRate {
+  下品: number;
+  中品: number;
+  上品: number;
+  极品: number;
+  仙品: number;
+}
+
+/** 大境界 · 小境界 → 品阶掉落概率（百分比）。 */
+export const GRADE_DROP_TABLE: Readonly<Record<string, Readonly<Record<string, GradeDropRate>>>> = {
+  练气: {
+    初期: { 下品: 90,    中品: 9,     上品: 1.0,   极品: 0.05,  仙品: 0.01 },
+    中期: { 下品: 85,    中品: 12,    上品: 2.0,   极品: 0.1,   仙品: 0.02 },
+    后期: { 下品: 78,    中品: 16,    上品: 3.0,   极品: 0.2,   仙品: 0.04 },
+  },
+  筑基: {
+    初期: { 下品: 65,    中品: 25,    上品: 7.5,   极品: 0.3,   仙品: 0.05 },
+    中期: { 下品: 55,    中品: 30,    上品: 11,    极品: 0.4,   仙品: 0.07 },
+    后期: { 下品: 45,    中品: 32,    上品: 16,    极品: 0.5,   仙品: 0.1 },
+  },
+  结丹: {
+    初期: { 下品: 35,    中品: 32,    上品: 23,    极品: 1,    仙品: 0.5 },
+    中期: { 下品: 25,    中品: 30,    上品: 28,    极品: 2,    仙品: 0.7 },
+    后期: { 下品: 18,    中品: 25,    上品: 32,    极品: 3,    仙品: 1.0 },
+  },
+  元婴: {
+    初期: { 下品: 12,    中品: 20,    上品: 33,    极品: 10,    仙品: 5.0 },
+    中期: { 下品: 8,     中品: 14,    上品: 30,    极品: 14,    仙品: 7.0 },
+    后期: { 下品: 5,     中品: 9,     上品: 25,    极品: 20,    仙品: 10.0 },
+  },
+  化神: {
+    初期: { 下品: 3,     中品: 6,     上品: 18,    极品: 25,    仙品: 12.5 },
+    中期: { 下品: 2,     中品: 4,     上品: 12,    极品: 30,    仙品: 15.0 },
+    后期: { 下品: 1,     中品: 2,     上品: 12,     极品: 40,    仙品: 20.0 },
+  },
+};

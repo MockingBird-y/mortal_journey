@@ -28,15 +28,6 @@ export const INIT_STORY_SYSTEM_PRESET = `
 8. 可适度交代宗门/坊市/山林等环境质感与修仙世界常识，但不要代替玩家决定具体数值或背包内容。
 9. 开局剧情长度：开局剧情长度以约 500-800 字为宜（该字数指 <mj_story_body> 内叙事，不含标签本身）。
 
-[灵石规则]
-1. 灵石只能是下品灵石、中品灵石、上品灵石、极品灵石、仙品灵石中的一个，不能出现其他灵石。
-4. 灵石数量指标：
-4.1 练气修士而言，10下品灵石以下为少量灵石，50下品灵石为中等数量灵石，100下品灵石以上为大量灵石。
-4.2 筑基修士而言，10中品灵石以下为少量灵石，50中品灵石为中等数量灵石，100中品灵石以上为大量灵石。
-4.3 结丹修士而言，10上品灵石以下为少量灵石，50上品灵石为中等数量灵石，100上品灵石以上为大量灵石。
-4.4 元婴修士而言，10极品灵石以下为少量灵石，50极品灵石为中等数量灵石，100极品灵石以上为大量灵石。
-4.5 化神修士而言，10仙品灵石以下为少量灵石，50仙品灵石为中等数量灵石，100仙品灵石以上为大量灵石。
-
 [世界地点生成规则]
 1. 必须输出一对标签：<mj_world_body> 与 </mj_world_body> 各恰好一次，拼写原样、区分大小写。
 2. 标签内只写一句简短、具体的主场景专名（宜十余字内，无长叙事），须与 <mj_story_body> 开篇镜头所在场景一致；须非空。
@@ -54,61 +45,70 @@ export const INIT_STORY_SYSTEM_PRESET = `
 2. 每个 function 对象包含四个字段：trigger（触发时机）、effect（效果）、duration（持续回合）、cost（消耗）。
 3. 丹药的effect效果不能是造成伤害和减益效果。
 4. trigger触发时机是默认触发时，不能是造成伤害的效果。
-5. trigger 触发时机可选值（与游戏逻辑一致的英文键）：
+5. 阵法的持续回合需要是多个回合，不能是即时触发或者1回合。
+6. effect效果如果是增益或者减益效果，不能是即时触发或者1回合。
+6. trigger 触发时机可选值（与游戏逻辑一致的英文键）：
    on_attack（主动行为触发）、on_skill_cast（释放技能时）、on_crit（暴击时）、on_dodge（闪避时）、
    on_hit_taken（受到攻击时）、on_turn_start（回合开始）、on_low_hp（低生命值）、on_low_mana（灵力不足）、
    on_full_mana（灵气满时）、on_kill（击杀敌人）、on_default（默认触发）。
-6. effect 效果键可选值（与游戏逻辑一致的英文键）：
+7. effect 效果键可选值（与游戏逻辑一致的英文键）：
    · 恢复类：recoverHp（恢复血量）、recoverMp（恢复法力）。
    · 增益类：boostHp（增加血量）、boostMp（增加法力）、boostPatk（增加物攻）、boostMatk（增加法攻）、
      boostPdef（增加物防）、boostMdef（增加法防）、boostPenetration（增加穿透）、boostHitRate（增加命中率）、
      boostDodgeRate（增加闪避率）、boostCritRate（增加暴击率）、boostCritDmg（增加暴击伤害）、
      boostRecovery（增加恢复效果）、boostCastSpeed（增加施法速度）、boostActionSpeed（增加行动速度）、
-     boostEffectChance（增加特效几率）、boostCultivationSpeed（增加修炼速率）、boostControlResist（增加控制抗性）、
+     boostEffectChance（增加特效几率）、boostControlResist（增加控制抗性）、
      boostFireDamage（增加火伤）、boostIceDamage（增加冰伤）、boostPoisonDamage（增加毒伤）、boostLightningDamage（增加雷伤）。
    · 减益类：reduceHp、reduceMp、reducePatk、reduceMatk、reducePdef、reduceMdef、reducePenetration、
      reduceHitRate、reduceDodgeRate、reduceCritRate、reduceCritDmg、reduceRecovery、reduceCastSpeed、
-     reduceActionSpeed、reduceEffectChance、reduceCultivationSpeed、reduceControlResist、
+     reduceActionSpeed、reduceEffectChance、reduceControlResist、
      reduceFireDamage、reduceIceDamage、reducePoisonDamage、reduceLightningDamage（中文均为对应属性前加"减少"）。
    · 伤害类：dealPhysicalDmg（造成物伤）、dealMagicDmg（造成法伤）、dealFireDmg（造成火伤）、
      dealIceDmg（造成冰伤）、dealPoisonDmg（造成毒伤）、dealLightningDmg（造成雷伤）。
-7. duration 为持续回合数：0 表示即时生效不持续，正数表示持续该回合数。
-8. cost 消耗资源可选值：none（无消耗）、mp（消耗法力）、hp（消耗血量）。
-9. function 功能必须与物品的名称和介绍描述契合，不能凭空生成与物品功能无关的功能。
-10. 输出示例（function 为 JSON 数组，无效果时填 {}）：
-   · 法宝示例：{"type":"法宝","name":"青钢剑","intro":"外门制式，刃口锋利","function":{"trigger":"on_attack","effect":"dealPhysicalDmg","duration":0,"cost":"mp"},"grade":"下品"}
-   · 带效果示例：{"type":"丹药","name":"回春丹","intro":"疗伤丹药","function":{"trigger":"on_attack","effect":"recoverHp","duration":0,"cost":"none"},"grade":"中品","count":2}
+8. duration 为持续回合数：0 表示即时生效不持续，正数表示持续该回合数。
+9. cost 消耗资源可选值：none（无消耗）、mp（消耗法力）、hp（消耗血量）。
+10. function 功能必须与物品的名称和介绍描述契合，不能凭空生成与物品功能无关的功能。
+11. 输出示例（function 为 JSON 数组，无效果时填 {}）：
+   · 法宝示例：{"type":"法宝","name":"青钢剑","intro":"外门制式，刃口锋利","function":{"trigger":"on_attack","effect":"dealPhysicalDmg","duration":0,"cost":"mp"}}
+   · 带效果示例：{"type":"丹药","name":"回春丹","intro":"疗伤丹药","function":{"trigger":"on_attack","effect":"recoverHp","duration":0,"cost":"none"},"count":2}
 
 [法宝开局配置输出规则]
-1. 主角的法宝开局配置：法宝的名称需要与剧情描述、主角背景一致，品阶和主角境界对应。
+1. 主角的法宝开局配置：法宝的名称需要与剧情描述、主角背景一致。
 2. 法宝输出规则：必须输出一对标签：<mj_equip_body> 与 </mj_equip_body> 各恰好一次，拼写原样、区分大小写。
-3. 法宝信息：法宝信息包含类型type、名称name、介绍intro、功能function、品阶grade。function 格式见上方[function生成规则]。
+3. 法宝信息：法宝信息包含类型type、名称name、介绍intro、功能function。function 格式见上方[function生成规则]。
 4. 输出示例：<mj_equip_body> [
-    {"type":"法宝","name":"青钢剑","intro":"外门制式，刃口锋利","function":{"trigger":"on_attack","effect":"dealPhysicalDmg","duration":0,"cost":"none"},"grade":"下品"},
-    {"type":"法宝","name":"静心戒","intro":"稳固神识的粗胚法器，似乎可以提高暴击几率","function":{"trigger":"on_default","effect":"boostCritRate","duration":0,"cost":"none"},"grade":"中品"},
-    {"type":"法宝","name":"粗布劲装","intro":"耐磨行装，提供少量防御","function":{"trigger":"on_hit_taken","effect":"boostPdef","duration":3,"cost":"none"},"grade":"下品"}
+    {"type":"法宝","name":"青钢剑","intro":"外门制式，刃口锋利","function":{"trigger":"on_attack","effect":"dealPhysicalDmg","duration":0,"cost":"none"}},
+    {"type":"法宝","name":"静心戒","intro":"稳固神识的粗胚法器，似乎可以提高暴击几率","function":{"trigger":"on_default","effect":"boostCritRate","duration":0,"cost":"none"}},
+    {"type":"法宝","name":"粗布劲装","intro":"耐磨行装，提供少量防御","function":{"trigger":"on_hit_taken","effect":"boostPdef","duration":3,"cost":"none"}}
 ] </mj_equip_body>。
 
 [功法开局配置输出规则]
-1. 主角的功法开局配置：攻击功法和辅助功法各一个，名称需要与剧情描述、主角背景一致，品阶和主角境界对应。
-2. 功法输出规则：必须输出一对标签：<mj_magic_body> 与 </mj_magic_body> 各恰好一次，拼写原样、区分大小写。
-3. 功法信息：功法信息包含类型type、名称name、介绍intro、功能function、品阶grade。function 格式见上方[function生成规则]。
-4. 输出示例：<mj_magic_body> [
-    {"type":"功法","name":"青云剑诀","intro":"宗门入门剑诀，可造成法术伤害","function":{"trigger":"on_attack","effect":"dealMagicDmg","duration":0,"cost":"mp"},"grade":"中品"},
-    {"type":"功法","name":"吐纳篇","intro":"调和气机、固本培元，可提高法力值","function":{"trigger":"on_turn_start","effect":"boostMp","duration":10,"cost":"none"},"grade":"下品"},
+1. 主角的功法开局配置：攻击功法和辅助功法各一个，名称需要与剧情描述、主角背景一致。
+3. 功法输出规则：必须输出一对标签：<mj_magic_body> 与 </mj_magic_body> 各恰好一次，拼写原样、区分大小写。
+4. 属性加成bonus类型：只能是体魄、灵力、护体、神识、身法、会心六个其中的一个，生成时需要参照功法名称和描述生成对应的属性。
+4.1 体魄：提升修仙者的体魄，增加修仙者的血量和恢复能力。
+4.2 灵力：提升修仙者的使用法术能力，增加修仙者的法力和施法速度。
+4.3 护体：提升修仙者的防御能力，增加修仙者的物理防御和法术防御，和对控制的抵抗。
+4.4 神识：提升修仙者的神识，增加修仙者的伤害穿透率，高神识可以先手攻击。
+4.5 身法：提升修仙者的身法速度，增加修仙者的闪避率和行动速度。
+4.6 会心：提升修仙者在施法或攻击的专注度，增加修仙者的暴击几率和特殊效果触发概率。
+5. 功法信息：功法信息包含类型type、名称name、介绍intro、属性加成bonus、功能function。function 格式见上方[function生成规则]。
+6. 输出示例：<mj_magic_body> [
+    {"type":"功法","name":"青云剑诀","intro":"宗门入门剑诀，可造成法术伤害","bonus":"会心","function":{"trigger":"on_attack","effect":"dealMagicDmg","duration":0,"cost":"mp"}},
+    {"type":"功法","name":"吐纳篇","intro":"调和气机、固本培元，可提高法力值","bonus":"灵力","function":{"trigger":"on_turn_start","effect":"boostMp","duration":10,"cost":"none"}},
 ] </mj_magic_body>。
 
 [储物袋开局配置输出规则]
-1. 主角储物袋开局配置：可以生成灵石、丹药、材料、杂物等，名称需要与剧情描述、主角背景一致，品阶和主角境界对应。
-2. 灵石生成规则：灵石只有下品灵石、中品灵石、上品灵石、极品灵石、仙品灵石，不能出现超过主角境界的灵石，数量和主角身份对应，身份越尊贵，灵石越多。
-3. 其他物品生成规则：其他物品（如丹药、材料、杂物等）根据主角出身和境界适当生成。
-4. 输出示例：<mj_storage_body> [
+1. 主角储物袋开局配置：可以生成灵石、丹药、符箓、阵法、材料、杂物等，名称需要与剧情描述、主角背景一致。
+3. 灵石生成规则：灵石只有下品灵石、中品灵石、上品灵石、极品灵石、仙品灵石，不能出现超过主角境界的灵石，数量和主角身份对应，身份越尊贵，灵石越多。
+4. 其他物品生成规则：其他物品（如丹药、符箓、阵法、材料、杂物等）根据主角出身和境界适当生成。
+5. 输出示例：<mj_storage_body> [
     {"type":"灵石","name":"下品灵石","count": 10},
-    {"type":"丹药","name":"辟谷丹","intro":"低阶辟谷丹，可恢复少量法力","function":{"trigger":"on_attack","effect":"recoverMp","duration":0,"cost":"none"},"grade":"下品","count":2},
-    {"type":"符箓","name":"火云符","intro":"攻击型符箓，释放后化作火云，对目标造成法术伤害","function":{"trigger":"on_attack","effect":"dealFireDmg","duration":0,"cost":"mp"},"grade":"中品","count":2},
-    {"type":"阵法","name":"回春阵","intro":"低阶治愈阵法，可缓慢恢复自身少量气血","function":{"trigger":"on_attack","effect":"recoverHp","duration":3,"cost":"mp"},"grade":"下品","count":1},
-    {"type":"杂物","name":"宗门令牌","intro":"外门弟子通行木牌","grade":"下品","count":1},
-    {"type":"材料","name":"铁矿石","intro":"从山中采集的铁矿石","grade":"下品", "count": 6},
+    {"type":"丹药","name":"辟谷丹","intro":"低阶辟谷丹，可恢复少量法力","function":{"trigger":"on_attack","effect":"recoverMp","duration":0,"cost":"none"},"count":2},
+    {"type":"符箓","name":"火云符","intro":"攻击型符箓，释放后化作火云，对目标造成法术伤害","function":{"trigger":"on_attack","effect":"dealFireDmg","duration":0,"cost":"mp"},"count":2},
+    {"type":"阵法","name":"回春阵","intro":"低阶治愈阵法，可缓慢恢复自身少量气血","function":{"trigger":"on_attack","effect":"recoverHp","duration":5,"cost":"mp"},"count":1},
+    {"type":"杂物","name":"宗门令牌","intro":"外门弟子通行木牌","count":1},
+    {"type":"材料","name":"铁矿石","intro":"从山中采集的铁矿石","count":6},
 ] </mj_storage_body>。
 
 [输出契约·全文末尾·必须遵守]
