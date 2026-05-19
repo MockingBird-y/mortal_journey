@@ -24,6 +24,7 @@ import type {
   MiscItemDefinition,
   CategorizedItemDefinition,
   GradeDropRate,
+  LingQi,
 } from "../role_core/types/itemInfo";
 import { GRADE_DROP_TABLE } from "../role_core/types/itemInfo";
 import type { InventoryStackItem, ProtagonistPlayInfo, GongfaSlotsState, EquippedSlotsState, NarrationPerson, TraitEntry } from "../role_core/types/playInfo";
@@ -31,11 +32,15 @@ import {
   TRIGGER_TIMING_KEYS,
   EFFECT_KEYS,
   COST_RESOURCE_KEYS,
+  EFFECT_KEY_CATEGORY,
   type TriggerTiming,
   type EffectKey,
   type CostResourceKey,
   type SpecialEffect,
+  type EffectValueCategory,
   applyFunctionOverrides,
+  computeEffectValue,
+  computeCostValue,
 } from "../role_core/types/special_effects";
 
 /** 调用网关所需字段 + 生成参数 */
@@ -78,6 +83,14 @@ const MJ_STORAGE_BODY_CLOSE = "</mj_storage_body>";
 
 const VALID_BONUS_NAMES: ReadonlySet<string> = new Set(["体魄", "灵力", "护体", "神识", "身法", "会心"]);
 const DEFAULT_BONUS_VALUE = 5;
+
+const VALID_LING_QI: ReadonlySet<string> = new Set(["无", "金", "木", "水", "火", "土"]);
+
+function parseLingQi(raw: unknown): LingQi {
+  if (typeof raw !== "string") return "无";
+  const v = raw.trim();
+  return (VALID_LING_QI.has(v) ? v : "无") as LingQi;
+}
 
 /**
  * 将 AI 输出的 bonus 字段解析为属性加成对象。
@@ -180,16 +193,19 @@ function spiritStoneAllowedUpTo(realmMajor: string): SpiritStoneName {
   return mapping[realmMajor] ?? "下品灵石";
 }
 
+function effectKeyToCategory(label: EffectKey): EffectValueCategory {
+  const cat = EFFECT_KEY_CATEGORY[label];
+  if (cat === "恢复") return "recover";
+  if (cat === "增益") return "boost";
+  if (cat === "减益") return "reduce";
+  return "damage";
+}
+
 /**
  * 校验并转换 AI 生成的 function 字段为 `SpecialEffect`。
- *
- * AI 返回格式（见 init_preset 示例）：
- * - effect 可能是纯字符串 `"dealPhysicalDmg"` 或对象 `{ label, value }`
- * - cost   可能是纯字符串 `"mp"` 或对象 `{ resource, value }`
- *
- * 统一转换为 `SpecialEffect` 结构，任何字段不匹配则返回 `null`。
+ * AI 不提供具体数值，由数值体系表根据品阶/触发/持续/消耗计算。
  */
-function validateAiFunction(raw: unknown): SpecialEffect | null {
+function validateAiFunction(raw: unknown, grade: string): SpecialEffect | null {
   if (!raw || typeof raw !== "object") return null;
   const obj = raw as Record<string, unknown>;
 
@@ -199,20 +215,15 @@ function validateAiFunction(raw: unknown): SpecialEffect | null {
   }
 
   let effectLabel: EffectKey | null = null;
-  let effectValue = 0;
   const eff = obj.effect;
   if (typeof eff === "string") {
     if (!(EFFECT_KEYS as readonly string[]).includes(eff)) return null;
     effectLabel = eff as EffectKey;
-    effectValue = inferEffectValue(effectLabel);
   } else if (eff && typeof eff === "object") {
     const effObj = eff as Record<string, unknown>;
     const label = effObj.label;
     if (typeof label !== "string" || !(EFFECT_KEYS as readonly string[]).includes(label)) return null;
     effectLabel = label as EffectKey;
-    const v = effObj.value;
-    if (typeof v !== "number" || !Number.isFinite(v)) return null;
-    effectValue = Math.round(v);
   } else {
     return null;
   }
@@ -221,23 +232,23 @@ function validateAiFunction(raw: unknown): SpecialEffect | null {
   if (typeof dur !== "number" || !Number.isFinite(dur) || dur < 0) return null;
 
   let costResource: CostResourceKey | null = null;
-  let costValue = 0;
   const cst = obj.cost;
   if (typeof cst === "string") {
     if (!(COST_RESOURCE_KEYS as readonly string[]).includes(cst)) return null;
     costResource = cst as CostResourceKey;
-    costValue = inferCostValue(costResource);
   } else if (cst && typeof cst === "object") {
     const cstObj = cst as Record<string, unknown>;
     const resource = cstObj.resource;
     if (typeof resource !== "string" || !(COST_RESOURCE_KEYS as readonly string[]).includes(resource)) return null;
     costResource = resource as CostResourceKey;
-    const cv = cstObj.value;
-    if (typeof cv !== "number" || !Number.isFinite(cv)) return null;
-    costValue = Math.round(cv);
   } else {
     return null;
   }
+
+  const category = effectKeyToCategory(effectLabel);
+  const costStr = costResource as string;
+  const effectValue = computeEffectValue(category, grade, trigger as string, Math.max(0, Math.floor(dur)), costStr);
+  const costValue = computeCostValue(costStr, grade);
 
   return {
     trigger: trigger as TriggerTiming,
@@ -245,20 +256,6 @@ function validateAiFunction(raw: unknown): SpecialEffect | null {
     duration: Math.max(0, Math.floor(dur)),
     cost: { resource: costResource, value: costValue },
   };
-}
-
-function inferEffectValue(label: EffectKey): number {
-  if (label.startsWith("recover")) return 100;
-  if (label.startsWith("boost")) return 10;
-  if (label.startsWith("reduce")) return 10;
-  if (label.startsWith("deal")) return 15;
-  return 0;
-}
-
-function inferCostValue(resource: CostResourceKey): number {
-  if (resource === "mp") return 20;
-  if (resource === "hp") return 50;
-  return 0;
 }
 
 /** AI 返回的 type 字段 → itemInfo 的 itemType 映射 */
@@ -315,26 +312,30 @@ export function parseInitStoryAiResponse(raw: string): InitStoryParsed {
 
 function parseEquipObject(e: unknown, realmMajor: string, realmMinor: string): TreasureItemDefinition {
   const obj = e as Record<string, unknown>;
+  const grade = rollGrade(realmMajor, realmMinor);
   return {
     itemType: "法宝",
     name: safeStr(obj.name, "未命名法宝"),
+    lingQi: parseLingQi(obj.lingQi),
     desc: safeStr(obj.intro, ""),
-    grade: rollGrade(realmMajor, realmMinor),
+    grade,
     count: 1,
-    function: applyFunctionOverrides(validateAiFunction(obj.function) ?? undefined, "法宝"),
+    function: applyFunctionOverrides(validateAiFunction(obj.function, grade) ?? undefined, "法宝"),
   };
 }
 
 function parseGongfaObject(e: unknown, realmMajor: string, realmMinor: string): GongfaItemDefinition {
   const obj = e as Record<string, unknown>;
+  const grade = rollGrade(realmMajor, realmMinor);
   return {
     itemType: "功法",
     name: safeStr(obj.name, "未命名功法"),
+    lingQi: parseLingQi(obj.lingQi),
     desc: safeStr(obj.intro, ""),
-    grade: rollGrade(realmMajor, realmMinor),
+    grade,
     count: 1,
     bonus: parseBonusField(obj.bonus),
-    function: applyFunctionOverrides(validateAiFunction(obj.function) ?? undefined, "功法"),
+    function: applyFunctionOverrides(validateAiFunction(obj.function, grade) ?? undefined, "功法"),
   };
 }
 
@@ -354,13 +355,13 @@ function parseStorageObject(e: unknown, realmMajor: string, realmMinor: string):
   const grade = rollGrade(realmMajor, realmMinor);
   const count = safeCount(obj.count);
   const itemType = TYPE_TO_ITEM_TYPE[typeStr] ?? "杂物";
-  const fn = applyFunctionOverrides(validateAiFunction(obj.function) ?? undefined, itemType);
+  const fn = applyFunctionOverrides(validateAiFunction(obj.function, grade) ?? undefined, itemType);
 
   switch (itemType) {
     case "法宝":
-      return { itemType: "法宝", name, desc, grade, count, function: fn } as TreasureItemDefinition;
+      return { itemType: "法宝", name, lingQi: parseLingQi(obj.lingQi), desc, grade, count, function: fn } as TreasureItemDefinition;
     case "功法":
-      return { itemType: "功法", name, desc, grade, count, bonus: parseBonusField(obj.bonus), function: fn } as GongfaItemDefinition;
+      return { itemType: "功法", name, lingQi: parseLingQi(obj.lingQi), desc, grade, count, bonus: parseBonusField(obj.bonus), function: fn } as GongfaItemDefinition;
     case "符箓":
       return { itemType: "符箓", name, desc, grade, count, function: fn } as TalismanItemDefinition;
     case "阵法":

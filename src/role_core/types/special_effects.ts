@@ -388,3 +388,146 @@ export function normalizeAiFunction(raw: unknown): SpecialEffect | undefined {
     cost: { resource: costResource, value: costValue },
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 特效数值体系
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** 品阶 → 数组索引 */
+export const GRADE_INDEX: Readonly<Record<string, number>> = {
+  "下品": 0,
+  "中品": 1,
+  "上品": 2,
+  "极品": 3,
+  "仙品": 4,
+  "神品": 5,
+};
+
+/** 特效数值分类键（与 effect label 前缀对齐） */
+export type EffectValueCategory = "recover" | "boost" | "reduce" | "damage";
+
+/**
+ * 特效基础数值表（效果分类 × 品阶）
+ * 索引：[下品, 中品, 上品, 极品, 仙品, 神品]
+ *
+ * 设计思路：
+ * - recover：恢复类数值较高，直接回血回蓝，玩家感知强
+ * - damage：伤害类中等偏高，需要体现打击感
+ * - boost / reduce：增减益适中，属性调整是百分比/叠加效果
+ */
+export const EFFECT_BASE_VALUES: Readonly<Record<EffectValueCategory, readonly number[]>> = {
+  recover: [30, 60, 120, 200, 350, 600],
+  damage: [15, 30, 60, 100, 170, 280],
+  boost: [5, 10, 20, 35, 55, 80],
+  reduce: [5, 10, 20, 35, 55, 80],
+};
+
+/**
+ * 触发方式倍率
+ *
+ * - 主动触发 (on_attack / on_skill_cast)：基准 1.0，玩家主动控制，稳定触发
+ * - 默认触发 (on_default)：0.7，无需任何条件，常驻生效需降低
+ * - 被动·低风险 (on_turn_start / on_full_mana)：0.9-1.0，条件宽松
+ * - 被动·中风险 (on_hit_taken / on_crit / on_dodge / on_kill)：1.1-1.2，需要特定场景
+ * - 被动·高风险 (on_low_hp / on_low_mana)：1.3，危险状态才触发，给予补偿
+ */
+export const TRIGGER_VALUE_MULTIPLIER: Readonly<Record<string, number>> = {
+  on_attack: 1.0,
+  on_skill_cast: 1.0,
+  on_default: 0.7,
+  on_turn_start: 0.9,
+  on_full_mana: 1.0,
+  on_hit_taken: 1.1,
+  on_crit: 1.2,
+  on_dodge: 1.2,
+  on_kill: 1.2,
+  on_low_hp: 1.3,
+  on_low_mana: 1.3,
+};
+
+/**
+ * 持续回合衰减因子表
+ * 每组 [回合数阈值, 每回合因子]
+ * 查表取 ≤ duration 的最大阈值
+ *
+ * 设计思路：
+ * - 即时 (duration=0)：完整数值 1.0
+ * - 持续越长，每回合数值越低，但总量（per_turn × duration）越高
+ *   例：3回合 → 0.40/回合 × 3 = 总量 1.20
+ *        5回合 → 0.30/回合 × 5 = 总量 1.50
+ *       10回合 → 0.20/回合 × 10 = 总量 2.00
+ */
+export const DURATION_PER_TURN_FACTORS: readonly (readonly [number, number])[] = [
+  [0, 1.00],
+  [1, 0.65],
+  [2, 0.50],
+  [3, 0.40],
+  [5, 0.30],
+  [10, 0.20],
+] as const;
+
+/**
+ * 消耗方式倍率
+ *
+ * - none：基准 1.0，无代价
+ * - mp：1.3，消耗法力资源，常见消耗方式
+ * - hp：1.5，消耗生命，高风险高回报
+ */
+export const COST_VALUE_MULTIPLIER: Readonly<Record<string, number>> = {
+  none: 1.0,
+  mp: 1.3,
+  hp: 1.5,
+};
+
+/**
+ * 消耗基础数值表（消耗类型 × 品阶）
+ * 索引：[下品, 中品, 上品, 极品, 仙品, 神品]
+ *
+ * 设计思路：
+ * - hp 消耗约为 mp 的 1.5-2 倍（生命更珍贵）
+ * - 高品阶消耗更多资源，与效果强度正比
+ */
+export const COST_BASE_VALUES: Readonly<Record<string, readonly number[]>> = {
+  mp: [10, 20, 40, 70, 120, 200],
+  hp: [20, 40, 80, 140, 240, 400],
+};
+
+/** 根据持续回合查衰减因子 */
+export function lookupDurationFactor(duration: number): number {
+  let factor = DURATION_PER_TURN_FACTORS[0][1];
+  for (const [threshold, f] of DURATION_PER_TURN_FACTORS) {
+    if (duration >= threshold) factor = f;
+    else break;
+  }
+  return factor;
+}
+
+/**
+ * 计算特效效果的最终数值
+ *
+ * 公式：floor(base × triggerMul × durationFactor × costMul)
+ * 最小值为 1
+ */
+export function computeEffectValue(
+  category: EffectValueCategory,
+  grade: string,
+  trigger: string,
+  duration: number,
+  costResource: string,
+): number {
+  const baseArr = EFFECT_BASE_VALUES[category];
+  const gradeIdx = GRADE_INDEX[grade] ?? 0;
+  const base = baseArr[Math.min(gradeIdx, baseArr.length - 1)];
+  const triggerMul = TRIGGER_VALUE_MULTIPLIER[trigger] ?? 1.0;
+  const durFactor = lookupDurationFactor(duration);
+  const costMul = COST_VALUE_MULTIPLIER[costResource] ?? 1.0;
+  return Math.max(1, Math.floor(base * triggerMul * durFactor * costMul));
+}
+
+/** 计算特效消耗的数值 */
+export function computeCostValue(costResource: string, grade: string): number {
+  const arr = COST_BASE_VALUES[costResource];
+  if (!arr) return 0;
+  const gradeIdx = GRADE_INDEX[grade] ?? 0;
+  return arr[Math.min(gradeIdx, arr.length - 1)];
+}

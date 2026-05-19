@@ -261,6 +261,7 @@ export function buildWearableDetailPayload(
   realm?: CultivationRealm | null,
 ): ProtagonistDetailPayload {
   const sections: ProtagonistDetailSection[] = [];
+  pushSec(sections, "灵契", it.lingQi);
   pushSec(sections, "简介", it.desc);
   pushSec(sections, "品级", it.grade);
   pushFunctionSection(sections, it.function);
@@ -312,6 +313,7 @@ export function buildGongfaDetailPayload(
   realm?: CultivationRealm | null,
 ): ProtagonistDetailPayload {
   const sections: ProtagonistDetailSection[] = [];
+  pushSec(sections, "灵契", gf.lingQi);
   pushSec(sections, "简介", gf.desc);
   pushSec(sections, "品级", gf.grade);
   const bonus =

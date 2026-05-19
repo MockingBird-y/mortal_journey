@@ -69,22 +69,29 @@ export const INIT_STORY_SYSTEM_PRESET = `
 9. cost 消耗资源可选值：none（无消耗）、mp（消耗法力）、hp（消耗血量）。
 10. function 功能必须与物品的名称和介绍描述契合，不能凭空生成与物品功能无关的功能。
 11. 输出示例（function 为 JSON 数组，无效果时填 {}）：
-   · 法宝示例：{"type":"法宝","name":"青钢剑","intro":"外门制式，刃口锋利","function":{"trigger":"on_attack","effect":"dealPhysicalDmg","duration":0,"cost":"mp"}}
+   · 法宝示例：{"type":"法宝","name":"青钢剑","lingQi":"金","intro":"外门制式，刃口锋利","function":{"trigger":"on_attack","effect":"dealPhysicalDmg","duration":0,"cost":"mp"}}
    · 带效果示例：{"type":"丹药","name":"回春丹","intro":"疗伤丹药","function":{"trigger":"on_attack","effect":"recoverHp","duration":0,"cost":"none"},"count":2}
 
 [法宝开局配置输出规则]
 1. 主角的法宝开局配置：法宝的名称需要与剧情描述、主角背景一致。
 2. 法宝输出规则：必须输出一对标签：<mj_equip_body> 与 </mj_equip_body> 各恰好一次，拼写原样、区分大小写。
-3. 法宝信息：法宝信息包含类型type、名称name、介绍intro、功能function。function 格式见上方[function生成规则]。
+3. 开局法宝一般给到2-3个法宝即可。
+3. 法宝信息：法宝信息包含类型type、名称name、灵契lingQi、介绍intro、功能function。function 格式见上方[function生成规则]。
+4. 灵契lingQi：灵契包括六种情况，"无"、"金"、"木"、"水"、"火"、"土"，如果法宝名称涉及金木水火土元素，则相应的灵契，如果法宝名称不涉及具体元素，则为无。
 4. 输出示例：<mj_equip_body> [
-    {"type":"法宝","name":"青钢剑","intro":"外门制式，刃口锋利","function":{"trigger":"on_attack","effect":"dealPhysicalDmg","duration":0,"cost":"none"}},
-    {"type":"法宝","name":"静心戒","intro":"稳固神识的粗胚法器，似乎可以提高暴击几率","function":{"trigger":"on_default","effect":"boostCritRate","duration":0,"cost":"none"}},
-    {"type":"法宝","name":"粗布劲装","intro":"耐磨行装，提供少量防御","function":{"trigger":"on_hit_taken","effect":"boostPdef","duration":3,"cost":"none"}}
+    {"type":"法宝","name":"青钢剑","lingQi":"金","intro":"外门制式，刃口锋利","function":{"trigger":"on_attack","effect":"dealPhysicalDmg","duration":0,"cost":"none"}},
+    {"type":"法宝","name":"静心戒","lingQi":"","intro":"稳固神识的粗胚法器，似乎可以提高暴击几率","function":{"trigger":"on_default","effect":"boostCritRate","duration":0,"cost":"none"}},
+    {"type":"法宝","name":"粗布劲装","lingQi":"","intro":"耐磨行装，提供少量防御","function":{"trigger":"on_hit_taken","effect":"boostPdef","duration":3,"cost":"none"}},
+    {"type":"法宝","name":"水心镜","lingQi":"水","intro":"水灵凝聚而成的护心铜镜，法力枯竭时可自动汲取水灵恢复法力","function":{"trigger":"on_low_mana","effect":"recoverMp","duration":0,"cost":"none"}},
+    {"type":"法宝","name":"泰山石","lingQi":"土","intro":"取自泰山深处的玄黄石核，受击时激发土灵护体，提升物理防御","function":{"trigger":"on_hit_taken","effect":"boostPdef","duration":3,"cost":"none"}},
+    {"type":"法宝","name":"离火球","lingQi":"火","intro":"凝炼地火而成的赤红火球，主动催动可灼烧敌人，造成火属性伤害","function":{"trigger":"on_attack","effect":"dealFireDmg","duration":0,"cost":"mp"}},
+    {"type":"法宝","name":"七玄镇妖木","lingQi":"木","intro":"以七种灵木炼制的镇妖法杖，每回合初散发木灵之气，削弱敌方法术防御","function":{"trigger":"on_turn_start","effect":"reduceMdef","duration":3,"cost":"none"}},
 ] </mj_equip_body>。
 
 [功法开局配置输出规则]
 1. 主角的功法开局配置：攻击功法和辅助功法各一个，名称需要与剧情描述、主角背景一致。
 3. 功法输出规则：必须输出一对标签：<mj_magic_body> 与 </mj_magic_body> 各恰好一次，拼写原样、区分大小写。
+4. 灵契lingQi：灵契包括六种情况，""、"金"、"木"、"水"、"火"、"土"，如果功法名称涉及金木水火土元素，则相应的灵契，如果功法名称不涉及具体元素，则为无。
 4. 属性加成bonus类型：只能是体魄、灵力、护体、神识、身法、会心六个其中的一个，生成时需要参照功法名称和描述生成对应的属性。
 4.1 体魄：提升修仙者的体魄，增加修仙者的血量和恢复能力。
 4.2 灵力：提升修仙者的使用法术能力，增加修仙者的法力和施法速度。
@@ -94,8 +101,12 @@ export const INIT_STORY_SYSTEM_PRESET = `
 4.6 会心：提升修仙者在施法或攻击的专注度，增加修仙者的暴击几率和特殊效果触发概率。
 5. 功法信息：功法信息包含类型type、名称name、介绍intro、属性加成bonus、功能function。function 格式见上方[function生成规则]。
 6. 输出示例：<mj_magic_body> [
-    {"type":"功法","name":"青云剑诀","intro":"宗门入门剑诀，可造成法术伤害","bonus":"会心","function":{"trigger":"on_attack","effect":"dealMagicDmg","duration":0,"cost":"mp"}},
-    {"type":"功法","name":"吐纳篇","intro":"调和气机、固本培元，可提高法力值","bonus":"灵力","function":{"trigger":"on_turn_start","effect":"boostMp","duration":10,"cost":"none"}},
+    {"type":"功法","name":"青云剑诀","lingQi":"金","intro":"宗门入门剑诀，可造成法术伤害","bonus":"会心","function":{"trigger":"on_attack","effect":"dealMagicDmg","duration":0,"cost":"mp"}},
+    {"type":"功法","name":"吐纳诀","lingQi":"","intro":"调和气机、固本培元，可提高法力值","bonus":"灵力","function":{"trigger":"on_turn_start","effect":"boostMp","duration":10,"cost":"none"}},
+    {"type":"功法","name":"万木长生功","lingQi":"木","intro":"汲取草木精华滋养己身，持续恢复血量","bonus":"体魄","function":{"trigger":"on_turn_start","effect":"recoverHp","duration":5,"cost":"none"}},
+    {"type":"功法","name":"玄水诀","lingQi":"水","intro":"以水灵凝聚护体真元，提升法术防御","bonus":"护体","function":{"trigger":"on_default","effect":"boostMdef","duration":0,"cost":"none"}},
+    {"type":"功法","name":"烈焰焚天诀","lingQi":"火","intro":"引天地火灵入体，攻击时附带火属性伤害","bonus":"灵力","function":{"trigger":"on_attack","effect":"dealFireDmg","duration":0,"cost":"mp"}},
+    {"type":"功法","name":"厚土铸体诀","lingQi":"土","intro":"以土灵淬炼肉身，提升物理防御与韧性","bonus":"护体","function":{"trigger":"on_default","effect":"boostPdef","duration":0,"cost":"none"}},
 ] </mj_magic_body>。
 
 [储物袋开局配置输出规则]
