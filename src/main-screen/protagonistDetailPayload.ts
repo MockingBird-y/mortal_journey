@@ -193,11 +193,9 @@ function formatSpecialEffect(fn: SpecialEffect | undefined, affinity?: boolean |
   if (triggerZh) lines.push(`触发条件：${triggerZh}`);
 
   const effLabel = EFFECT_KEY_TO_ZH[fn.effect.label];
-  const effCat = EFFECT_KEY_CATEGORY[fn.effect.label];
   if (effLabel) {
     const sign = fn.effect.value >= 0 ? "+" : "";
-    const cat = effCat ? `（${effCat}）` : "";
-    let effLine = `效果：${effLabel} ${sign}${fn.effect.value}${cat}`;
+    let effLine = `效果：${effLabel} ${sign}${fn.effect.value}`;
     if (affinity) {
       const affExtra = Math.trunc(fn.effect.value * LINGQI_AFFINITY_BONUS);
       const as2 = affExtra >= 0 ? "+" : "";
@@ -334,7 +332,7 @@ export function buildGongfaDetailPayload(
 ): ProtagonistDetailPayload {
   const sections: ProtagonistDetailSection[] = [];
   const affinity = playerLinggen && gf.lingQi && gf.lingQi !== "无" && playerLinggen.includes(gf.lingQi);
-  pushSec(sections, "灵契", gf.lingQi + (affinity ? `（灵根契合，加成 ×${(1 + LINGQI_AFFINITY_BONUS).toFixed(1)}）` : ""));
+  pushSec(sections, "契合灵根", gf.lingQi + (affinity ? `（灵根契合，加成 ×${(1 + LINGQI_AFFINITY_BONUS).toFixed(1)}）` : ""));
   pushSec(sections, "简介", gf.desc);
   pushSec(sections, "品级", gf.grade);
   const bonus =

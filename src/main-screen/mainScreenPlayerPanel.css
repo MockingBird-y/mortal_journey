@@ -216,12 +216,46 @@
   align-items: flex-start;
   gap: 6px;
   min-width: 0;
+  position: relative;
 }
 
 .main-panel--player .mj-stat-k {
   font-size: 1em;
   color: var(--mj-muted);
   flex-shrink: 0;
+  cursor: default;
+}
+
+.main-panel--player .mj-stat-k--tip {
+  cursor: help;
+}
+
+.main-panel--player .mj-stat-k--tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 100;
+  padding: 5px 10px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--mj-text, #e0d6c2);
+  background: var(--mj-panel-bg, #2a2520);
+  border: 1px solid rgba(232, 197, 71, 0.3);
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.main-panel--player .mj-stat-cell--right .mj-stat-k--tip::after {
+  left: auto;
+  right: 0;
+}
+
+.main-panel--player .mj-stat-k--tip:hover::after {
+  opacity: 1;
 }
 
 .main-panel--player .mj-stat-v {

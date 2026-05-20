@@ -64,7 +64,7 @@ export function getEquipBonusRealmRatio(
  *
  * @param major 大境界
  * @param minor 小境界
- * @param lingQi 功法的灵契（如 "金"、"木"、"水"、"火"、"土"）
+ * @param lingQi 功法的契合灵根（如 "金"、"木"、"水"、"火"、"土"）
  * @param playerLinggen 主角灵根数组
  * @returns 境界倍率 × (1 + 灵根契合加成)
  */

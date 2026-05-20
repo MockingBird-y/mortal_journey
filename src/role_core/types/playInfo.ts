@@ -42,6 +42,17 @@ export const PRIMARY_STAT_KEY_TO_ZH: Readonly<Record<PrimaryStatKey, string>> = 
   fortune: "气运",
 };
 
+export const PRIMARY_STAT_KEY_DESC: Readonly<Record<PrimaryStatKey, string>> = {
+  physique: "影响生命值上限与每回合恢复量",
+  spirit: "影响法力值上限与施法速度",
+  guard: "影响物理防御、法术防御与控制抗性",
+  perception: "影响命中率与暴击伤害",
+  agility: "影响闪避率与行动速度",
+  crit: "影响暴击率与特效触发几率",
+  insight: "影响修炼速度与功法领悟效率",
+  fortune: "影响物品掉落品质与随机事件收益",
+};
+
 /**
  * 主属性 → 派生属性映射表。
  * `PCT_DERIVED_KEYS` 内的键按百分比方式计算（基数 × (1 + 主属性 × 比例 ÷ 10000)），

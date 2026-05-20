@@ -14,7 +14,7 @@ import type { SpecialEffect } from "./special_effects";
 /** worldbook：品阶仅能为以下之一 */
 export type ItemGrade = "下品" | "中品" | "上品" | "极品" | "仙品";
 
-/** 灵契：五行灵根之一 */
+/** 契合灵根：五行灵根之一 */
 export type LingQi = "无" | "金" | "木" | "水" | "火" | "土";
 
 /** 配置表或 AI 条目上的中文加成；允许表外键 */

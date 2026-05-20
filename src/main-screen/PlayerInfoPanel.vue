@@ -5,7 +5,7 @@
  */
 import { computed, ref } from "vue";
 import { Protagonist } from "../role_core/Protagonist";
-import { PRIMARY_STAT_KEY_TO_ZH, PRIMARY_STAT_KEYS, type EquipSlotKey } from "../role_core/types/playInfo";
+import { PRIMARY_STAT_KEY_TO_ZH, PRIMARY_STAT_KEYS, PRIMARY_STAT_KEY_DESC, type EquipSlotKey } from "../role_core/types/playInfo";
 import {
   buildBaseStatsPayload,
   buildGongfaDetailPayload,
@@ -246,8 +246,8 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
           </div>
           <div v-for="row in Math.ceil(PRIMARY_STAT_KEYS.length / 2)" :key="row" class="mj-stat-pair-row">
             <template v-for="col in [0, 1]" :key="col">
-              <div v-if="PRIMARY_STAT_KEYS[(row - 1) * 2 + col]" class="mj-stat-cell">
-                <span class="mj-stat-k">{{ PRIMARY_STAT_KEY_TO_ZH[PRIMARY_STAT_KEYS[(row - 1) * 2 + col]] }}</span>
+               <div v-if="PRIMARY_STAT_KEYS[(row - 1) * 2 + col]" class="mj-stat-cell" :class="col === 1 ? 'mj-stat-cell--right' : ''">
+                 <span class="mj-stat-k mj-stat-k--tip" :data-tip="PRIMARY_STAT_KEY_DESC[PRIMARY_STAT_KEYS[(row - 1) * 2 + col]]">{{ PRIMARY_STAT_KEY_TO_ZH[PRIMARY_STAT_KEYS[(row - 1) * 2 + col]] }}</span>
                 <span class="mj-stat-v">{{ primaryStats ? (primaryStats[PRIMARY_STAT_KEYS[(row - 1) * 2 + col]] ?? 0) : 0 }}</span>
               </div>
             </template>
