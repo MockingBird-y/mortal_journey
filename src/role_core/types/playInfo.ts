@@ -235,6 +235,13 @@ export const EQUIP_BONUS_RATIOS = [
   16.0, 20.0, 25.0,
 ] as const;
 
+/**
+ * 功法灵根契合加成倍率。
+ * 当功法 lingQi 与主角灵根之一相同时，在境界倍率基础上额外乘以此倍率。
+ * 值为 0.3，即契合时总倍率 = realmRatio × (1 + 0.3)。
+ */
+export const LINGQI_AFFINITY_BONUS = 0.3;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 一、数据 — 品阶属性表
 // ═══════════════════════════════════════════════════════════════════════════
@@ -372,6 +379,7 @@ export type {
 export {
   getBaseStats,
   getEquipBonusRealmRatio,
+  getEquipBonusRatioWithAffinity,
   getProtagonistNarrativeAge,
   getShouyuanForRealm,
   getCultivationRequired,

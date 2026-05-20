@@ -49,7 +49,6 @@ export interface ItemDefinitionBase {
 
 export interface TreasureItemDefinition extends ItemDefinitionBase {
   itemType: "法宝";
-  lingQi: LingQi;
 }
 
 // ---------------------------------------------------------------------------

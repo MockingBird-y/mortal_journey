@@ -38,6 +38,7 @@ import {
 import {
   getBaseStats,
   getEquipBonusRealmRatio,
+  getEquipBonusRatioWithAffinity,
   getProtagonistNarrativeAge,
   getShouyuanForRealm,
 } from "./types/playInfo";
@@ -246,9 +247,12 @@ export class Protagonist {
    */
   private collectPrimaryBonuses(): Record<string, number> {
     const primaryStats: Record<string, number> = {};
-    const ratio = getEquipBonusRealmRatio(this.realm.major, this.realm.minor);
     for (const gf of this.gongfaSlots) {
-      if (gf) Protagonist.addZhItemBonusInto(primaryStats, gf.bonus, ratio);
+      if (!gf) continue;
+      const ratio = getEquipBonusRatioWithAffinity(
+        this.realm.major, this.realm.minor, gf.lingQi, this.linggen,
+      );
+      Protagonist.addZhItemBonusInto(primaryStats, gf.bonus, ratio);
     }
     return primaryStats;
   }

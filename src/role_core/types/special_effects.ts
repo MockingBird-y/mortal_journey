@@ -241,6 +241,23 @@ export interface CostResourceValue {
   value: number;
 }
 
+/** 将 EffectKey 映射到英文分类键 */
+export function effectKeyToCategory(label: EffectKey): EffectValueCategory {
+  const cat = EFFECT_KEY_CATEGORY[label];
+  if (cat === "恢复") return "recover";
+  if (cat === "增益") return "boost";
+  if (cat === "减益") return "reduce";
+  return "damage";
+}
+
+/** 取指定分类下的第一个 EffectKey（用作 fallback） */
+export function firstEffectKeyOfCategory(category: EffectValueCategory): EffectKey {
+  for (const k of EFFECT_KEYS) {
+    if (effectKeyToCategory(k) === category) return k;
+  }
+  return "boostPatk";
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 物品类型 function 强制约束
 // ═══════════════════════════════════════════════════════════════════════════
@@ -251,6 +268,42 @@ export interface FunctionOverride {
   cost?: CostResourceKey;
   duration?: number;
 }
+
+/** 法宝允许的触发方式：被动 + 默认 */
+export const TREASURE_ALLOWED_TRIGGERS: ReadonlySet<string> = new Set([
+  "on_default",
+  "on_hit_taken",
+  "on_turn_start",
+  "on_low_hp",
+  "on_low_mana",
+  "on_full_mana",
+  "on_crit",
+  "on_dodge",
+  "on_kill",
+]);
+
+/** 功法允许的触发方式：主动 */
+export const GONGFA_ALLOWED_TRIGGERS: ReadonlySet<string> = new Set([
+  "on_attack",
+  "on_skill_cast",
+]);
+
+/**
+ * 各物品类型允许的效果分类白名单
+ *
+ * - 法宝：仅增益（被动装备，自动触发属性提升）
+ * - 功法：增益 + 伤害（主动技能，攻击或自我强化）
+ * - 丹药：恢复 + 增益（消耗品，回血回蓝或临战强化）
+ * - 符箓：仅伤害（消耗品，纯伤害输出）
+ * - 阵法：增益 + 减益（战术型，强化己方/削弱敌方）
+ */
+export const ITEM_TYPE_ALLOWED_EFFECTS: Readonly<Record<SpecialEffectTarget, ReadonlySet<EffectValueCategory>>> = {
+  法宝: new Set(["boost"] as const),
+  功法: new Set(["boost", "damage"] as const),
+  丹药: new Set(["recover", "boost"] as const),
+  符箓: new Set(["damage"] as const),
+  阵法: new Set(["boost", "reduce"] as const),
+};
 
 /** 各物品类型的 function 约束配置表；增删约束只改此处。 */
 export const ITEM_TYPE_FUNCTION_OVERRIDES: Readonly<
@@ -407,19 +460,21 @@ export const GRADE_INDEX: Readonly<Record<string, number>> = {
 export type EffectValueCategory = "recover" | "boost" | "reduce" | "damage";
 
 /**
- * 特效基础数值表（效果分类 × 品阶）
+ * 特效基础数值区间表（效果分类 × 品阶）
  * 索引：[下品, 中品, 上品, 极品, 仙品, 神品]
+ * 每项为 [min, max]，生成时在此区间内随机取整
  *
  * 设计思路：
  * - recover：恢复类数值较高，直接回血回蓝，玩家感知强
  * - damage：伤害类中等偏高，需要体现打击感
  * - boost / reduce：增减益适中，属性调整是百分比/叠加效果
+ * - 区间约为基准值 ±30%，同品阶物品之间有差异感
  */
-export const EFFECT_BASE_VALUES: Readonly<Record<EffectValueCategory, readonly number[]>> = {
-  recover: [30, 60, 120, 200, 350, 600],
-  damage: [15, 30, 60, 100, 170, 280],
-  boost: [5, 10, 20, 35, 55, 80],
-  reduce: [5, 10, 20, 35, 55, 80],
+export const EFFECT_BASE_VALUES: Readonly<Record<EffectValueCategory, readonly (readonly [number, number])[]>> = {
+  recover: [[20, 40], [40, 80], [80, 160], [140, 260], [250, 460], [420, 780]],
+  damage:  [[10, 20], [20, 40], [40, 80],  [70, 130],  [120, 220], [200, 360]],
+  boost:   [[3, 7],   [7, 13],  [14, 26],  [24, 46],   [38, 72],   [56, 104]],
+  reduce:  [[3, 7],   [7, 13],  [14, 26],  [24, 46],   [38, 72],   [56, 104]],
 };
 
 /**
@@ -505,7 +560,9 @@ export function lookupDurationFactor(duration: number): number {
 /**
  * 计算特效效果的最终数值
  *
- * 公式：floor(base × triggerMul × durationFactor × costMul)
+ * 公式：floor(randomBase × triggerMul × durationFactor × costMul × affinityMul)
+ * randomBase 从 EFFECT_BASE_VALUES 区间内随机取整
+ * affinityMul 灵根契合时为 1.3，否则为 1.0
  * 最小值为 1
  */
 export function computeEffectValue(
@@ -514,14 +571,17 @@ export function computeEffectValue(
   trigger: string,
   duration: number,
   costResource: string,
+  affinityBonus?: number,
 ): number {
   const baseArr = EFFECT_BASE_VALUES[category];
   const gradeIdx = GRADE_INDEX[grade] ?? 0;
-  const base = baseArr[Math.min(gradeIdx, baseArr.length - 1)];
+  const [lo, hi] = baseArr[Math.min(gradeIdx, baseArr.length - 1)];
+  const base = lo + Math.floor(Math.random() * (hi - lo + 1));
   const triggerMul = TRIGGER_VALUE_MULTIPLIER[trigger] ?? 1.0;
   const durFactor = lookupDurationFactor(duration);
   const costMul = COST_VALUE_MULTIPLIER[costResource] ?? 1.0;
-  return Math.max(1, Math.floor(base * triggerMul * durFactor * costMul));
+  const affMul = affinityBonus != null && affinityBonus > 0 ? (1 + affinityBonus) : 1.0;
+  return Math.max(1, Math.floor(base * triggerMul * durFactor * costMul * affMul));
 }
 
 /** 计算特效消耗的数值 */

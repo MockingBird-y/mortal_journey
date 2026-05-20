@@ -16,7 +16,7 @@ import type {
   TreasureItemDefinition,
 } from "../role_core/types/itemInfo";
 import type { CultivationRealm, EquipSlotKey, TraitEntry } from "../role_core/types/playInfo";
-import { BASE_STAT_KEYS, DERIVED_STAT_KEY_TO_ZH, getEquipBonusRealmRatio, type PlayerBaseStats } from "../role_core/types/playInfo";
+import { BASE_STAT_KEYS, DERIVED_STAT_KEY_TO_ZH, getEquipBonusRealmRatio, getEquipBonusRatioWithAffinity, LINGQI_AFFINITY_BONUS, type PlayerBaseStats } from "../role_core/types/playInfo";
 import type { SpecialEffect } from "../role_core/types/special_effects";
 import { COST_RESOURCE_TO_ZH, EFFECT_KEY_CATEGORY, EFFECT_KEY_TO_ZH, TRIGGER_TIMING_TO_ZH } from "../role_core/types/special_effects";
 import { gradeToTraitRarity } from "./protagonistPanelDisplay";
@@ -120,23 +120,32 @@ function formatZhBonus(b: Record<string, number> | undefined): string | undefine
 }
 
 /**
- * 已佩戴 / 已上阵槽位：展示「法攻 +3 (境界加成 +1)」；境界加成为 `Math.trunc(v * (ratio - 1))`（向零截断），与属性中 `Math.trunc(v * ratio)` 一致：`trunc(v) + trunc(v*(r-1))` 在常见正整数 v 下等于 `trunc(v*r)`。
+ * 已佩戴 / 已上阵槽位：分别展示境界加成与灵根加成。
+ * 例：「体魄 +5 (境界加成 +3；灵根加成 +1)」
  */
 function formatZhBonusWithRealmEquip(
   b: Record<string, number> | undefined,
   realm: CultivationRealm,
+  affinity?: boolean | null,
 ): string | undefined {
   if (!b || typeof b !== "object") return undefined;
-  const ratio = getEquipBonusRealmRatio(realm.major, realm.minor);
+  const realmRatio = getEquipBonusRealmRatio(realm.major, realm.minor);
   const parts = Object.entries(b).map(([k, v]) => {
     if (typeof v !== "number" || !Number.isFinite(v)) return null;
     const sign = v >= 0 ? "+" : "";
     let line = `${k} ${sign}${v}`;
-    if (ratio !== 1) {
-      const extraInt = Math.trunc(v * (ratio - 1));
-      const exSign = extraInt >= 0 ? "+" : "";
-      line += ` (境界加成 ${exSign}${extraInt})`;
+    const extras: string[] = [];
+    if (realmRatio !== 1) {
+      const realmExtra = Math.trunc(v * (realmRatio - 1));
+      const rs = realmExtra >= 0 ? "+" : "";
+      extras.push(`境界加成 ${rs}${realmExtra}`);
     }
+    if (affinity) {
+      const affExtra = Math.trunc(v * realmRatio * LINGQI_AFFINITY_BONUS);
+      const as2 = affExtra >= 0 ? "+" : "";
+      extras.push(`灵根加成 ${as2}${affExtra}`);
+    }
+    if (extras.length) line += ` (${extras.join("；")})`;
     return line;
   }).filter(Boolean) as string[];
   return parts.length ? parts.join("；") : undefined;
@@ -160,7 +169,7 @@ function formatMagnification(m: Record<string, number> | undefined): string | un
 /**
  * 将物品的 `function`（SpecialEffect）格式化为多行中文展示文本。
  *
- * 输出示例：
+ * 输出示例（无灵根契合）：
  * ```
  * 触发条件：主动行为触发
  * 效果：恢复血量 +200（恢复）
@@ -168,10 +177,15 @@ function formatMagnification(m: Record<string, number> | undefined): string | un
  * 消耗：消耗法力 20
  * ```
  *
- * @param fn - 物品携带的特殊效果；`null` / `undefined` 时返回 `undefined`。
- * @returns 格式化后的多行文本，无有效数据时返回 `undefined`。
+ * 输出示例（灵根契合）：
+ * ```
+ * 触发条件：主动行为触发
+ * 效果：恢复血量 +200（恢复）(灵根加成 +60)
+ * 持续回合：3
+ * 消耗：消耗法力 20
+ * ```
  */
-function formatSpecialEffect(fn: SpecialEffect | undefined): string | undefined {
+function formatSpecialEffect(fn: SpecialEffect | undefined, affinity?: boolean | null): string | undefined {
   if (!fn) return undefined;
   const lines: string[] = [];
 
@@ -183,7 +197,13 @@ function formatSpecialEffect(fn: SpecialEffect | undefined): string | undefined 
   if (effLabel) {
     const sign = fn.effect.value >= 0 ? "+" : "";
     const cat = effCat ? `（${effCat}）` : "";
-    lines.push(`效果：${effLabel} ${sign}${fn.effect.value}${cat}`);
+    let effLine = `效果：${effLabel} ${sign}${fn.effect.value}${cat}`;
+    if (affinity) {
+      const affExtra = Math.trunc(fn.effect.value * LINGQI_AFFINITY_BONUS);
+      const as2 = affExtra >= 0 ? "+" : "";
+      effLine += ` (灵根加成 ${as2}${affExtra})`;
+    }
+    lines.push(effLine);
   }
 
   if (typeof fn.duration === "number") {
@@ -206,8 +226,8 @@ function formatSpecialEffect(fn: SpecialEffect | undefined): string | undefined 
  * @param out - 目标段落数组。
  * @param fn - 物品的特殊效果（可为 `undefined`）。
  */
-function pushFunctionSection(out: ProtagonistDetailSection[], fn: SpecialEffect | undefined): void {
-  const text = formatSpecialEffect(fn);
+function pushFunctionSection(out: ProtagonistDetailSection[], fn: SpecialEffect | undefined, affinity?: boolean | null): void {
+  const text = formatSpecialEffect(fn, affinity);
   if (text) pushSec(out, "功能", text);
 }
 
@@ -261,7 +281,6 @@ export function buildWearableDetailPayload(
   realm?: CultivationRealm | null,
 ): ProtagonistDetailPayload {
   const sections: ProtagonistDetailSection[] = [];
-  pushSec(sections, "灵契", it.lingQi);
   pushSec(sections, "简介", it.desc);
   pushSec(sections, "品级", it.grade);
   pushFunctionSection(sections, it.function);
@@ -311,17 +330,19 @@ export function buildGongfaDetailPayload(
   gf: GongfaItemDefinition,
   source?: GongfaDetailSource,
   realm?: CultivationRealm | null,
+  playerLinggen?: readonly string[] | null,
 ): ProtagonistDetailPayload {
   const sections: ProtagonistDetailSection[] = [];
-  pushSec(sections, "灵契", gf.lingQi);
+  const affinity = playerLinggen && gf.lingQi && gf.lingQi !== "无" && playerLinggen.includes(gf.lingQi);
+  pushSec(sections, "灵契", gf.lingQi + (affinity ? `（灵根契合，加成 ×${(1 + LINGQI_AFFINITY_BONUS).toFixed(1)}）` : ""));
   pushSec(sections, "简介", gf.desc);
   pushSec(sections, "品级", gf.grade);
   const bonus =
     source?.type === "bar" && realm
-      ? formatZhBonusWithRealmEquip(gf.bonus as Record<string, number>, realm)
+      ? formatZhBonusWithRealmEquip(gf.bonus as Record<string, number>, realm, affinity)
       : formatZhBonus(gf.bonus as Record<string, number>);
   if (bonus) pushSec(sections, "修炼加成", bonus);
-  pushFunctionSection(sections, gf.function);
+  pushFunctionSection(sections, gf.function, affinity);
 
   const actions: ProtagonistDetailActionButton[] = [];
   if (source?.type === "bar") {
@@ -400,6 +421,8 @@ export function buildInventoryStackDetailPayload(
       return buildGongfaDetailPayload(
         it,
         bagIndex != null ? { type: "bag", inventoryIndex: bagIndex } : undefined,
+        undefined,
+        linggen,
       );
     case "丹药": {
       const pill = it as ElixirItemDefinition;

@@ -99,7 +99,7 @@ function onGongfaSlotClick(index: number) {
   if (!p) return;
   const cell = p.gongfaSlots[index];
   if (!cell) return;
-  openDetail(buildGongfaDetailPayload(cell, { type: "bar", gongfaIndex: index }, p.realm));
+  openDetail(buildGongfaDetailPayload(cell, { type: "bar", gongfaIndex: index }, p.realm, p.linggen));
 }
 
 function onBagSlotClick(index: number) {

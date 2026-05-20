@@ -8,7 +8,7 @@
 import { INIT_STORY_SYSTEM_PRESET } from "./init_preset";
 import { completeChatWithMessagesJson, type JsonChatRequestPayload } from "./openAiChatBridge";
 import { Protagonist } from "../role_core/Protagonist";
-import { EQUIP_SLOT_COUNT } from "../role_core/types/playInfo";
+import { EQUIP_SLOT_COUNT, LINGQI_AFFINITY_BONUS } from "../role_core/types/playInfo";
 import {
   createSpiritStoneInventoryStack,
   SPIRIT_STONE_TABLE_KEYS_ORDERED,
@@ -32,15 +32,20 @@ import {
   TRIGGER_TIMING_KEYS,
   EFFECT_KEYS,
   COST_RESOURCE_KEYS,
-  EFFECT_KEY_CATEGORY,
   type TriggerTiming,
   type EffectKey,
   type CostResourceKey,
   type SpecialEffect,
   type EffectValueCategory,
+  type SpecialEffectTarget,
   applyFunctionOverrides,
   computeEffectValue,
   computeCostValue,
+  effectKeyToCategory,
+  firstEffectKeyOfCategory,
+  TREASURE_ALLOWED_TRIGGERS,
+  GONGFA_ALLOWED_TRIGGERS,
+  ITEM_TYPE_ALLOWED_EFFECTS,
 } from "../role_core/types/special_effects";
 
 /** 调用网关所需字段 + 生成参数 */
@@ -193,25 +198,28 @@ function spiritStoneAllowedUpTo(realmMajor: string): SpiritStoneName {
   return mapping[realmMajor] ?? "下品灵石";
 }
 
-function effectKeyToCategory(label: EffectKey): EffectValueCategory {
-  const cat = EFFECT_KEY_CATEGORY[label];
-  if (cat === "恢复") return "recover";
-  if (cat === "增益") return "boost";
-  if (cat === "减益") return "reduce";
-  return "damage";
-}
+/** 法宝 trigger 不合法时 fallback */
+const TREASURE_TRIGGER_FALLBACK: TriggerTiming = "on_default";
+/** 功法 trigger 不合法时 fallback */
+const GONGFA_TRIGGER_FALLBACK: TriggerTiming = "on_attack";
 
 /**
  * 校验并转换 AI 生成的 function 字段为 `SpecialEffect`。
- * AI 不提供具体数值，由数值体系表根据品阶/触发/持续/消耗计算。
+ * 根据 itemType 校验 trigger 和 effect category，不合法时自动纠正。
  */
-function validateAiFunction(raw: unknown, grade: string): SpecialEffect | null {
+function validateAiFunction(raw: unknown, grade: string, itemType: string, affinityBonus?: number): SpecialEffect | null {
   if (!raw || typeof raw !== "object") return null;
   const obj = raw as Record<string, unknown>;
 
-  const trigger = obj.trigger;
+  let trigger = obj.trigger;
   if (typeof trigger !== "string" || !(TRIGGER_TIMING_KEYS as readonly string[]).includes(trigger)) {
     return null;
+  }
+
+  if (itemType === "法宝" && !TREASURE_ALLOWED_TRIGGERS.has(trigger)) {
+    trigger = TREASURE_TRIGGER_FALLBACK;
+  } else if (itemType === "功法" && !GONGFA_ALLOWED_TRIGGERS.has(trigger)) {
+    trigger = GONGFA_TRIGGER_FALLBACK;
   }
 
   let effectLabel: EffectKey | null = null;
@@ -226,6 +234,13 @@ function validateAiFunction(raw: unknown, grade: string): SpecialEffect | null {
     effectLabel = label as EffectKey;
   } else {
     return null;
+  }
+
+  const category = effectKeyToCategory(effectLabel);
+  const allowedEffects = ITEM_TYPE_ALLOWED_EFFECTS[itemType as SpecialEffectTarget];
+  if (allowedEffects && !allowedEffects.has(category)) {
+    const fallbackCat = Array.from(allowedEffects)[0];
+    effectLabel = firstEffectKeyOfCategory(fallbackCat);
   }
 
   const dur = obj.duration;
@@ -245,9 +260,9 @@ function validateAiFunction(raw: unknown, grade: string): SpecialEffect | null {
     return null;
   }
 
-  const category = effectKeyToCategory(effectLabel);
+  const finalCategory = effectKeyToCategory(effectLabel);
   const costStr = costResource as string;
-  const effectValue = computeEffectValue(category, grade, trigger as string, Math.max(0, Math.floor(dur)), costStr);
+  const effectValue = computeEffectValue(finalCategory, grade, trigger as string, Math.max(0, Math.floor(dur)), costStr, affinityBonus);
   const costValue = computeCostValue(costStr, grade);
 
   return {
@@ -316,30 +331,32 @@ function parseEquipObject(e: unknown, realmMajor: string, realmMinor: string): T
   return {
     itemType: "法宝",
     name: safeStr(obj.name, "未命名法宝"),
-    lingQi: parseLingQi(obj.lingQi),
     desc: safeStr(obj.intro, ""),
     grade,
     count: 1,
-    function: applyFunctionOverrides(validateAiFunction(obj.function, grade) ?? undefined, "法宝"),
+    function: applyFunctionOverrides(validateAiFunction(obj.function, grade, "法宝") ?? undefined, "法宝"),
   };
 }
 
-function parseGongfaObject(e: unknown, realmMajor: string, realmMinor: string): GongfaItemDefinition {
+function parseGongfaObject(e: unknown, realmMajor: string, realmMinor: string, playerLinggen?: readonly string[] | null): GongfaItemDefinition {
   const obj = e as Record<string, unknown>;
   const grade = rollGrade(realmMajor, realmMinor);
+  const lingQi = parseLingQi(obj.lingQi);
+  const affinity = playerLinggen && lingQi && lingQi !== "无" && playerLinggen.includes(lingQi)
+    ? LINGQI_AFFINITY_BONUS : undefined;
   return {
     itemType: "功法",
     name: safeStr(obj.name, "未命名功法"),
-    lingQi: parseLingQi(obj.lingQi),
+    lingQi,
     desc: safeStr(obj.intro, ""),
     grade,
     count: 1,
     bonus: parseBonusField(obj.bonus),
-    function: applyFunctionOverrides(validateAiFunction(obj.function, grade) ?? undefined, "功法"),
+    function: applyFunctionOverrides(validateAiFunction(obj.function, grade, "功法", affinity) ?? undefined, "功法"),
   };
 }
 
-function parseStorageObject(e: unknown, realmMajor: string, realmMinor: string): InventoryStackItem | null {
+function parseStorageObject(e: unknown, realmMajor: string, realmMinor: string, playerLinggen?: readonly string[] | null): InventoryStackItem | null {
   const obj = e as Record<string, unknown>;
   const typeStr = safeStr(obj.type, "杂物");
 
@@ -355,13 +372,20 @@ function parseStorageObject(e: unknown, realmMajor: string, realmMinor: string):
   const grade = rollGrade(realmMajor, realmMinor);
   const count = safeCount(obj.count);
   const itemType = TYPE_TO_ITEM_TYPE[typeStr] ?? "杂物";
-  const fn = applyFunctionOverrides(validateAiFunction(obj.function, grade) ?? undefined, itemType);
+  let affinity: number | undefined;
+  if (itemType === "功法") {
+    const lingQi = parseLingQi(obj.lingQi);
+    if (playerLinggen && lingQi && lingQi !== "无" && playerLinggen.includes(lingQi)) {
+      affinity = LINGQI_AFFINITY_BONUS;
+    }
+    const fn = applyFunctionOverrides(validateAiFunction(obj.function, grade, itemType, affinity) ?? undefined, itemType);
+    return { itemType: "功法", name, lingQi, desc, grade, count, bonus: parseBonusField(obj.bonus), function: fn } as GongfaItemDefinition;
+  }
+  const fn = applyFunctionOverrides(validateAiFunction(obj.function, grade, itemType) ?? undefined, itemType);
 
   switch (itemType) {
     case "法宝":
-      return { itemType: "法宝", name, lingQi: parseLingQi(obj.lingQi), desc, grade, count, function: fn } as TreasureItemDefinition;
-    case "功法":
-      return { itemType: "功法", name, lingQi: parseLingQi(obj.lingQi), desc, grade, count, bonus: parseBonusField(obj.bonus), function: fn } as GongfaItemDefinition;
+      return { itemType: "法宝", name, desc, grade, count, function: fn } as TreasureItemDefinition;
     case "符箓":
       return { itemType: "符箓", name, desc, grade, count, function: fn } as TalismanItemDefinition;
     case "阵法":
@@ -376,7 +400,7 @@ function parseStorageObject(e: unknown, realmMajor: string, realmMinor: string):
   }
 }
 
-export function parseInitStateAiResponse(raw: string, realmMajor: string, realmMinor: string): InitStateParsed {
+export function parseInitStateAiResponse(raw: string, realmMajor: string, realmMinor: string, playerLinggen?: readonly string[] | null): InitStateParsed {
   const equipText = extractTagContent(raw, MJ_EQUIP_BODY_OPEN, MJ_EQUIP_BODY_CLOSE);
   const magicText = extractTagContent(raw, MJ_MAGIC_BODY_OPEN, MJ_MAGIC_BODY_CLOSE);
   const storageText = extractTagContent(raw, MJ_STORAGE_BODY_OPEN, MJ_STORAGE_BODY_CLOSE);
@@ -387,20 +411,20 @@ export function parseInitStateAiResponse(raw: string, realmMajor: string, realmM
 
   const equips: TreasureItemDefinition[] = equipArr.map((e: unknown) => parseEquipObject(e, realmMajor, realmMinor));
 
-  const gongfas: GongfaItemDefinition[] = magicArr.map((e: unknown) => parseGongfaObject(e, realmMajor, realmMinor));
+  const gongfas: GongfaItemDefinition[] = magicArr.map((e: unknown) => parseGongfaObject(e, realmMajor, realmMinor, playerLinggen));
 
   const storage: InventoryStackItem[] = storageArr
-    .map((e: unknown) => parseStorageObject(e, realmMajor, realmMinor))
+    .map((e: unknown) => parseStorageObject(e, realmMajor, realmMinor, playerLinggen))
     .filter((item): item is InventoryStackItem => item !== null);
 
   return { equips, gongfas, storage };
 }
 
 /** 解析 AI 完整返回：剧情 + 世界地点 + 开局状态 */
-export function parseInitStoryFull(raw: string, realmMajor: string, realmMinor: string): InitStoryFullResult {
+export function parseInitStoryFull(raw: string, realmMajor: string, realmMinor: string, playerLinggen?: readonly string[] | null): InitStoryFullResult {
   return {
     story: parseInitStoryAiResponse(raw),
-    state: parseInitStateAiResponse(raw, realmMajor, realmMinor),
+    state: parseInitStateAiResponse(raw, realmMajor, realmMinor, playerLinggen),
   };
 }
 
@@ -514,5 +538,5 @@ export function buildInitStoryRequestPayload(input: InitStoryGenerateInput): Jso
 export async function generateInitStory(input: InitStoryGenerateInput): Promise<InitStoryFullResult> {
   const raw = await completeChatWithMessagesJson(buildInitStoryRequestPayload(input));
   const r = input.protagonist.realm;
-  return parseInitStoryFull(raw, r.major, r.minor);
+  return parseInitStoryFull(raw, r.major, r.minor, input.protagonist.linggen);
 }

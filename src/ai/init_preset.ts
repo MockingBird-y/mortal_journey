@@ -43,10 +43,14 @@ export const INIT_STORY_SYSTEM_PRESET = `
 [法宝功法丹药符箓阵法function生成规则]
 1. 法宝、功法、丹药、符箓、阵法携带一个 function 字典，每个 function 为一条特殊功能条目，必须有。
 2. 每个 function 对象包含四个字段：trigger（触发时机）、effect（效果）、duration（持续回合）、cost（消耗）。
-3. 丹药的effect效果不能是造成伤害和减益效果。
-4. trigger触发时机是默认触发时，不能是造成伤害的效果。
-5. 阵法的持续回合需要是多个回合，不能是即时触发或者1回合。
-6. effect效果如果是增益或者减益效果，不能是即时触发或者1回合。
+3. 按物品类型的 trigger 与 effect 约束（必须严格遵守）：
+   · 法宝：trigger 只能是被动或默认触发（on_default、on_hit_taken、on_turn_start、on_low_hp、on_low_mana、on_full_mana、on_crit、on_dodge、on_kill），effect 只能是增益类（boost*）。法宝是被动装备，自动触发属性增益。
+   · 功法：trigger 只能是主动触发（on_attack、on_skill_cast），effect 只能是增益类（boost*）或伤害类（deal*），不能是恢复类或减益类。功法是主动技能，由玩家主动施展。
+   · 丹药：effect 只能是恢复类（recover*）或增益类（boost*），不能是伤害类或减益类。丹药是消耗品，用于回血回蓝或临战强化。
+   · 符箓：effect 只能是伤害类（deal*）。符箓是消耗品，纯伤害输出手段。
+   · 阵法：effect 只能是增益类（boost*）或减益类（reduce*）。阵法是战术型物品，强化己方或削弱敌方。
+4. 阵法的持续回合需要是多个回合，不能是即时触发或者1回合。
+5. effect 效果如果是增益或者减益效果，不能是即时触发或者1回合。
 6. trigger 触发时机可选值（与游戏逻辑一致的英文键）：
    on_attack（主动行为触发）、on_skill_cast（释放技能时）、on_crit（暴击时）、on_dodge（闪避时）、
    on_hit_taken（受到攻击时）、on_turn_start（回合开始）、on_low_hp（低生命值）、on_low_mana（灵力不足）、
@@ -68,24 +72,20 @@ export const INIT_STORY_SYSTEM_PRESET = `
 8. duration 为持续回合数：0 表示即时生效不持续，正数表示持续该回合数。
 9. cost 消耗资源可选值：none（无消耗）、mp（消耗法力）、hp（消耗血量）。
 10. function 功能必须与物品的名称和介绍描述契合，不能凭空生成与物品功能无关的功能。
-11. 输出示例（function 为 JSON 数组，无效果时填 {}）：
-   · 法宝示例：{"type":"法宝","name":"青钢剑","lingQi":"金","intro":"外门制式，刃口锋利","function":{"trigger":"on_attack","effect":"dealPhysicalDmg","duration":0,"cost":"mp"}}
-   · 带效果示例：{"type":"丹药","name":"回春丹","intro":"疗伤丹药","function":{"trigger":"on_attack","effect":"recoverHp","duration":0,"cost":"none"},"count":2}
 
 [法宝开局配置输出规则]
 1. 主角的法宝开局配置：法宝的名称需要与剧情描述、主角背景一致。
 2. 法宝输出规则：必须输出一对标签：<mj_equip_body> 与 </mj_equip_body> 各恰好一次，拼写原样、区分大小写。
 3. 开局法宝一般给到2-3个法宝即可。
-3. 法宝信息：法宝信息包含类型type、名称name、灵契lingQi、介绍intro、功能function。function 格式见上方[function生成规则]。
-4. 灵契lingQi：灵契包括六种情况，"无"、"金"、"木"、"水"、"火"、"土"，如果法宝名称涉及金木水火土元素，则相应的灵契，如果法宝名称不涉及具体元素，则为无。
+3. 法宝信息：法宝信息包含类型type、名称name、介绍intro、功能function。function 格式见上方[function生成规则]。
 4. 输出示例：<mj_equip_body> [
-    {"type":"法宝","name":"青钢剑","lingQi":"金","intro":"外门制式，刃口锋利","function":{"trigger":"on_attack","effect":"dealPhysicalDmg","duration":0,"cost":"none"}},
-    {"type":"法宝","name":"静心戒","lingQi":"","intro":"稳固神识的粗胚法器，似乎可以提高暴击几率","function":{"trigger":"on_default","effect":"boostCritRate","duration":0,"cost":"none"}},
-    {"type":"法宝","name":"粗布劲装","lingQi":"","intro":"耐磨行装，提供少量防御","function":{"trigger":"on_hit_taken","effect":"boostPdef","duration":3,"cost":"none"}},
-    {"type":"法宝","name":"水心镜","lingQi":"水","intro":"水灵凝聚而成的护心铜镜，法力枯竭时可自动汲取水灵恢复法力","function":{"trigger":"on_low_mana","effect":"recoverMp","duration":0,"cost":"none"}},
-    {"type":"法宝","name":"泰山石","lingQi":"土","intro":"取自泰山深处的玄黄石核，受击时激发土灵护体，提升物理防御","function":{"trigger":"on_hit_taken","effect":"boostPdef","duration":3,"cost":"none"}},
-    {"type":"法宝","name":"离火球","lingQi":"火","intro":"凝炼地火而成的赤红火球，主动催动可灼烧敌人，造成火属性伤害","function":{"trigger":"on_attack","effect":"dealFireDmg","duration":0,"cost":"mp"}},
-    {"type":"法宝","name":"七玄镇妖木","lingQi":"木","intro":"以七种灵木炼制的镇妖法杖，每回合初散发木灵之气，削弱敌方法术防御","function":{"trigger":"on_turn_start","effect":"reduceMdef","duration":3,"cost":"none"}},
+    {"type":"法宝","name":"青钢剑","intro":"外门制式，刃口锋利，可提升物理攻击","function":{"trigger":"on_default","effect":"boostPatk","duration":0,"cost":"none"}},
+    {"type":"法宝","name":"静心戒","intro":"稳固神识的粗胚法器，似乎可以提高暴击几率","function":{"trigger":"on_default","effect":"boostCritRate","duration":0,"cost":"none"}},
+    {"type":"法宝","name":"粗布劲装","intro":"耐磨行装，受击时提供额外防御","function":{"trigger":"on_hit_taken","effect":"boostPdef","duration":3,"cost":"none"}},
+    {"type":"法宝","name":"水心镜","intro":"水灵凝聚而成的护心铜镜，法力不足时自动激发水灵增加法力上限","function":{"trigger":"on_low_mana","effect":"boostMp","duration":3,"cost":"none"}},
+    {"type":"法宝","name":"泰山石","intro":"取自泰山深处的玄黄石核，受击时激发土灵护体，提升物理防御","function":{"trigger":"on_hit_taken","effect":"boostPdef","duration":3,"cost":"none"}},
+    {"type":"法宝","name":"离火球","intro":"凝炼地火而成的赤红火球，受击时激发火灵反震，提升法术攻击","function":{"trigger":"on_hit_taken","effect":"boostMatk","duration":3,"cost":"none"}},
+    {"type":"法宝","name":"七玄镇妖木","intro":"以七种灵木炼制的镇妖法杖，每回合初散发木灵之气，提升法术攻击","function":{"trigger":"on_turn_start","effect":"boostMatk","duration":3,"cost":"none"}},
 ] </mj_equip_body>。
 
 [功法开局配置输出规则]
@@ -106,7 +106,7 @@ export const INIT_STORY_SYSTEM_PRESET = `
     {"type":"功法","name":"万木长生功","lingQi":"木","intro":"汲取草木精华滋养己身，持续恢复血量","bonus":"体魄","function":{"trigger":"on_turn_start","effect":"recoverHp","duration":5,"cost":"none"}},
     {"type":"功法","name":"玄水诀","lingQi":"水","intro":"以水灵凝聚护体真元，提升法术防御","bonus":"护体","function":{"trigger":"on_default","effect":"boostMdef","duration":0,"cost":"none"}},
     {"type":"功法","name":"烈焰焚天诀","lingQi":"火","intro":"引天地火灵入体，攻击时附带火属性伤害","bonus":"灵力","function":{"trigger":"on_attack","effect":"dealFireDmg","duration":0,"cost":"mp"}},
-    {"type":"功法","name":"厚土铸体诀","lingQi":"土","intro":"以土灵淬炼肉身，提升物理防御与韧性","bonus":"护体","function":{"trigger":"on_default","effect":"boostPdef","duration":0,"cost":"none"}},
+    {"type":"功法","name":"厚土铸体诀","lingQi":"土","intro":"以土灵淬炼肉身，提升物理防御","bonus":"护体","function":{"trigger":"on_default","effect":"boostPdef","duration":0,"cost":"none"}},
 ] </mj_magic_body>。
 
 [储物袋开局配置输出规则]

@@ -12,6 +12,7 @@ import {
   CULTIVATION_VALUES,
   SHOUYUAN_VALUES,
   EQUIP_BONUS_RATIOS,
+  LINGQI_AFFINITY_BONUS,
   MIN_NARRATIVE_AGE_BY_MAJOR,
   realmStageIndex,
   type RealmBaseStatsRow,
@@ -56,6 +57,27 @@ export function getEquipBonusRealmRatio(
   if (idx < 0 || idx >= EQUIP_BONUS_RATIOS.length) return 1;
   const n = EQUIP_BONUS_RATIOS[idx];
   return typeof n === "number" && isFinite(n) && n > 0 ? n : 1;
+}
+
+/**
+ * 计算功法装备的最终倍率（境界倍率 × 灵根契合加成）。
+ *
+ * @param major 大境界
+ * @param minor 小境界
+ * @param lingQi 功法的灵契（如 "金"、"木"、"水"、"火"、"土"）
+ * @param playerLinggen 主角灵根数组
+ * @returns 境界倍率 × (1 + 灵根契合加成)
+ */
+export function getEquipBonusRatioWithAffinity(
+  major: string | null | undefined,
+  minor: string | null | undefined,
+  lingQi: string | null | undefined,
+  playerLinggen?: readonly string[] | null,
+): number {
+  const ratio = getEquipBonusRealmRatio(major, minor);
+  if (!lingQi || lingQi === "无" || !playerLinggen || playerLinggen.length === 0) return ratio;
+  if (playerLinggen.includes(lingQi)) return ratio * (1 + LINGQI_AFFINITY_BONUS);
+  return ratio;
 }
 
 /**
