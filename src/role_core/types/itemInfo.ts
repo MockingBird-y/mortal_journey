@@ -5,7 +5,13 @@
 
 import type { SpiritStoneInventoryStack } from "./spiritStone";
 import type { ZhStatBonusMap } from "./playInfo";
-import type { SpecialEffect } from "./special_effects";
+import type {
+  TreasureSpecialEffect,
+  GongfaSpecialEffect,
+  ElixirSpecialEffect,
+  TalismanSpecialEffect,
+  FormationSpecialEffect,
+} from "./special_effects";
 
 // ---------------------------------------------------------------------------
 // 共用枚举与基底
@@ -39,8 +45,6 @@ export interface ItemDefinitionBase {
   desc: string;
   grade: ItemGrade;
   count: number;
-  /** 特殊效果（法宝/功法/丹药/符箓/阵法可携带） */
-  function?: SpecialEffect;
 }
 
 // ---------------------------------------------------------------------------
@@ -49,6 +53,7 @@ export interface ItemDefinitionBase {
 
 export interface TreasureItemDefinition extends ItemDefinitionBase {
   itemType: "法宝";
+  function?: TreasureSpecialEffect;
 }
 
 // ---------------------------------------------------------------------------
@@ -59,6 +64,7 @@ export interface GongfaItemDefinition extends ItemDefinitionBase {
   itemType: "功法";
   bonus: ItemBonusMap;
   lingQi: LingQi;
+  function?: GongfaSpecialEffect;
 }
 
 // ---------------------------------------------------------------------------
@@ -68,6 +74,7 @@ export interface GongfaItemDefinition extends ItemDefinitionBase {
 export interface ElixirItemDefinition extends ItemDefinitionBase {
   itemType: "丹药";
   effects: ItemElixirEffects;
+  function?: ElixirSpecialEffect;
 }
 
 // ---------------------------------------------------------------------------
@@ -76,10 +83,12 @@ export interface ElixirItemDefinition extends ItemDefinitionBase {
 
 export interface TalismanItemDefinition extends ItemDefinitionBase {
   itemType: "符箓";
+  function?: TalismanSpecialEffect;
 }
 
 export interface FormationItemDefinition extends ItemDefinitionBase {
   itemType: "阵法";
+  function?: FormationSpecialEffect;
 }
 
 // ---------------------------------------------------------------------------

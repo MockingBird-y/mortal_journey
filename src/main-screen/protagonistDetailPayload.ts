@@ -17,8 +17,8 @@ import type {
 } from "../role_core/types/itemInfo";
 import type { CultivationRealm, EquipSlotKey, TraitEntry } from "../role_core/types/playInfo";
 import { BASE_STAT_KEYS, DERIVED_STAT_KEY_TO_ZH, getEquipBonusRealmRatio, getEquipBonusRatioWithAffinity, LINGQI_AFFINITY_BONUS, type PlayerBaseStats } from "../role_core/types/playInfo";
-import type { SpecialEffect } from "../role_core/types/special_effects";
-import { COST_RESOURCE_TO_ZH, EFFECT_KEY_CATEGORY, EFFECT_KEY_TO_ZH, TRIGGER_TIMING_TO_ZH } from "../role_core/types/special_effects";
+import type { ItemSpecialEffect } from "../role_core/types/special_effects";
+import { lookupCostZh, lookupEffectZh, lookupTriggerZh } from "../role_core/types/special_effects";
 import { gradeToTraitRarity } from "./protagonistPanelDisplay";
 
 /**
@@ -185,14 +185,14 @@ function formatMagnification(m: Record<string, number> | undefined): string | un
  * 消耗：消耗法力 20
  * ```
  */
-function formatSpecialEffect(fn: SpecialEffect | undefined, affinity?: boolean | null): string | undefined {
+function formatSpecialEffect(fn: ItemSpecialEffect | undefined, affinity?: boolean | null): string | undefined {
   if (!fn) return undefined;
   const lines: string[] = [];
 
-  const triggerZh = TRIGGER_TIMING_TO_ZH[fn.trigger];
+  const triggerZh = lookupTriggerZh(fn.trigger as string);
   if (triggerZh) lines.push(`触发条件：${triggerZh}`);
 
-  const effLabel = EFFECT_KEY_TO_ZH[fn.effect.label];
+  const effLabel = lookupEffectZh(fn.effect.label as string);
   if (effLabel) {
     const sign = fn.effect.value >= 0 ? "+" : "";
     let effLine = `效果：${effLabel} ${sign}${fn.effect.value}`;
@@ -208,7 +208,7 @@ function formatSpecialEffect(fn: SpecialEffect | undefined, affinity?: boolean |
     lines.push(fn.duration > 0 ? `持续回合：${fn.duration}` : "持续回合：即时生效");
   }
 
-  const costZh = COST_RESOURCE_TO_ZH[fn.cost.resource];
+  const costZh = lookupCostZh(fn.cost.resource as string);
   if (costZh && fn.cost.resource !== "none") {
     lines.push(`消耗：${costZh} ${fn.cost.value}`);
   } else if (costZh) {
@@ -224,7 +224,7 @@ function formatSpecialEffect(fn: SpecialEffect | undefined, affinity?: boolean |
  * @param out - 目标段落数组。
  * @param fn - 物品的特殊效果（可为 `undefined`）。
  */
-function pushFunctionSection(out: ProtagonistDetailSection[], fn: SpecialEffect | undefined, affinity?: boolean | null): void {
+function pushFunctionSection(out: ProtagonistDetailSection[], fn: ItemSpecialEffect | undefined, affinity?: boolean | null): void {
   const text = formatSpecialEffect(fn, affinity);
   if (text) pushSec(out, "功能", text);
 }

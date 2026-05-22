@@ -1,29 +1,8 @@
 /**
- * 特殊效果结构定义，供法宝、功法、丹药、符箓、阵法等物品使用。
+ * 按物品类型（法宝、功法、丹药、符箓、阵法）完全独立的效果定义。
+ * 每种物品类型拥有自己的触发时机、效果键、消耗资源、持续回合与中文映射，
+ * 不依赖共享总表，便于后续各类型独立扩展。
  */
-
-/**
- * 特殊效果条目。
- * 物品可携带零或多个特殊效果，在特定时机触发，产生数值效果并消耗资源。
- */
-export interface SpecialEffect {
-  /** 触发时机，如 `"on_attack"`、`"on_hit_taken"`、`"on_turn_start"` */
-  trigger: TriggerTiming;
-  /** 效果描述与数值，如 `{ label: "recoverHp", value: 200 }` */
-  effect: SpecialEffectValue;
-  /** 持续回合数；0 表示即时生效不持续 */
-  duration: number;
-  /** 消耗资源与数值，如 `{ resource: "mp", value: 20 }` */
-  cost: CostResourceValue;
-}
-
-/** 效果/消耗键值对 */
-export interface SpecialEffectValue {
-  /** 效果或消耗的标识 */
-  label: EffectKey;
-  /** 对应的数值 */
-  value: number;
-}
 
 /** 可携带特殊效果的物品种类标记 */
 export type SpecialEffectTarget =
@@ -33,125 +12,154 @@ export type SpecialEffectTarget =
   | "符箓"
   | "阵法";
 
+/** 效果分类（中文） */
+export type EffectCategory = "恢复" | "增益" | "减益" | "伤害";
+
+/** 特效数值分类键（用于数值计算） */
+export type EffectValueCategory = "recover" | "boost" | "reduce" | "damage";
+
 // ═══════════════════════════════════════════════════════════════════════════
-// 触发时机表
+// 内部通用工具
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** 触发时机键（英文标识，供代码逻辑判断使用） */
-export const TRIGGER_TIMING_KEYS = [
-  "on_attack",
-  "on_skill_cast",
-  "on_crit",
-  "on_dodge",
+function matchKeyLoose<T extends string>(keys: readonly T[], s: string): T | undefined {
+  const lower = s.toLowerCase();
+  for (const k of keys) {
+    if (k.toLowerCase() === lower) return k;
+  }
+  return undefined;
+}
+
+function categoryToValueCategory(cat: EffectCategory | undefined): EffectValueCategory {
+  if (cat === "恢复") return "recover";
+  if (cat === "增益") return "boost";
+  if (cat === "减益") return "reduce";
+  return "damage";
+}
+
+function firstKeyOfValueCategory<T extends string>(
+  keys: readonly T[],
+  catMap: Readonly<Record<string, EffectCategory>>,
+  vc: EffectValueCategory,
+): T {
+  for (const k of keys) {
+    if (categoryToValueCategory(catMap[k]) === vc) return k;
+  }
+  return keys[0];
+}
+
+interface NormalizeOpts<TTrigger extends string, TEffect extends string, TCost extends string> {
+  raw: unknown;
+  triggerKeys: readonly TTrigger[];
+  defaultTrigger: TTrigger;
+  effectKeys: readonly TEffect[];
+  costKeys: readonly TCost[];
+  defaultCost: TCost;
+}
+
+function normalizeGeneric<TTrigger extends string, TEffect extends string, TCost extends string>(
+  opts: NormalizeOpts<TTrigger, TEffect, TCost>,
+): { trigger: TTrigger; effect: { label: TEffect; value: number }; duration: number; cost: { resource: TCost; value: number } } | undefined {
+  const { raw } = opts;
+  if (!raw || typeof raw !== "object") return undefined;
+  const o = raw as Record<string, unknown>;
+
+  const rawTrigger = typeof o.trigger === "string" ? o.trigger.trim() : "";
+  const trigger = (opts.triggerKeys as readonly string[]).includes(rawTrigger)
+    ? (rawTrigger as TTrigger)
+    : opts.defaultTrigger;
+
+  let effectLabel: TEffect | undefined;
+  let effectValue = 1;
+  const rawEffect = o.effect;
+  if (typeof rawEffect === "string") {
+    effectLabel = matchKeyLoose(opts.effectKeys, rawEffect);
+  } else if (rawEffect && typeof rawEffect === "object") {
+    const eo = rawEffect as Record<string, unknown>;
+    if (typeof eo.label === "string") {
+      effectLabel = matchKeyLoose(opts.effectKeys, eo.label);
+    }
+    if (typeof eo.value === "number" && Number.isFinite(eo.value)) {
+      effectValue = eo.value;
+    }
+  }
+  if (!effectLabel) return undefined;
+
+  const rawDuration = o.duration;
+  const duration = typeof rawDuration === "number" && Number.isFinite(rawDuration) ? rawDuration : 0;
+
+  let costResource: TCost = opts.defaultCost;
+  let costValue = 0;
+  const rawCost = o.cost;
+  if (typeof rawCost === "string") {
+    const matched = matchKeyLoose(opts.costKeys, rawCost);
+    if (matched) costResource = matched;
+    costValue = costResource !== opts.defaultCost ? 1 : 0;
+  } else if (rawCost && typeof rawCost === "object") {
+    const co = rawCost as Record<string, unknown>;
+    if (typeof co.resource === "string") {
+      const matched = matchKeyLoose(opts.costKeys, co.resource);
+      if (matched) costResource = matched;
+    }
+    if (typeof co.value === "number" && Number.isFinite(co.value)) {
+      costValue = co.value;
+    } else {
+      costValue = costResource !== opts.defaultCost ? 1 : 0;
+    }
+  }
+
+  return { trigger, effect: { label: effectLabel, value: effectValue }, duration, cost: { resource: costResource, value: costValue } };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 法宝
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const TREASURE_TRIGGER_KEYS = [
   "on_hit_taken",
   "on_turn_start",
   "on_low_hp",
   "on_low_mana",
   "on_full_mana",
+  "on_crit",
+  "on_dodge",
   "on_kill",
-  "on_default",
 ] as const;
+export type TreasureTriggerTiming = (typeof TREASURE_TRIGGER_KEYS)[number];
 
-export type TriggerTiming = (typeof TRIGGER_TIMING_KEYS)[number];
-
-/** 触发时机英文 → 中文映射 */
-export const TRIGGER_TIMING_TO_ZH: Readonly<Record<TriggerTiming, string>> = {
-  on_attack: "主动触发",
-  on_skill_cast: "释放技能时",
-  on_crit: "暴击时",
-  on_dodge: "闪避时",
+export const TREASURE_TRIGGER_TO_ZH: Readonly<Record<TreasureTriggerTiming, string>> = {
   on_hit_taken: "受到攻击时",
   on_turn_start: "回合开始",
   on_low_hp: "低生命值",
   on_low_mana: "灵力不足",
   on_full_mana: "灵气满时",
+  on_crit: "暴击时",
+  on_dodge: "闪避时",
   on_kill: "击杀敌人",
-  on_default: "默认触发",
 };
 
-/** 触发时机分类 */
-export const TRIGGER_TIMING_CATEGORY: Readonly<Record<TriggerTiming, "主动" | "被动" | "默认">> = {
-  on_attack: "主动",
-  on_skill_cast: "主动",
-  on_crit: "被动",
-  on_dodge: "被动",
+export const TREASURE_TRIGGER_CATEGORY: Readonly<Record<TreasureTriggerTiming, "主动" | "被动" | "默认">> = {
   on_hit_taken: "被动",
   on_turn_start: "被动",
   on_low_hp: "被动",
   on_low_mana: "被动",
   on_full_mana: "被动",
+  on_crit: "被动",
+  on_dodge: "被动",
   on_kill: "被动",
-  on_default: "默认",
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 效果表
-// ═══════════════════════════════════════════════════════════════════════════
-
-/** 效果键（英文标识，供代码逻辑判断使用） */
-export const EFFECT_KEYS = [
-  // 恢复
-  "recoverHp",
-  "recoverMp",
-  // 增加派生属性
-  "boostHp",
-  "boostMp",
-  "boostPatk",
-  "boostMatk",
-  "boostPdef",
-  "boostMdef",
-  "boostPenetration",
-  "boostHitRate",
-  "boostDodgeRate",
-  "boostCritRate",
-  "boostCritDmg",
-  "boostRecovery",
-  "boostCastSpeed",
-  "boostActionSpeed",
-  "boostEffectChance",
-  "boostControlResist",
-  "boostFireDamage",
-  "boostIceDamage",
-  "boostPoisonDamage",
-  "boostLightningDamage",
-  // 减少派生属性
-  "reduceHp",
-  "reduceMp",
-  "reducePatk",
-  "reduceMatk",
-  "reducePdef",
-  "reduceMdef",
-  "reducePenetration",
-  "reduceHitRate",
-  "reduceDodgeRate",
-  "reduceCritRate",
-  "reduceCritDmg",
-  "reduceRecovery",
-  "reduceCastSpeed",
-  "reduceActionSpeed",
-  "reduceEffectChance",
-  "reduceControlResist",
-  "reduceFireDamage",
-  "reduceIceDamage",
-  "reducePoisonDamage",
-  "reduceLightningDamage",
-  // 造成伤害
-  "dealPhysicalDmg",
-  "dealMagicDmg",
-  "dealFireDmg",
-  "dealIceDmg",
-  "dealPoisonDmg",
-  "dealLightningDmg",
+export const TREASURE_EFFECT_KEYS = [
+  "recoverHp", "recoverMp", "boostPatk", "boostMatk", "boostPdef", "boostMdef",
+  "boostPenetration", "boostHitRate", "boostDodgeRate", "boostCritRate",
+  "boostCritDmg", "boostRecovery", "boostCastSpeed", "boostActionSpeed",
+  "boostEffectChance", "boostControlResist",
 ] as const;
+export type TreasureEffectKey = (typeof TREASURE_EFFECT_KEYS)[number];
 
-export type EffectKey = (typeof EFFECT_KEYS)[number];
-
-/** 效果英文 → 中文映射 */
-export const EFFECT_KEY_TO_ZH: Readonly<Record<EffectKey, string>> = {
+export const TREASURE_EFFECT_TO_ZH: Readonly<Record<TreasureEffectKey, string>> = {
   recoverHp: "恢复血量",
   recoverMp: "恢复法力",
-  boostHp: "增加血量",
-  boostMp: "增加法力",
   boostPatk: "增加物攻",
   boostMatk: "增加法攻",
   boostPdef: "增加物防",
@@ -166,12 +174,367 @@ export const EFFECT_KEY_TO_ZH: Readonly<Record<EffectKey, string>> = {
   boostActionSpeed: "增加行动速度",
   boostEffectChance: "增加特效几率",
   boostControlResist: "增加控制抗性",
+};
+
+export const TREASURE_EFFECT_CATEGORY: Readonly<Record<TreasureEffectKey, EffectCategory>> = {
+  recoverHp: "恢复", recoverMp: "恢复", boostPatk: "增益", boostMatk: "增益",
+  boostPdef: "增益", boostMdef: "增益", boostPenetration: "增益",
+  boostHitRate: "增益", boostDodgeRate: "增益", boostCritRate: "增益",
+  boostCritDmg: "增益", boostRecovery: "增益", boostCastSpeed: "增益",
+  boostActionSpeed: "增益", boostEffectChance: "增益", boostControlResist: "增益",
+};
+
+export const TREASURE_COST_KEYS = ["none", "mp", "hp"] as const;
+export type TreasureCostKey = (typeof TREASURE_COST_KEYS)[number];
+export const TREASURE_COST_TO_ZH: Readonly<Record<TreasureCostKey, string>> = {
+  none: "无消耗",
+  mp: "消耗法力",
+  hp: "消耗血量",
+};
+
+export interface TreasureSpecialEffect {
+  trigger: TreasureTriggerTiming;
+  effect: { label: TreasureEffectKey; value: number };
+  duration: number;
+  cost: { resource: TreasureCostKey; value: number };
+}
+
+export const TREASURE_ALLOWED_TRIGGERS: ReadonlySet<string> = new Set<string>(TREASURE_TRIGGER_KEYS);
+export const TREASURE_ALLOWED_EFFECT_CATEGORIES: ReadonlySet<EffectValueCategory> = new Set(["recover", "boost"] as const);
+
+export function matchTreasureEffectKeyLoose(s: string): TreasureEffectKey | undefined {
+  return matchKeyLoose(TREASURE_EFFECT_KEYS, s);
+}
+
+export function treasureEffectKeyToCategory(label: TreasureEffectKey): EffectValueCategory {
+  return categoryToValueCategory(TREASURE_EFFECT_CATEGORY[label]);
+}
+
+export function firstTreasureEffectKeyOfCategory(vc: EffectValueCategory): TreasureEffectKey {
+  return firstKeyOfValueCategory(TREASURE_EFFECT_KEYS, TREASURE_EFFECT_CATEGORY, vc);
+}
+
+export function normalizeTreasureAiFunction(raw: unknown): TreasureSpecialEffect | undefined {
+  return normalizeGeneric({
+    raw,
+    triggerKeys: TREASURE_TRIGGER_KEYS,
+    defaultTrigger: "on_hit_taken",
+    effectKeys: TREASURE_EFFECT_KEYS,
+    costKeys: TREASURE_COST_KEYS,
+    defaultCost: "none",
+  }) as TreasureSpecialEffect | undefined;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 功法
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const GONGFA_TRIGGER_KEYS = [
+  "on_attack",
+  "on_skill_cast",
+  "on_default",
+] as const;
+export type GongfaTriggerTiming = (typeof GONGFA_TRIGGER_KEYS)[number];
+
+export const GONGFA_TRIGGER_TO_ZH: Readonly<Record<GongfaTriggerTiming, string>> = {
+  on_attack: "主动触发",
+  on_skill_cast: "释放技能时",
+  on_default: "默认触发",
+};
+
+export const GONGFA_TRIGGER_CATEGORY: Readonly<Record<GongfaTriggerTiming, "主动" | "被动" | "默认">> = {
+  on_attack: "主动",
+  on_skill_cast: "主动",
+  on_default: "默认",
+};
+
+export const GONGFA_EFFECT_KEYS = [
+  "boostPenetration", "boostHitRate", "boostDodgeRate", "boostCritRate",
+  "boostCritDmg",
+  "boostFireDamage", "boostIceDamage", "boostPoisonDamage", "boostLightningDamage",
+  "dealPhysicalDmg", "dealMagicDmg",
+  "dealFireDmg", "dealIceDmg", "dealPoisonDmg", "dealLightningDmg",
+] as const;
+export type GongfaEffectKey = (typeof GONGFA_EFFECT_KEYS)[number];
+
+export const GONGFA_EFFECT_TO_ZH: Readonly<Record<GongfaEffectKey, string>> = {
+  boostPenetration: "增加穿透",
+  boostHitRate: "增加命中率",
+  boostDodgeRate: "增加闪避率",
+  boostCritRate: "增加暴击率",
+  boostCritDmg: "增加暴击伤害",
   boostFireDamage: "增加火伤",
   boostIceDamage: "增加冰伤",
   boostPoisonDamage: "增加毒伤",
   boostLightningDamage: "增加雷伤",
-  reduceHp: "减少血量",
-  reduceMp: "减少法力",
+  dealPhysicalDmg: "造成物伤",
+  dealMagicDmg: "造成法伤",
+  dealFireDmg: "造成火伤",
+  dealIceDmg: "造成冰伤",
+  dealPoisonDmg: "造成毒伤",
+  dealLightningDmg: "造成雷伤",
+};
+
+export const GONGFA_EFFECT_CATEGORY: Readonly<Record<GongfaEffectKey, EffectCategory>> = {
+  boostPenetration: "增益", boostHitRate: "增益", boostDodgeRate: "增益",
+  boostCritRate: "增益", boostCritDmg: "增益",
+  boostFireDamage: "增益", boostIceDamage: "增益", boostPoisonDamage: "增益", boostLightningDamage: "增益",
+  dealPhysicalDmg: "伤害", dealMagicDmg: "伤害",
+  dealFireDmg: "伤害", dealIceDmg: "伤害", dealPoisonDmg: "伤害", dealLightningDmg: "伤害",
+};
+
+export const GONGFA_COST_KEYS = ["none", "mp", "hp"] as const;
+export type GongfaCostKey = (typeof GONGFA_COST_KEYS)[number];
+export const GONGFA_COST_TO_ZH: Readonly<Record<GongfaCostKey, string>> = {
+  none: "无消耗",
+  mp: "消耗法力",
+  hp: "消耗血量",
+};
+
+export interface GongfaSpecialEffect {
+  trigger: GongfaTriggerTiming;
+  effect: { label: GongfaEffectKey; value: number };
+  duration: number;
+  cost: { resource: GongfaCostKey; value: number };
+}
+
+export const GONGFA_ALLOWED_TRIGGERS: ReadonlySet<string> = new Set<string>(GONGFA_TRIGGER_KEYS);
+export const GONGFA_ALLOWED_EFFECT_CATEGORIES: ReadonlySet<EffectValueCategory> = new Set(["boost", "damage"] as const);
+
+export function matchGongfaEffectKeyLoose(s: string): GongfaEffectKey | undefined {
+  return matchKeyLoose(GONGFA_EFFECT_KEYS, s);
+}
+
+export function gongfaEffectKeyToCategory(label: GongfaEffectKey): EffectValueCategory {
+  return categoryToValueCategory(GONGFA_EFFECT_CATEGORY[label]);
+}
+
+export function firstGongfaEffectKeyOfCategory(vc: EffectValueCategory): GongfaEffectKey {
+  return firstKeyOfValueCategory(GONGFA_EFFECT_KEYS, GONGFA_EFFECT_CATEGORY, vc);
+}
+
+export function normalizeGongfaAiFunction(raw: unknown): GongfaSpecialEffect | undefined {
+  return normalizeGeneric({
+    raw,
+    triggerKeys: GONGFA_TRIGGER_KEYS,
+    defaultTrigger: "on_attack",
+    effectKeys: GONGFA_EFFECT_KEYS,
+    costKeys: GONGFA_COST_KEYS,
+    defaultCost: "none",
+  }) as GongfaSpecialEffect | undefined;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 丹药
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const ELIXIR_TRIGGER_KEYS = ["on_attack"] as const;
+export type ElixirTriggerTiming = (typeof ELIXIR_TRIGGER_KEYS)[number];
+
+export const ELIXIR_TRIGGER_TO_ZH: Readonly<Record<ElixirTriggerTiming, string>> = {
+  on_attack: "主动触发",
+};
+
+export const ELIXIR_TRIGGER_CATEGORY: Readonly<Record<ElixirTriggerTiming, "主动" | "被动" | "默认">> = {
+  on_attack: "主动",
+};
+
+export const ELIXIR_EFFECT_KEYS = [
+  "recoverHp", "recoverMp",
+  "boostPatk", "boostMatk", "boostPdef", "boostMdef",
+  "boostFireDamage", "boostIceDamage", "boostPoisonDamage", "boostLightningDamage",
+] as const;
+export type ElixirEffectKey = (typeof ELIXIR_EFFECT_KEYS)[number];
+
+export const ELIXIR_EFFECT_TO_ZH: Readonly<Record<ElixirEffectKey, string>> = {
+  recoverHp: "恢复血量",
+  recoverMp: "恢复法力",
+  boostPatk: "增加物攻",
+  boostMatk: "增加法攻",
+  boostPdef: "增加物防",
+  boostMdef: "增加法防",
+  boostFireDamage: "增加火伤",
+  boostIceDamage: "增加冰伤",
+  boostPoisonDamage: "增加毒伤",
+  boostLightningDamage: "增加雷伤",
+};
+
+export const ELIXIR_EFFECT_CATEGORY: Readonly<Record<ElixirEffectKey, EffectCategory>> = {
+  recoverHp: "恢复", recoverMp: "恢复",
+  boostPatk: "增益", boostMatk: "增益", boostPdef: "增益", boostMdef: "增益",
+  boostFireDamage: "增益", boostIceDamage: "增益", boostPoisonDamage: "增益", boostLightningDamage: "增益",
+};
+
+export const ELIXIR_COST_KEYS = ["none"] as const;
+export type ElixirCostKey = (typeof ELIXIR_COST_KEYS)[number];
+export const ELIXIR_COST_TO_ZH: Readonly<Record<ElixirCostKey, string>> = {
+  none: "无消耗",
+};
+
+export interface ElixirSpecialEffect {
+  trigger: ElixirTriggerTiming;
+  effect: { label: ElixirEffectKey; value: number };
+  duration: number;
+  cost: { resource: ElixirCostKey; value: number };
+}
+
+export const ELIXIR_ALLOWED_EFFECT_CATEGORIES: ReadonlySet<EffectValueCategory> = new Set(["recover", "boost"] as const);
+
+export function matchElixirEffectKeyLoose(s: string): ElixirEffectKey | undefined {
+  return matchKeyLoose(ELIXIR_EFFECT_KEYS, s);
+}
+
+export function elixirEffectKeyToCategory(label: ElixirEffectKey): EffectValueCategory {
+  return categoryToValueCategory(ELIXIR_EFFECT_CATEGORY[label]);
+}
+
+export function firstElixirEffectKeyOfCategory(vc: EffectValueCategory): ElixirEffectKey {
+  return firstKeyOfValueCategory(ELIXIR_EFFECT_KEYS, ELIXIR_EFFECT_CATEGORY, vc);
+}
+
+export function normalizeElixirAiFunction(raw: unknown): ElixirSpecialEffect | undefined {
+  const result = normalizeGeneric({
+    raw,
+    triggerKeys: ELIXIR_TRIGGER_KEYS,
+    defaultTrigger: "on_attack",
+    effectKeys: ELIXIR_EFFECT_KEYS,
+    costKeys: ELIXIR_COST_KEYS,
+    defaultCost: "none",
+  });
+  if (!result) return undefined;
+  return {
+    trigger: "on_attack",
+    effect: result.effect,
+    duration: result.duration,
+    cost: { resource: "none", value: 0 },
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 符箓
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const TALISMAN_TRIGGER_KEYS = ["on_attack"] as const;
+export type TalismanTriggerTiming = (typeof TALISMAN_TRIGGER_KEYS)[number];
+
+export const TALISMAN_TRIGGER_TO_ZH: Readonly<Record<TalismanTriggerTiming, string>> = {
+  on_attack: "主动触发",
+};
+
+export const TALISMAN_TRIGGER_CATEGORY: Readonly<Record<TalismanTriggerTiming, "主动" | "被动" | "默认">> = {
+  on_attack: "主动",
+};
+
+export const TALISMAN_EFFECT_KEYS = [
+  "dealPhysicalDmg", "dealMagicDmg",
+  "dealFireDmg", "dealIceDmg", "dealPoisonDmg", "dealLightningDmg",
+] as const;
+export type TalismanEffectKey = (typeof TALISMAN_EFFECT_KEYS)[number];
+
+export const TALISMAN_EFFECT_TO_ZH: Readonly<Record<TalismanEffectKey, string>> = {
+  dealPhysicalDmg: "造成物伤",
+  dealMagicDmg: "造成法伤",
+  dealFireDmg: "造成火伤",
+  dealIceDmg: "造成冰伤",
+  dealPoisonDmg: "造成毒伤",
+  dealLightningDmg: "造成雷伤",
+};
+
+export const TALISMAN_EFFECT_CATEGORY: Readonly<Record<TalismanEffectKey, EffectCategory>> = {
+  dealPhysicalDmg: "伤害", dealMagicDmg: "伤害",
+  dealFireDmg: "伤害", dealIceDmg: "伤害", dealPoisonDmg: "伤害", dealLightningDmg: "伤害",
+};
+
+export const TALISMAN_COST_KEYS = ["mp", "hp"] as const;
+export type TalismanCostKey = (typeof TALISMAN_COST_KEYS)[number];
+export const TALISMAN_COST_TO_ZH: Readonly<Record<TalismanCostKey, string>> = {
+  mp: "消耗法力",
+  hp: "消耗血量",
+};
+
+export interface TalismanSpecialEffect {
+  trigger: TalismanTriggerTiming;
+  effect: { label: TalismanEffectKey; value: number };
+  duration: number;
+  cost: { resource: TalismanCostKey; value: number };
+}
+
+export const TALISMAN_ALLOWED_EFFECT_CATEGORIES: ReadonlySet<EffectValueCategory> = new Set(["damage"] as const);
+
+export function matchTalismanEffectKeyLoose(s: string): TalismanEffectKey | undefined {
+  return matchKeyLoose(TALISMAN_EFFECT_KEYS, s);
+}
+
+export function talismanEffectKeyToCategory(label: TalismanEffectKey): EffectValueCategory {
+  return categoryToValueCategory(TALISMAN_EFFECT_CATEGORY[label]);
+}
+
+export function firstTalismanEffectKeyOfCategory(vc: EffectValueCategory): TalismanEffectKey {
+  return firstKeyOfValueCategory(TALISMAN_EFFECT_KEYS, TALISMAN_EFFECT_CATEGORY, vc);
+}
+
+export function normalizeTalismanAiFunction(raw: unknown): TalismanSpecialEffect | undefined {
+  const result = normalizeGeneric({
+    raw,
+    triggerKeys: TALISMAN_TRIGGER_KEYS,
+    defaultTrigger: "on_attack",
+    effectKeys: TALISMAN_EFFECT_KEYS,
+    costKeys: TALISMAN_COST_KEYS,
+    defaultCost: "mp",
+  });
+  if (!result) return undefined;
+  return {
+    trigger: "on_attack",
+    effect: result.effect,
+    duration: result.duration,
+    cost: result.cost,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 阵法
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const FORMATION_TRIGGER_KEYS = ["on_attack"] as const;
+export type FormationTriggerTiming = (typeof FORMATION_TRIGGER_KEYS)[number];
+
+export const FORMATION_TRIGGER_TO_ZH: Readonly<Record<FormationTriggerTiming, string>> = {
+  on_attack: "主动触发",
+};
+
+export const FORMATION_TRIGGER_CATEGORY: Readonly<Record<FormationTriggerTiming, "主动" | "被动" | "默认">> = {
+  on_attack: "主动",
+};
+
+export const FORMATION_EFFECT_KEYS = [
+  "recoverHp", "recoverMp", "boostPatk", "boostMatk", "boostPdef", "boostMdef",
+  "boostPenetration", "boostHitRate", "boostDodgeRate", "boostCritRate",
+  "boostCritDmg", "boostRecovery", "boostCastSpeed", "boostActionSpeed",
+  "boostEffectChance", "boostControlResist",
+  "reducePatk", "reduceMatk", "reducePdef", "reduceMdef",
+  "reducePenetration", "reduceHitRate", "reduceDodgeRate", "reduceCritRate",
+  "reduceCritDmg", "reduceRecovery", "reduceCastSpeed", "reduceActionSpeed",
+  "reduceEffectChance", "reduceControlResist",
+] as const;
+export type FormationEffectKey = (typeof FORMATION_EFFECT_KEYS)[number];
+
+export const FORMATION_EFFECT_TO_ZH: Readonly<Record<FormationEffectKey, string>> = {
+  recoverHp: "恢复血量",
+  recoverMp: "恢复法力",
+  boostPatk: "增加物攻",
+  boostMatk: "增加法攻",
+  boostPdef: "增加物防",
+  boostMdef: "增加法防",
+  boostPenetration: "增加穿透",
+  boostHitRate: "增加命中率",
+  boostDodgeRate: "增加闪避率",
+  boostCritRate: "增加暴击率",
+  boostCritDmg: "增加暴击伤害",
+  boostRecovery: "增加恢复效果",
+  boostCastSpeed: "增加施法速度",
+  boostActionSpeed: "增加行动速度",
+  boostEffectChance: "增加特效几率",
+  boostControlResist: "增加控制抗性",
   reducePatk: "减少物攻",
   reduceMatk: "减少法攻",
   reducePdef: "减少物防",
@@ -186,126 +549,182 @@ export const EFFECT_KEY_TO_ZH: Readonly<Record<EffectKey, string>> = {
   reduceActionSpeed: "减少行动速度",
   reduceEffectChance: "减少特效几率",
   reduceControlResist: "减少控制抗性",
-  reduceFireDamage: "减少火伤",
-  reduceIceDamage: "减少冰伤",
-  reducePoisonDamage: "减少毒伤",
-  reduceLightningDamage: "减少雷伤",
-  dealPhysicalDmg: "造成物伤",
-  dealMagicDmg: "造成法伤",
-  dealFireDmg: "造成火伤",
-  dealIceDmg: "造成冰伤",
-  dealPoisonDmg: "造成毒伤",
-  dealLightningDmg: "造成雷伤",
 };
 
-/** 效果分类 */
-export type EffectCategory = "恢复" | "增益" | "减益" | "伤害";
+export const FORMATION_EFFECT_CATEGORY: Readonly<Record<FormationEffectKey, EffectCategory>> = {
+  recoverHp: "恢复", recoverMp: "恢复", boostPatk: "增益", boostMatk: "增益",
+  boostPdef: "增益", boostMdef: "增益", boostPenetration: "增益",
+  boostHitRate: "增益", boostDodgeRate: "增益", boostCritRate: "增益",
+  boostCritDmg: "增益", boostRecovery: "增益", boostCastSpeed: "增益",
+  boostActionSpeed: "增益", boostEffectChance: "增益", boostControlResist: "增益",
+  reducePatk: "减益", reduceMatk: "减益",
+  reducePdef: "减益", reduceMdef: "减益", reducePenetration: "减益",
+  reduceHitRate: "减益", reduceDodgeRate: "减益", reduceCritRate: "减益",
+  reduceCritDmg: "减益", reduceRecovery: "减益", reduceCastSpeed: "减益",
+  reduceActionSpeed: "减益", reduceEffectChance: "减益", reduceControlResist: "减益",
+};
 
-/** 效果键 → 分类映射 */
-export const EFFECT_KEY_CATEGORY: Readonly<Record<EffectKey, EffectCategory>> = (() => {
-  const o = {} as Record<string, EffectCategory>;
-  for (const k of EFFECT_KEYS) {
-    if (k.startsWith("recover")) o[k] = "恢复";
-    else if (k.startsWith("reduce")) o[k] = "减益";
-    else if (k.startsWith("boost")) o[k] = "增益";
-    else o[k] = "伤害";
-  }
-  return o as Record<EffectKey, EffectCategory>;
-})();
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 消耗资源表
-// ═══════════════════════════════════════════════════════════════════════════
-
-/** 消耗资源键 */
-export const COST_RESOURCE_KEYS = [
-  "none",
-  "mp",
-  "hp",
-] as const;
-
-export type CostResourceKey = (typeof COST_RESOURCE_KEYS)[number];
-
-/** 消耗资源英文 → 中文映射 */
-export const COST_RESOURCE_TO_ZH: Readonly<Record<CostResourceKey, string>> = {
-  none: "无消耗",
+export const FORMATION_COST_KEYS = ["mp", "hp"] as const;
+export type FormationCostKey = (typeof FORMATION_COST_KEYS)[number];
+export const FORMATION_COST_TO_ZH: Readonly<Record<FormationCostKey, string>> = {
   mp: "消耗法力",
   hp: "消耗血量",
 };
 
-/** 消耗资源键值对 */
-export interface CostResourceValue {
-  /** 消耗的资源类型 */
-  resource: CostResourceKey;
-  /** 消耗数值 */
-  value: number;
+export interface FormationSpecialEffect {
+  trigger: FormationTriggerTiming;
+  effect: { label: FormationEffectKey; value: number };
+  duration: number;
+  cost: { resource: FormationCostKey; value: number };
 }
 
-/** 将 EffectKey 映射到英文分类键 */
-export function effectKeyToCategory(label: EffectKey): EffectValueCategory {
-  const cat = EFFECT_KEY_CATEGORY[label];
-  if (cat === "恢复") return "recover";
-  if (cat === "增益") return "boost";
-  if (cat === "减益") return "reduce";
-  return "damage";
+export const FORMATION_ALLOWED_EFFECT_CATEGORIES: ReadonlySet<EffectValueCategory> = new Set(["recover", "boost", "reduce"] as const);
+
+export function matchFormationEffectKeyLoose(s: string): FormationEffectKey | undefined {
+  return matchKeyLoose(FORMATION_EFFECT_KEYS, s);
 }
 
-/** 取指定分类下的第一个 EffectKey（用作 fallback） */
-export function firstEffectKeyOfCategory(category: EffectValueCategory): EffectKey {
-  for (const k of EFFECT_KEYS) {
-    if (effectKeyToCategory(k) === category) return k;
+export function formationEffectKeyToCategory(label: FormationEffectKey): EffectValueCategory {
+  return categoryToValueCategory(FORMATION_EFFECT_CATEGORY[label]);
+}
+
+export function firstFormationEffectKeyOfCategory(vc: EffectValueCategory): FormationEffectKey {
+  return firstKeyOfValueCategory(FORMATION_EFFECT_KEYS, FORMATION_EFFECT_CATEGORY, vc);
+}
+
+export function normalizeFormationAiFunction(raw: unknown): FormationSpecialEffect | undefined {
+  const result = normalizeGeneric({
+    raw,
+    triggerKeys: FORMATION_TRIGGER_KEYS,
+    defaultTrigger: "on_attack",
+    effectKeys: FORMATION_EFFECT_KEYS,
+    costKeys: FORMATION_COST_KEYS,
+    defaultCost: "mp",
+  });
+  if (!result) return undefined;
+  return {
+    trigger: "on_attack",
+    effect: result.effect,
+    duration: result.duration,
+    cost: result.cost,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 跨类型工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** 所有物品类型的特殊效果联合 */
+export type ItemSpecialEffect =
+  | TreasureSpecialEffect
+  | GongfaSpecialEffect
+  | ElixirSpecialEffect
+  | TalismanSpecialEffect
+  | FormationSpecialEffect;
+
+/** 通用类型别名，供不关心具体类型的消费者使用 */
+export type SpecialEffect = ItemSpecialEffect;
+
+/** 物品类型 → 对应的 SpecialEffect 类型映射 */
+export interface TypedEffectMap {
+  法宝: TreasureSpecialEffect;
+  功法: GongfaSpecialEffect;
+  丹药: ElixirSpecialEffect;
+  符箓: TalismanSpecialEffect;
+  阵法: FormationSpecialEffect;
+}
+
+// ── 跨类型中文查找（合并所有类型的映射） ──
+
+const ALL_TRIGGER_TO_ZH: Readonly<Record<string, string>> = {
+  ...TREASURE_TRIGGER_TO_ZH,
+  ...GONGFA_TRIGGER_TO_ZH,
+  ...ELIXIR_TRIGGER_TO_ZH,
+  ...TALISMAN_TRIGGER_TO_ZH,
+  ...FORMATION_TRIGGER_TO_ZH,
+};
+
+const ALL_EFFECT_TO_ZH: Readonly<Record<string, string>> = {
+  ...TREASURE_EFFECT_TO_ZH,
+  ...GONGFA_EFFECT_TO_ZH,
+  ...ELIXIR_EFFECT_TO_ZH,
+  ...TALISMAN_EFFECT_TO_ZH,
+  ...FORMATION_EFFECT_TO_ZH,
+};
+
+const ALL_COST_TO_ZH: Readonly<Record<string, string>> = {
+  ...TREASURE_COST_TO_ZH,
+  ...GONGFA_COST_TO_ZH,
+  ...ELIXIR_COST_TO_ZH,
+  ...TALISMAN_COST_TO_ZH,
+  ...FORMATION_COST_TO_ZH,
+};
+
+const ALL_EFFECT_CATEGORY: Readonly<Record<string, EffectCategory>> = {
+  ...TREASURE_EFFECT_CATEGORY,
+  ...GONGFA_EFFECT_CATEGORY,
+  ...ELIXIR_EFFECT_CATEGORY,
+  ...TALISMAN_EFFECT_CATEGORY,
+  ...FORMATION_EFFECT_CATEGORY,
+};
+
+export function lookupTriggerZh(trigger: string): string {
+  return ALL_TRIGGER_TO_ZH[trigger] ?? trigger;
+}
+
+export function lookupEffectZh(label: string): string {
+  return ALL_EFFECT_TO_ZH[label] ?? label;
+}
+
+export function lookupCostZh(resource: string): string {
+  return ALL_COST_TO_ZH[resource] ?? resource;
+}
+
+export function lookupEffectCategory(label: string): EffectValueCategory {
+  return categoryToValueCategory(ALL_EFFECT_CATEGORY[label]);
+}
+
+export function firstEffectKeyOfCategoryAcrossTypes(vc: EffectValueCategory): string {
+  for (const k of Object.keys(ALL_EFFECT_CATEGORY)) {
+    if (categoryToValueCategory(ALL_EFFECT_CATEGORY[k]) === vc) return k;
   }
   return "boostPatk";
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 物品类型 function 强制约束
-// ═══════════════════════════════════════════════════════════════════════════
+// ── 各类型允许的效果分类白名单 ──
 
-/** 物品类型的 function 字段强制约束；配置表中指定的字段会覆盖 AI 原值。 */
+export const ITEM_TYPE_ALLOWED_EFFECTS: Readonly<Record<SpecialEffectTarget, ReadonlySet<EffectValueCategory>>> = {
+  法宝: TREASURE_ALLOWED_EFFECT_CATEGORIES,
+  功法: GONGFA_ALLOWED_EFFECT_CATEGORIES,
+  丹药: ELIXIR_ALLOWED_EFFECT_CATEGORIES,
+  符箓: TALISMAN_ALLOWED_EFFECT_CATEGORIES,
+  阵法: FORMATION_ALLOWED_EFFECT_CATEGORIES,
+};
+
+// ── 按物品类型分发 AI 归一化 ──
+
+export function normalizeTypedAiFunction(
+  raw: unknown,
+  itemType: SpecialEffectTarget,
+): ItemSpecialEffect | undefined {
+  switch (itemType) {
+    case "法宝": return normalizeTreasureAiFunction(raw);
+    case "功法": return normalizeGongfaAiFunction(raw);
+    case "丹药": return normalizeElixirAiFunction(raw);
+    case "符箓": return normalizeTalismanAiFunction(raw);
+    case "阵法": return normalizeFormationAiFunction(raw);
+    default: return undefined;
+  }
+}
+
+// ── 按物品类型强制覆盖 function 字段 ──
+
 export interface FunctionOverride {
-  trigger?: TriggerTiming;
-  cost?: CostResourceKey;
+  trigger?: string;
+  cost?: string;
   duration?: number;
 }
 
-/** 法宝允许的触发方式：被动 + 默认 */
-export const TREASURE_ALLOWED_TRIGGERS: ReadonlySet<string> = new Set([
-  "on_default",
-  "on_hit_taken",
-  "on_turn_start",
-  "on_low_hp",
-  "on_low_mana",
-  "on_full_mana",
-  "on_crit",
-  "on_dodge",
-  "on_kill",
-]);
-
-/** 功法允许的触发方式：主动 */
-export const GONGFA_ALLOWED_TRIGGERS: ReadonlySet<string> = new Set([
-  "on_attack",
-  "on_skill_cast",
-]);
-
-/**
- * 各物品类型允许的效果分类白名单
- *
- * - 法宝：仅增益（被动装备，自动触发属性提升）
- * - 功法：增益 + 伤害（主动技能，攻击或自我强化）
- * - 丹药：恢复 + 增益（消耗品，回血回蓝或临战强化）
- * - 符箓：仅伤害（消耗品，纯伤害输出）
- * - 阵法：增益 + 减益（战术型，强化己方/削弱敌方）
- */
-export const ITEM_TYPE_ALLOWED_EFFECTS: Readonly<Record<SpecialEffectTarget, ReadonlySet<EffectValueCategory>>> = {
-  法宝: new Set(["boost"] as const),
-  功法: new Set(["boost", "damage"] as const),
-  丹药: new Set(["recover", "boost"] as const),
-  符箓: new Set(["damage"] as const),
-  阵法: new Set(["boost", "reduce"] as const),
-};
-
-/** 各物品类型的 function 约束配置表；增删约束只改此处。 */
 export const ITEM_TYPE_FUNCTION_OVERRIDES: Readonly<
   Record<SpecialEffectTarget, FunctionOverride>
 > = {
@@ -313,17 +732,9 @@ export const ITEM_TYPE_FUNCTION_OVERRIDES: Readonly<
   功法: {},
   丹药: { trigger: "on_attack", cost: "none" },
   符箓: { trigger: "on_attack" },
-  阵法: { trigger: "on_attack"},
+  阵法: { trigger: "on_attack" },
 };
 
-/**
- * 按物品类型强制覆盖 `function` 字段。
- * 配置表中指定的字段会无条件覆盖，未指定的字段保留原值。
- *
- * @param fn 已归一化的 `SpecialEffect`。
- * @param itemType 物品类型（如 `"丹药"`）。
- * @returns 覆盖后的 `SpecialEffect`；`fn` 为 `undefined` 时原样返回。
- */
 export function applyFunctionOverrides(
   fn: SpecialEffect | undefined,
   itemType: string,
@@ -331,122 +742,30 @@ export function applyFunctionOverrides(
   if (!fn) return fn;
   const override = ITEM_TYPE_FUNCTION_OVERRIDES[itemType as SpecialEffectTarget];
   if (!override) return fn;
+  const newTrigger = override.trigger ?? fn.trigger;
+  const newDuration = override.duration ?? fn.duration;
+  const newCost = override.cost != null
+    ? { resource: override.cost as typeof fn.cost.resource, value: 0 }
+    : fn.cost;
   return {
-    trigger: override.trigger ?? fn.trigger,
+    trigger: newTrigger,
     effect: fn.effect,
-    duration: override.duration ?? fn.duration,
-    cost: override.cost != null
-      ? { resource: override.cost, value: 0 }
-      : fn.cost,
-  };
+    duration: newDuration,
+    cost: newCost,
+  } as SpecialEffect;
+}
+
+export function applyTypedFunctionOverrides<T extends SpecialEffectTarget>(
+  fn: SpecialEffect | undefined,
+  itemType: T,
+): TypedEffectMap[T] | undefined {
+  return applyFunctionOverrides(fn, itemType) as TypedEffectMap[T] | undefined;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// AI 输出归一化
+// 品阶与数值体系（各类型共用）
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * 大小写不敏感匹配 `EffectKey`；匹配不到时返回 `undefined`。
- *
- * @param s AI 输出的原始效果字符串。
- */
-export function matchEffectKeyLoose(s: string): EffectKey | undefined {
-  const lower = s.toLowerCase();
-  for (const k of EFFECT_KEYS) {
-    if (k.toLowerCase() === lower) return k;
-  }
-  return undefined;
-}
-
-/**
- * 大小写不敏感匹配 `CostResourceKey`；匹配不到时 fallback 为 `"none"`。
- *
- * @param s AI 输出的原始消耗资源字符串。
- */
-export function matchCostResourceLoose(s: string): CostResourceKey {
-  const lower = s.toLowerCase().trim();
-  for (const k of COST_RESOURCE_KEYS) {
-    if (k.toLowerCase() === lower) return k;
-  }
-  return "none";
-}
-
-/**
- * 将 AI 原始 `function` 字段归一化为 `SpecialEffect`。
- *
- * AI 输出格式（无具体数值）：
- * ```json
- * { "trigger": "on_attack", "effect": "dealMagicDmg", "duration": 0, "cost": "mp" }
- * ```
- *
- * 归一化规则：
- * - `trigger`：精确匹配 `TRIGGER_TIMING_KEYS`，不匹配则 fallback `"on_default"`
- * - `effect`：字符串做大小写不敏感匹配；对象则校验 `label`；`value` 用常量 `1`
- * - `duration`：取原值，非数字时默认 `0`
- * - `cost`：字符串匹配 `CostResourceKey`，`value` 用常量 `1`；对象则校验 `resource`
- *
- * @param raw AI 原始 function 字段（`unknown`）。
- * @returns 归一化后的 `SpecialEffect`，无法识别时返回 `undefined`。
- */
-export function normalizeAiFunction(raw: unknown): SpecialEffect | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
-  const o = raw as Record<string, unknown>;
-
-  const rawTrigger = typeof o.trigger === "string" ? o.trigger.trim() : "";
-  const trigger = (TRIGGER_TIMING_KEYS as readonly string[]).includes(rawTrigger)
-    ? (rawTrigger as TriggerTiming)
-    : "on_default";
-
-  let effectLabel: EffectKey | undefined;
-  let effectValue = 1;
-  const rawEffect = o.effect;
-  if (typeof rawEffect === "string") {
-    effectLabel = matchEffectKeyLoose(rawEffect);
-  } else if (rawEffect && typeof rawEffect === "object") {
-    const eo = rawEffect as Record<string, unknown>;
-    if (typeof eo.label === "string") {
-      effectLabel = matchEffectKeyLoose(eo.label);
-    }
-    if (typeof eo.value === "number" && Number.isFinite(eo.value)) {
-      effectValue = eo.value;
-    }
-  }
-  if (!effectLabel) return undefined;
-
-  const rawDuration = o.duration;
-  const duration = typeof rawDuration === "number" && Number.isFinite(rawDuration) ? rawDuration : 0;
-
-  let costResource: CostResourceKey = "none";
-  let costValue = 0;
-  const rawCost = o.cost;
-  if (typeof rawCost === "string") {
-    costResource = matchCostResourceLoose(rawCost);
-    costValue = costResource !== "none" ? 1 : 0;
-  } else if (rawCost && typeof rawCost === "object") {
-    const co = rawCost as Record<string, unknown>;
-    if (typeof co.resource === "string") {
-      costResource = matchCostResourceLoose(co.resource);
-    }
-    if (typeof co.value === "number" && Number.isFinite(co.value)) {
-      costValue = co.value;
-    } else {
-      costValue = costResource !== "none" ? 1 : 0;
-    }
-  }
-
-  return {
-    trigger,
-    effect: { label: effectLabel, value: effectValue },
-    duration,
-    cost: { resource: costResource, value: costValue },
-  };
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 特效数值体系
-// ═══════════════════════════════════════════════════════════════════════════
-
-/** 品阶 → 数组索引 */
 export const GRADE_INDEX: Readonly<Record<string, number>> = {
   "下品": 0,
   "中品": 1,
@@ -456,20 +775,6 @@ export const GRADE_INDEX: Readonly<Record<string, number>> = {
   "神品": 5,
 };
 
-/** 特效数值分类键（与 effect label 前缀对齐） */
-export type EffectValueCategory = "recover" | "boost" | "reduce" | "damage";
-
-/**
- * 特效基础数值区间表（效果分类 × 品阶）
- * 索引：[下品, 中品, 上品, 极品, 仙品, 神品]
- * 每项为 [min, max]，生成时在此区间内随机取整
- *
- * 设计思路：
- * - recover：恢复类数值较高，直接回血回蓝，玩家感知强
- * - damage：伤害类中等偏高，需要体现打击感
- * - boost / reduce：增减益适中，属性调整是百分比/叠加效果
- * - 区间约为基准值 ±30%，同品阶物品之间有差异感
- */
 export const EFFECT_BASE_VALUES: Readonly<Record<EffectValueCategory, readonly (readonly [number, number])[]>> = {
   recover: [[20, 40], [40, 80], [80, 160], [140, 260], [250, 460], [420, 780]],
   damage:  [[10, 20], [20, 40], [40, 80],  [70, 130],  [120, 220], [200, 360]],
@@ -477,15 +782,6 @@ export const EFFECT_BASE_VALUES: Readonly<Record<EffectValueCategory, readonly (
   reduce:  [[3, 7],   [7, 13],  [14, 26],  [24, 46],   [38, 72],   [56, 104]],
 };
 
-/**
- * 触发方式倍率
- *
- * - 主动触发 (on_attack / on_skill_cast)：基准 1.0，玩家主动控制，稳定触发
- * - 默认触发 (on_default)：0.7，无需任何条件，常驻生效需降低
- * - 被动·低风险 (on_turn_start / on_full_mana)：0.9-1.0，条件宽松
- * - 被动·中风险 (on_hit_taken / on_crit / on_dodge / on_kill)：1.1-1.2，需要特定场景
- * - 被动·高风险 (on_low_hp / on_low_mana)：1.3，危险状态才触发，给予补偿
- */
 export const TRIGGER_VALUE_MULTIPLIER: Readonly<Record<string, number>> = {
   on_attack: 1.0,
   on_skill_cast: 1.0,
@@ -500,18 +796,6 @@ export const TRIGGER_VALUE_MULTIPLIER: Readonly<Record<string, number>> = {
   on_low_mana: 1.3,
 };
 
-/**
- * 持续回合衰减因子表
- * 每组 [回合数阈值, 每回合因子]
- * 查表取 ≤ duration 的最大阈值
- *
- * 设计思路：
- * - 即时 (duration=0)：完整数值 1.0
- * - 持续越长，每回合数值越低，但总量（per_turn × duration）越高
- *   例：3回合 → 0.40/回合 × 3 = 总量 1.20
- *        5回合 → 0.30/回合 × 5 = 总量 1.50
- *       10回合 → 0.20/回合 × 10 = 总量 2.00
- */
 export const DURATION_PER_TURN_FACTORS: readonly (readonly [number, number])[] = [
   [0, 1.00],
   [1, 0.65],
@@ -521,33 +805,17 @@ export const DURATION_PER_TURN_FACTORS: readonly (readonly [number, number])[] =
   [10, 0.20],
 ] as const;
 
-/**
- * 消耗方式倍率
- *
- * - none：基准 1.0，无代价
- * - mp：1.3，消耗法力资源，常见消耗方式
- * - hp：1.5，消耗生命，高风险高回报
- */
 export const COST_VALUE_MULTIPLIER: Readonly<Record<string, number>> = {
   none: 1.0,
   mp: 1.3,
   hp: 1.5,
 };
 
-/**
- * 消耗基础数值表（消耗类型 × 品阶）
- * 索引：[下品, 中品, 上品, 极品, 仙品, 神品]
- *
- * 设计思路：
- * - hp 消耗约为 mp 的 1.5-2 倍（生命更珍贵）
- * - 高品阶消耗更多资源，与效果强度正比
- */
 export const COST_BASE_VALUES: Readonly<Record<string, readonly number[]>> = {
   mp: [10, 20, 40, 70, 120, 200],
   hp: [20, 40, 80, 140, 240, 400],
 };
 
-/** 根据持续回合查衰减因子 */
 export function lookupDurationFactor(duration: number): number {
   let factor = DURATION_PER_TURN_FACTORS[0][1];
   for (const [threshold, f] of DURATION_PER_TURN_FACTORS) {
@@ -557,14 +825,6 @@ export function lookupDurationFactor(duration: number): number {
   return factor;
 }
 
-/**
- * 计算特效效果的最终数值
- *
- * 公式：floor(randomBase × triggerMul × durationFactor × costMul × affinityMul)
- * randomBase 从 EFFECT_BASE_VALUES 区间内随机取整
- * affinityMul 灵根契合时为 1.3，否则为 1.0
- * 最小值为 1
- */
 export function computeEffectValue(
   category: EffectValueCategory,
   grade: string,
@@ -584,7 +844,6 @@ export function computeEffectValue(
   return Math.max(1, Math.floor(base * triggerMul * durFactor * costMul * affMul));
 }
 
-/** 计算特效消耗的数值 */
 export function computeCostValue(costResource: string, grade: string): number {
   const arr = COST_BASE_VALUES[costResource];
   if (!arr) return 0;

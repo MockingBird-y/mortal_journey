@@ -14,7 +14,7 @@ import type {
   TreasureItemDefinition,
 } from "./types/itemInfo";
 import type { SpecialEffect } from "./types/special_effects";
-import { normalizeAiFunction, applyFunctionOverrides } from "./types/special_effects";
+import { normalizeTypedAiFunction, applyFunctionOverrides } from "./types/special_effects";
 import {
   type CultivationRealm,
   type EquippedSlotsState,
@@ -595,7 +595,7 @@ export class Protagonist {
     for (const item of state.itemAdds) {
       if (item.type === "灵石") continue;
       const itemType = VALID_ITEM_TYPES.has(item.type) ? item.type as CategorizedItemDefinition["itemType"] : "杂物";
-      const fn: SpecialEffect | undefined = applyFunctionOverrides(normalizeAiFunction(item.function), itemType);
+      const fn: SpecialEffect | undefined = applyFunctionOverrides(normalizeTypedAiFunction(item.function, itemType as import("./types/special_effects").SpecialEffectTarget), itemType);
       this.addToInventory({
         name: item.name,
         desc: item.intro,

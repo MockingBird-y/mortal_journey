@@ -41,37 +41,38 @@ export const INIT_STORY_SYSTEM_PRESET = `
 3. 标签必须非空：<mj_story_body> 后须立刻接正文首字，</mj_story_body> 前须是正文末字；禁止空标签或仅空白。
 
 [法宝功法丹药符箓阵法function生成规则]
-1. 法宝、功法、丹药、符箓、阵法携带一个 function 字典，每个 function 为一条特殊功能条目，必须有。
-2. 每个 function 对象包含四个字段：trigger（触发时机）、effect（效果）、duration（持续回合）、cost（消耗）。
-3. 按物品类型的 trigger 与 effect 约束（必须严格遵守）：
-   · 法宝：trigger 只能是被动或默认触发（on_default、on_hit_taken、on_turn_start、on_low_hp、on_low_mana、on_full_mana、on_crit、on_dodge、on_kill），effect 只能是增益类（boost*）。法宝是被动装备，自动触发属性增益。
-   · 功法：trigger 只能是主动触发（on_attack、on_skill_cast），effect 只能是增益类（boost*）或伤害类（deal*），不能是恢复类或减益类。功法是主动技能，由玩家主动施展。
-   · 丹药：effect 只能是恢复类（recover*）或增益类（boost*），不能是伤害类或减益类。丹药是消耗品，用于回血回蓝或临战强化。
-   · 符箓：effect 只能是伤害类（deal*）。符箓是消耗品，纯伤害输出手段。
-   · 阵法：effect 只能是增益类（boost*）或减益类（reduce*）。阵法是战术型物品，强化己方或削弱敌方。
-4. 阵法的持续回合需要是多个回合，不能是即时触发或者1回合。
-5. effect 效果如果是增益或者减益效果，不能是即时触发或者1回合。
-6. trigger 触发时机可选值（与游戏逻辑一致的英文键）：
-   on_attack（主动行为触发）、on_skill_cast（释放技能时）、on_crit（暴击时）、on_dodge（闪避时）、
-   on_hit_taken（受到攻击时）、on_turn_start（回合开始）、on_low_hp（低生命值）、on_low_mana（灵力不足）、
-   on_full_mana（灵气满时）、on_kill（击杀敌人）、on_default（默认触发）。
-7. effect 效果键可选值（与游戏逻辑一致的英文键）：
-   · 恢复类：recoverHp（恢复血量）、recoverMp（恢复法力）。
-   · 增益类：boostHp（增加血量）、boostMp（增加法力）、boostPatk（增加物攻）、boostMatk（增加法攻）、
-     boostPdef（增加物防）、boostMdef（增加法防）、boostPenetration（增加穿透）、boostHitRate（增加命中率）、
-     boostDodgeRate（增加闪避率）、boostCritRate（增加暴击率）、boostCritDmg（增加暴击伤害）、
-     boostRecovery（增加恢复效果）、boostCastSpeed（增加施法速度）、boostActionSpeed（增加行动速度）、
-     boostEffectChance（增加特效几率）、boostControlResist（增加控制抗性）、
-     boostFireDamage（增加火伤）、boostIceDamage（增加冰伤）、boostPoisonDamage（增加毒伤）、boostLightningDamage（增加雷伤）。
-   · 减益类：reduceHp、reduceMp、reducePatk、reduceMatk、reducePdef、reduceMdef、reducePenetration、
-     reduceHitRate、reduceDodgeRate、reduceCritRate、reduceCritDmg、reduceRecovery、reduceCastSpeed、
-     reduceActionSpeed、reduceEffectChance、reduceControlResist、
-     reduceFireDamage、reduceIceDamage、reducePoisonDamage、reduceLightningDamage（中文均为对应属性前加"减少"）。
-   · 伤害类：dealPhysicalDmg（造成物伤）、dealMagicDmg（造成法伤）、dealFireDmg（造成火伤）、
-     dealIceDmg（造成冰伤）、dealPoisonDmg（造成毒伤）、dealLightningDmg（造成雷伤）。
-8. duration 为持续回合数：0 表示即时生效不持续，正数表示持续该回合数。
-9. cost 消耗资源可选值：none（无消耗）、mp（消耗法力）、hp（消耗血量）。
-10. function 功能必须与物品的名称和介绍描述契合，不能凭空生成与物品功能无关的功能。
+ 1. 法宝、功法、丹药、符箓、阵法携带一个 function 字典，每个 function 为一条特殊功能条目，必须有。
+ 2. 每个 function 对象包含四个字段：trigger（触发时机）、effect（效果）、duration（持续回合）、cost（消耗）。
+ 3. 按物品类型的 trigger 与 effect 约束（必须严格遵守）：
+    · 法宝：trigger 只能是被动触发（on_hit_taken、on_turn_start、on_low_hp、on_low_mana、on_full_mana、on_crit、on_dodge、on_kill），effect 只能是恢复类（recoverHp、recoverMp）或增益类（boost*）。法宝是被动装备，自动触发属性增益或恢复。
+    · 功法：trigger 只能是 on_attack、on_skill_cast、on_default，effect 只能是穿透/命中/闪避/暴击/暴伤增益类（boostPenetration、boostHitRate、boostDodgeRate、boostCritRate、boostCritDmg）、元素增伤类（boostFireDamage、boostIceDamage、boostPoisonDamage、boostLightningDamage）或伤害类（deal*）。功法是主动技能，由玩家主动施展。
+    · 丹药：trigger 固定为 on_attack，effect 只能是恢复类（recoverHp、recoverMp）或攻防增益类（boostPatk、boostMatk、boostPdef、boostMdef）或元素增伤类（boostFireDamage、boostIceDamage、boostPoisonDamage、boostLightningDamage），cost 固定为 none。丹药是消耗品，用于回血回蓝或临战强化。
+    · 符箓：trigger 固定为 on_attack，effect 只能是伤害类（deal*），cost 只能是 mp 或 hp（没有 none）。符箓是消耗品，纯伤害输出手段。
+    · 阵法：trigger 固定为 on_attack，effect 可以是恢复类（recoverHp、recoverMp）、增益类（boost*）或减益类（reduce*），cost 只能是 mp 或 hp（没有 none）。阵法是战术型物品，强化己方或削弱敌方。
+ 4. 阵法的持续回合需要是多个回合，不能是即时触发或者1回合。
+ 5. effect 效果如果是增益或者减益效果，不能是即时触发或者1回合。
+ 6. trigger 触发时机可选值（与游戏逻辑一致的英文键）：
+    on_attack（主动行为触发）、on_skill_cast（释放技能时）、on_crit（暴击时）、on_dodge（闪避时）、
+    on_hit_taken（受到攻击时）、on_turn_start（回合开始）、on_low_hp（低生命值）、on_low_mana（灵力不足）、
+    on_full_mana（灵气满时）、on_kill（击杀敌人）、on_default（默认触发）。
+ 7. effect 效果键可选值（与游戏逻辑一致的英文键）：
+    · 恢复类：recoverHp（恢复血量）、recoverMp（恢复法力）。
+    · 增益类：boostPatk（增加物攻）、boostMatk（增加法攻）、boostPdef（增加物防）、boostMdef（增加法防）、
+      boostPenetration（增加穿透）、boostHitRate（增加命中率）、boostDodgeRate（增加闪避率）、
+      boostCritRate（增加暴击率）、boostCritDmg（增加暴击伤害）、boostRecovery（增加恢复效果）、
+      boostCastSpeed（增加施法速度）、boostActionSpeed（增加行动速度）、boostEffectChance（增加特效几率）、
+      boostControlResist（增加控制抗性）、boostFireDamage（增加火伤）、boostIceDamage（增加冰伤）、
+      boostPoisonDamage（增加毒伤）、boostLightningDamage（增加雷伤）。
+    · 减益类：reducePatk（减少物攻）、reduceMatk（减少法攻）、reducePdef（减少物防）、reduceMdef（减少法防）、
+      reducePenetration（减少穿透）、reduceHitRate（减少命中率）、reduceDodgeRate（减少闪避率）、
+      reduceCritRate（减少暴击率）、reduceCritDmg（减少暴击伤害）、reduceRecovery（减少恢复效果）、
+      reduceCastSpeed（减少施法速度）、reduceActionSpeed（减少行动速度）、reduceEffectChance（减少特效几率）、
+      reduceControlResist（减少控制抗性）。
+    · 伤害类：dealPhysicalDmg（造成物伤）、dealMagicDmg（造成法伤）、dealFireDmg（造成火伤）、
+      dealIceDmg（造成冰伤）、dealPoisonDmg（造成毒伤）、dealLightningDmg（造成雷伤）。
+ 8. duration 为持续回合数：0 表示即时生效不持续，正数表示持续该回合数。
+ 9. cost 消耗资源可选值：none（无消耗）、mp（消耗法力）、hp（消耗血量）。注意：符箓和阵法没有 none 选项。
+ 10. function 功能必须与物品的名称和介绍描述契合，不能凭空生成与物品功能无关的功能。
 
 [法宝开局配置输出规则]
 1. 主角的法宝开局配置：法宝的名称需要与剧情描述、主角背景一致。
@@ -79,10 +80,10 @@ export const INIT_STORY_SYSTEM_PRESET = `
 3. 开局法宝一般给到2-3个法宝即可。
 3. 法宝信息：法宝信息包含类型type、名称name、介绍intro、功能function。function 格式见上方[function生成规则]。
 4. 输出示例：<mj_equip_body> [
-    {"type":"法宝","name":"青钢剑","intro":"外门制式，刃口锋利，可提升物理攻击","function":{"trigger":"on_default","effect":"boostPatk","duration":0,"cost":"none"}},
-    {"type":"法宝","name":"静心戒","intro":"稳固神识的粗胚法器，似乎可以提高暴击几率","function":{"trigger":"on_default","effect":"boostCritRate","duration":0,"cost":"none"}},
+    {"type":"法宝","name":"青钢剑","intro":"外门制式，刃口锋利，每回合初自动提升物理攻击","function":{"trigger":"on_turn_start","effect":"boostPatk","duration":3,"cost":"none"}},
+    {"type":"法宝","name":"静心戒","intro":"稳固神识的粗胚法器，暴击时自动提升暴击几率","function":{"trigger":"on_crit","effect":"boostCritRate","duration":3,"cost":"none"}},
     {"type":"法宝","name":"粗布劲装","intro":"耐磨行装，受击时提供额外防御","function":{"trigger":"on_hit_taken","effect":"boostPdef","duration":3,"cost":"none"}},
-    {"type":"法宝","name":"水心镜","intro":"水灵凝聚而成的护心铜镜，法力不足时自动激发水灵增加法力上限","function":{"trigger":"on_low_mana","effect":"boostMp","duration":3,"cost":"none"}},
+    {"type":"法宝","name":"水心镜","intro":"水灵凝聚而成的护心铜镜，法力不足时自动恢复法力","function":{"trigger":"on_low_mana","effect":"recoverMp","duration":0,"cost":"none"}},
     {"type":"法宝","name":"泰山石","intro":"取自泰山深处的玄黄石核，受击时激发土灵护体，提升物理防御","function":{"trigger":"on_hit_taken","effect":"boostPdef","duration":3,"cost":"none"}},
     {"type":"法宝","name":"离火球","intro":"凝炼地火而成的赤红火球，受击时激发火灵反震，提升法术攻击","function":{"trigger":"on_hit_taken","effect":"boostMatk","duration":3,"cost":"none"}},
     {"type":"法宝","name":"七玄镇妖木","intro":"以七种灵木炼制的镇妖法杖，每回合初散发木灵之气，提升法术攻击","function":{"trigger":"on_turn_start","effect":"boostMatk","duration":3,"cost":"none"}},
@@ -102,11 +103,11 @@ export const INIT_STORY_SYSTEM_PRESET = `
 5. 功法信息：功法信息包含类型type、名称name、介绍intro、属性加成bonus、功能function。function 格式见上方[function生成规则]。
 6. 输出示例：<mj_magic_body> [
     {"type":"功法","name":"青云剑诀","lingQi":"金","intro":"宗门入门剑诀，可造成法术伤害","bonus":"会心","function":{"trigger":"on_attack","effect":"dealMagicDmg","duration":0,"cost":"mp"}},
-    {"type":"功法","name":"吐纳诀","lingQi":"","intro":"调和气机、固本培元，可提高法力值","bonus":"灵力","function":{"trigger":"on_turn_start","effect":"boostMp","duration":10,"cost":"none"}},
-    {"type":"功法","name":"万木长生功","lingQi":"木","intro":"汲取草木精华滋养己身，持续恢复血量","bonus":"体魄","function":{"trigger":"on_turn_start","effect":"recoverHp","duration":5,"cost":"none"}},
-    {"type":"功法","name":"玄水诀","lingQi":"水","intro":"以水灵凝聚护体真元，提升法术防御","bonus":"护体","function":{"trigger":"on_default","effect":"boostMdef","duration":0,"cost":"none"}},
+    {"type":"功法","name":"吐纳诀","lingQi":"","intro":"调和气机、固本培元，可提高暴击率","bonus":"灵力","function":{"trigger":"on_default","effect":"boostCritRate","duration":10,"cost":"none"}},
+    {"type":"功法","name":"万木长生功","lingQi":"木","intro":"汲取草木精华滋养己身，提升闪避","bonus":"体魄","function":{"trigger":"on_default","effect":"boostDodgeRate","duration":5,"cost":"none"}},
+    {"type":"功法","name":"玄水诀","lingQi":"水","intro":"以水灵凝聚护体真元，提升穿透能力","bonus":"神识","function":{"trigger":"on_default","effect":"boostPenetration","duration":5,"cost":"none"}},
     {"type":"功法","name":"烈焰焚天诀","lingQi":"火","intro":"引天地火灵入体，攻击时附带火属性伤害","bonus":"灵力","function":{"trigger":"on_attack","effect":"dealFireDmg","duration":0,"cost":"mp"}},
-    {"type":"功法","name":"厚土铸体诀","lingQi":"土","intro":"以土灵淬炼肉身，提升物理防御","bonus":"护体","function":{"trigger":"on_default","effect":"boostPdef","duration":0,"cost":"none"}},
+    {"type":"功法","name":"厚土铸体诀","lingQi":"土","intro":"以土灵淬炼肉身，攻击时造成物理伤害","bonus":"护体","function":{"trigger":"on_attack","effect":"dealPhysicalDmg","duration":0,"cost":"mp"}},
 ] </mj_magic_body>。
 
 [储物袋开局配置输出规则]
