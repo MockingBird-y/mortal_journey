@@ -71,12 +71,10 @@ export function displayStatInt(value: number | undefined | null): number {
  * 修炼进度条 UI 所需数据（所需修为、百分比、展示用当前值）。
  */
 export interface CultivationUiState {
-  /** 当前阶段突破所需修为；无法查询时为 `null`。 */
   req: number | null;
-  /** 进度百分比，已 `clampPct`。 */
   pct: number;
-  /** 条上显示的当前修为（不超过 `req` 当 `req` 有效时）。 */
   displayCur: number;
+  isComplete: boolean;
 }
 
 /**
@@ -86,13 +84,18 @@ export interface CultivationUiState {
  * @returns `CultivationUiState`。
  */
 export function getCultivationUiState(p: ProtagonistPlayInfo | null): CultivationUiState {
-  if (!p) return { req: null, pct: 0, displayCur: 0 };
+  if (!p) return { req: null, pct: 0, displayCur: 0, isComplete: false };
   const req = getCultivationRequired(p.realm.major, p.realm.minor);
   const cur = Math.max(0, Math.floor(p.xiuwei));
+  const isComplete = p.realmComplete === true;
   let pct = 0;
-  if (req != null && req > 0) pct = (cur / req) * 100;
+  if (isComplete) {
+    pct = 100;
+  } else if (req != null && req > 0) {
+    pct = (cur / req) * 100;
+  }
   const displayCur = req != null && req > 0 ? Math.min(cur, req) : cur;
-  return { req, pct: clampPct(pct), displayCur };
+  return { req, pct: clampPct(pct), displayCur, isComplete };
 }
 
 /**

@@ -14,7 +14,7 @@ import {
 import { DEFAULT_INVENTORY_SLOT_COUNT } from "./CharacterInventory";
 import { getBaseStats, getShouyuanForRealm } from "./realmUtils";
 import type { InventoryStackItem, TreasureItemDefinition, GongfaItemDefinition } from "./types/itemInfo";
-import type { NpcNearbyEntry } from "../ai/storyAndState_generate";
+import type { NpcNearbyEntry } from "../ai/state_generate";
 import { parseEquipObject, parseGongfaObject, parseStorageObject, rollGrade, spiritStoneAllowedUpTo } from "../ai/parseAiItem";
 import { SPIRIT_STONE_TABLE_KEYS_ORDERED, type SpiritStoneName } from "./types/spiritStone";
 

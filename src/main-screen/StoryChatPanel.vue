@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
 import type { OpeningStoryPhase } from "../ai/useOpeningStory";
-import { generateStoryAndState, type StoryChatEntry, type StoryAndStateParsed } from "../ai/storyAndState_generate";
+import { generateStory, type StoryChatEntry } from "../ai/story_generate";
+import { generateState, type StateParsed } from "../ai/state_generate";
 import { protagonist } from "../role_core/Protagonist";
 import { npcStore } from "../role_core/npcStore";
 import { Character } from "../role_core/Character";
@@ -96,37 +97,52 @@ async function handleSend(): Promise<void> {
   abortCtl = ac;
 
   try {
-    const result: StoryAndStateParsed = await generateStoryAndState({
+    const storyResult = await generateStory({
       apiUrl: url,
       apiKey: String(props.apiKey || "").trim() || undefined,
       model,
       protagonist: p,
       chatHistory,
-      currentWorldLocation: props.currentWorldLocation || undefined,
-      npcSnapshot: npcSnapshot || undefined,
       signal: ac.signal,
     });
 
     if (abortCtl !== ac) return;
 
-    const { story, state } = result;
+    if (!storyResult.storyBody.trim()) {
+      genError.value = "模型返回的剧情正文为空。";
+      return;
+    }
 
-    if (story.storyBody.trim()) {
-      chatMessages.value.push({ type: "story", content: story.storyBody.trim() });
-      if (story.worldLocation.trim()) {
-        emit("update:worldLocation", story.worldLocation.trim());
+    chatMessages.value.push({ type: "story", content: storyResult.storyBody.trim() });
+
+    try {
+      const stateResult: StateParsed = await generateState({
+        apiUrl: url,
+        apiKey: String(props.apiKey || "").trim() || undefined,
+        model,
+        storyBody: storyResult.storyBody,
+        protagonist: p,
+        currentWorldLocation: props.currentWorldLocation || undefined,
+        npcSnapshot: npcSnapshot || undefined,
+        signal: ac.signal,
+      });
+
+      if (abortCtl !== ac) return;
+
+      if (stateResult.worldLocation.trim()) {
+        emit("update:worldLocation", stateResult.worldLocation.trim());
       }
 
       const current = protagonist.value;
       if (current) {
-        current.applyStateChanges(state);
+        current.applyStateChanges(stateResult);
       }
 
-      if (state.nearbyNpcs.length > 0) {
-        npcStore.applyNpcUpdates(state.nearbyNpcs, p.linggen);
+      if (stateResult.nearbyNpcs.length > 0) {
+        npcStore.applyNpcUpdates(stateResult.nearbyNpcs, p.linggen);
       }
-    } else {
-      genError.value = "模型返回的剧情正文为空。";
+    } catch (stateErr) {
+      gameLog.error("[StoryChat] 状态更新失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));
     }
   } catch (e) {
     if (ac.signal.aborted) return;

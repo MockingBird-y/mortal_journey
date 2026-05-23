@@ -277,6 +277,7 @@ export interface ProtagonistPlayInfo extends CharacterPlayInfoCommon {
   originStory: string;
   traits: TraitEntry[];
   xiuwei: number;
+  realmComplete: boolean;
 }
 
 export type PowerTier = "小怪" | "精英怪" | "小boss" | "大boss" | "普通NPC";

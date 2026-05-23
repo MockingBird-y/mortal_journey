@@ -26,18 +26,21 @@ import {
   EQUIP_SLOT_COUNT,
   GONGFA_SLOT_COUNT,
   BASE_STAT_KEYS,
+  REALM_ORDER,
+  SUB_STAGES,
+  realmStageIndex,
 } from "./types/playInfo";
 import {
   SPIRIT_STONE_TABLE_KEYS_ORDERED,
   type SpiritStoneName,
 } from "./types/spiritStone";
-import type { InitStateParsed } from "../ai/init_story_generate";
-import type { StateParsed } from "../ai/storyAndState_generate";
+import type { InitStateParsed } from "../ai/init_state_generate";
+import type { StateParsed } from "../ai/state_generate";
 import {
   buildEquippedSlotsFromParsed,
   buildGongfaSlotsFromParsed,
   buildInventoryFromParsed,
-} from "../ai/init_story_generate";
+} from "../ai/init_state_generate";
 import { Character } from "./Character";
 import {
   DEFAULT_INVENTORY_SLOT_COUNT,
@@ -49,6 +52,7 @@ import {
   getProtagonistNarrativeAge,
   getShouyuanForRealm,
 } from "./types/playInfo";
+import { getCultivationRequired } from "./realmUtils";
 
 const VALID_ITEM_TYPES: ReadonlySet<string> = new Set([
   "法宝", "功法", "丹药", "符箓", "阵法", "材料", "杂物",
@@ -87,6 +91,8 @@ export class Protagonist extends Character {
   traits: TraitEntry[];
   /** 当前修为值。 */
   xiuwei: number;
+  /** 当前小境界修为是否已圆满。 */
+  realmComplete: boolean;
 
   /**
    * 从 `ProtagonistPlayInfo` 数据对象构造实例。
@@ -100,6 +106,7 @@ export class Protagonist extends Character {
     this.originStory = data.originStory;
     this.traits = data.traits;
     this.xiuwei = data.xiuwei;
+    this.realmComplete = data.realmComplete;
   }
 
   // ===================================================================
@@ -113,6 +120,63 @@ export class Protagonist extends Character {
    */
   setXiuwei(n: number): void {
     this.xiuwei = typeof n === "number" && Number.isFinite(n) ? Math.max(0, n) : 0;
+  }
+
+  addXiuwei(amount: number): void {
+    if (this.realmComplete) return;
+    if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) return;
+    const cap = getCultivationRequired(this.realm.major, this.realm.minor);
+    if (cap == null) {
+      this.xiuwei += amount;
+      return;
+    }
+    this.xiuwei = Math.min(this.xiuwei + amount, cap);
+    if (this.xiuwei >= cap) {
+      this.xiuwei = cap;
+      this.realmComplete = true;
+    }
+  }
+
+  breakthrough(): boolean {
+    if (!this.realmComplete) return false;
+    const majorIdx = REALM_ORDER.indexOf(this.realm.major as typeof REALM_ORDER[number]);
+    if (majorIdx < 0) return false;
+    const minorIdx = SUB_STAGES.indexOf(this.realm.minor as typeof SUB_STAGES[number]);
+    if (minorIdx < 0) return false;
+
+    let nextMajor = this.realm.major;
+    let nextMinor = this.realm.minor;
+
+    if (minorIdx < SUB_STAGES.length - 1) {
+      nextMinor = SUB_STAGES[minorIdx + 1];
+    } else if (majorIdx < REALM_ORDER.length - 1) {
+      nextMajor = REALM_ORDER[majorIdx + 1];
+      nextMinor = SUB_STAGES[0];
+    } else {
+      return false;
+    }
+
+    this.realm = { major: nextMajor, minor: nextMinor };
+    this.xiuwei = 0;
+    this.realmComplete = false;
+
+    const newBase = getBaseStats(nextMajor, nextMinor) ?? getBaseStats("练气", "初期") ?? Protagonist.emptyPlayerBase();
+    for (const k of BASE_STAT_KEYS) {
+      this.playerBase[k] = newBase[k];
+    }
+
+    const derived = this.getDerivedStats();
+    const capH = Math.max(1, Math.round(derived.hp));
+    const capM = Math.max(1, Math.round(derived.mp));
+    this.maxHp = capH;
+    this.maxMp = capM;
+    this.currentHp = capH;
+    this.currentMp = capM;
+
+    const sy = getShouyuanForRealm(nextMajor, nextMinor);
+    if (sy != null) this.shouyuan = sy;
+
+    return true;
   }
 
   // ===================================================================
@@ -146,6 +210,12 @@ export class Protagonist extends Character {
   applyStateChanges(state: StateParsed): void {
     if (state.userState) {
       this.setCurrentHpMp(state.userState.currentHp, state.userState.currentMp);
+      if (typeof state.userState.xiuweiIncrease === "number") {
+        this.addXiuwei(state.userState.xiuweiIncrease);
+      }
+      if (state.userState.realmBreakthrough === true) {
+        this.breakthrough();
+      }
     }
 
     for (const change of state.spiritStoneChanges) {
@@ -203,6 +273,7 @@ export class Protagonist extends Character {
       originStory: this.originStory,
       traits: this.traits,
       xiuwei: this.xiuwei,
+      realmComplete: this.realmComplete,
     };
   }
 
@@ -329,6 +400,7 @@ export class Protagonist extends Character {
       equippedSlots,
       traits: Array.isArray(o.traits) ? (o.traits as TraitEntry[]) : [],
       xiuwei: typeof o.xiuwei === "number" && Number.isFinite(o.xiuwei) ? Math.max(0, o.xiuwei) : 0,
+      realmComplete: o.realmComplete === true,
     });
   }
 
@@ -387,6 +459,7 @@ export class Protagonist extends Character {
       equippedSlots: Array.from({ length: EQUIP_SLOT_COUNT }, () => null),
       traits,
       xiuwei: 0,
+      realmComplete: false,
     });
 
     const derived = p.getDerivedStats();

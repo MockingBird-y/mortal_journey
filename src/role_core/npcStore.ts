@@ -1,7 +1,7 @@
 import { ref, type Ref } from "vue";
 import { Npc } from "./Npc";
 import type { NpcPlayInfo } from "./types/playInfo";
-import type { NpcNearbyEntry } from "../ai/storyAndState_generate";
+import type { NpcNearbyEntry } from "../ai/state_generate";
 
 const npcMap: Ref<Map<string, Npc>> = ref(new Map());
 

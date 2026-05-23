@@ -155,17 +155,18 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
           <div class="mj-player-name-vertical">{{ protagonist.displayName }}</div>
         </div>
 
-        <p class="mj-realm-line">{{ Protagonist.formatRealm(protagonist.realm) }}</p>
+        <p class="mj-realm-line">{{ Protagonist.formatRealm(protagonist.realm) }}<template v-if="protagonist.realmComplete">·圆满</template></p>
 
         <div class="mj-resource-row">
           <div class="mj-cultivation-head">
             <div class="mj-resource-label mj-resource-label--cultivation">
               <span>修为</span>
               <span class="mj-resource-nums">
-                {{ cultivationUi.displayCur
+                <template v-if="cultivationUi.isComplete">圆满</template>
+                <template v-else>{{ cultivationUi.displayCur
                 }}<template v-if="cultivationUi.req != null && cultivationUi.req > 0">
                   / {{ cultivationUi.req }}</template
-                >
+                ></template>
               </span>
             </div>
           </div>

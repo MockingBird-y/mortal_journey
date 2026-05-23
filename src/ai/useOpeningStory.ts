@@ -4,6 +4,7 @@
 
 import { ref, watch, type ComputedRef, type Ref } from "vue";
 import { generateInitStory } from "./init_story_generate";
+import { generateInitState } from "./init_state_generate";
 import { gameLog } from "../log/gameLog";
 import {
   cloneWorldTime,
@@ -103,7 +104,7 @@ export function useOpeningStoryFromFateChoice(
       phase.value = "loading";
 
       try {
-        const result = await generateInitStory({
+        const storyResult = await generateInitStory({
           apiUrl: url,
           apiKey: String(apiKey || "").trim() || undefined,
           model,
@@ -111,20 +112,40 @@ export function useOpeningStoryFromFateChoice(
           signal: ac.signal,
         });
         if (abortCtl !== ac) return;
-        storyBody.value = result.story.storyBody;
-        worldLocation.value = result.story.worldLocation.trim();
-        if (result.story.storyBody.trim()) {
-          const current = protagonist.value;
-          if (current) {
-            current.applyInitState(result.state);
-          }
-          if (result.nearbyNpcs.length > 0) {
-            npcStore.applyNpcUpdates(result.nearbyNpcs, p.linggen);
-          }
-          phase.value = "ready";
-        } else {
+
+        if (!storyResult.storyBody.trim()) {
           phase.value = "error";
           errorMessage.value = "模型返回的开局正文为空。";
+          return;
+        }
+
+        storyBody.value = storyResult.storyBody;
+        phase.value = "ready";
+
+        try {
+          const stateResult = await generateInitState({
+            apiUrl: url,
+            apiKey: String(apiKey || "").trim() || undefined,
+            model,
+            storyBody: storyResult.storyBody,
+            protagonist: p,
+            signal: ac.signal,
+          });
+          if (abortCtl !== ac) return;
+
+          if (stateResult.worldLocation.trim()) {
+            worldLocation.value = stateResult.worldLocation.trim();
+          }
+
+          const current = protagonist.value;
+          if (current) {
+            current.applyInitState(stateResult);
+          }
+          if (stateResult.nearbyNpcs.length > 0) {
+            npcStore.applyNpcUpdates(stateResult.nearbyNpcs, p.linggen);
+          }
+        } catch (stateErr) {
+          gameLog.error("[OpeningStory] 状态生成失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));
         }
       } catch (e) {
         if (ac.signal.aborted) return;

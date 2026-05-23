@@ -1,20 +1,19 @@
-import { STORY_AND_STATE_SYSTEM_PRESET } from "./storyAndState";
+import { STATE_SYSTEM_PRESET } from "./state_preset";
 import { extractTagContent, tryParseJsonArray } from "./parseAiItem";
 import {
   completeChatWithMessagesJson,
   type JsonChatRequestPayload,
-  type ChatMessage,
 } from "./openAiChatBridge";
-import { Protagonist } from "../role_core/Protagonist";
-import type {
-  NarrationPerson,
-  ProtagonistPlayInfo,
-  EquippedSlotsState,
-  GongfaSlotsState,
-  InventoryStackItem,
+import {
+  REALM_ORDER,
+  SUB_STAGES,
+  type ProtagonistPlayInfo,
+  type EquippedSlotsState,
+  type GongfaSlotsState,
+  type InventoryStackItem,
 } from "../role_core/types/playInfo";
 
-export interface StoryAndStateApiConfig {
+export interface StateGenerateInput {
   apiUrl: string;
   apiKey?: string;
   model: string;
@@ -22,28 +21,17 @@ export interface StoryAndStateApiConfig {
   max_tokens?: number;
   requestTimeoutMs?: number;
   signal?: AbortSignal;
-}
-
-export interface StoryChatEntry {
-  role: "user" | "assistant";
-  content: string;
-}
-
-export interface StoryAndStateInput extends StoryAndStateApiConfig {
+  storyBody: string;
   protagonist: ProtagonistPlayInfo;
-  chatHistory: StoryChatEntry[];
   currentWorldLocation?: string;
   npcSnapshot?: string;
-}
-
-export interface StoryParsed {
-  storyBody: string;
-  worldLocation: string;
 }
 
 export interface UserStateChange {
   currentHp: number;
   currentMp: number;
+  xiuweiIncrease?: number;
+  realmBreakthrough?: boolean;
 }
 
 export interface SpiritStoneChange {
@@ -92,6 +80,7 @@ export interface NpcNearbyEntry {
 }
 
 export interface StateParsed {
+  worldLocation: string;
   userState: UserStateChange | null;
   spiritStoneChanges: SpiritStoneChange[];
   itemAdds: ItemAddEntry[];
@@ -99,19 +88,11 @@ export interface StateParsed {
   nearbyNpcs: NpcNearbyEntry[];
 }
 
-export interface StoryAndStateParsed {
-  story: StoryParsed;
-  state: StateParsed;
-}
-
 const DEFAULT_TEMPERATURE = 0.55;
 const DEFAULT_MAX_TOKENS = 16384;
 
-const MJ_STORY_BODY_OPEN = "<mj_story_body>";
-const MJ_STORY_BODY_CLOSE = "</mj_story_body>";
 const MJ_WORLD_BODY_OPEN = "<mj_world_body>";
 const MJ_WORLD_BODY_CLOSE = "</mj_world_body>";
-
 const TAG_USER_STATE_OPEN = "<USER_STATE_TAG>";
 const TAG_USER_STATE_CLOSE = "</USER_STATE_TAG>";
 const TAG_SPIRIT_STONE_OPEN = "<SPIRIT_STONE_TAG>";
@@ -123,22 +104,12 @@ const TAG_ITEM_REMOVE_CLOSE = "</ITEM_REMOVE_TAG>";
 const TAG_NPC_NEARBY_OPEN = "<NPC_NEARBY_TAG>";
 const TAG_NPC_NEARBY_CLOSE = "</NPC_NEARBY_TAG>";
 
-export function extractMjWorldBody(raw: string): string {
+function extractWorldBody(raw: string): string {
   const s = raw == null ? "" : String(raw);
   const i = s.indexOf(MJ_WORLD_BODY_OPEN);
   if (i < 0) return "";
   const from = i + MJ_WORLD_BODY_OPEN.length;
   const j = s.indexOf(MJ_WORLD_BODY_CLOSE, from);
-  if (j < 0) return s.slice(from).trim();
-  return s.slice(from, j).trim();
-}
-
-export function extractMjStoryBody(raw: string): string {
-  const s = raw == null ? "" : String(raw);
-  const i = s.indexOf(MJ_STORY_BODY_OPEN);
-  if (i < 0) return s.trim();
-  const from = i + MJ_STORY_BODY_OPEN.length;
-  const j = s.indexOf(MJ_STORY_BODY_CLOSE, from);
   if (j < 0) return s.slice(from).trim();
   return s.slice(from, j).trim();
 }
@@ -151,7 +122,21 @@ function safeJsonParse(text: string): unknown {
   }
 }
 
-export function parseNearbyNpcs(raw: string): NpcNearbyEntry[] {
+const VALID_MAJOR_SET = new Set<string>(REALM_ORDER as readonly string[]);
+const VALID_MINOR_SET = new Set<string>(SUB_STAGES as readonly string[]);
+
+function sanitizeRealm(realm: unknown): { major: string; minor: string } {
+  if (!realm || typeof realm !== "object") return { major: "练气", minor: "初期" };
+  const r = realm as { major?: unknown; minor?: unknown };
+  const major = typeof r.major === "string" ? r.major.trim() : "";
+  const minor = typeof r.minor === "string" ? r.minor.trim() : "";
+  return {
+    major: VALID_MAJOR_SET.has(major) ? major : "练气",
+    minor: VALID_MINOR_SET.has(minor) ? minor : "初期",
+  };
+}
+
+function parseNearbyNpcs(raw: string): NpcNearbyEntry[] {
   const text = extractTagContent(raw, TAG_NPC_NEARBY_OPEN, TAG_NPC_NEARBY_CLOSE);
   const arr = tryParseJsonArray(text) ?? [];
   return arr
@@ -160,16 +145,14 @@ export function parseNearbyNpcs(raw: string): NpcNearbyEntry[] {
       const o = e as Record<string, unknown>;
       const displayName = String(o.displayName || "").trim();
       if (!displayName) return null;
-      const realm = o.realm && typeof o.realm === "object"
-        ? o.realm as { major: string; minor: string }
-        : { major: "练气", minor: "初期" };
+      const realm = sanitizeRealm(o.realm);
       const linggenRaw = o.linggen;
       const linggen = Array.isArray(linggenRaw)
         ? linggenRaw.map((x: unknown) => String(x).trim()).filter(Boolean)
         : typeof linggenRaw === "string"
           ? linggenRaw.split("").filter((c: string) => "金木水火土".includes(c))
           : [];
-      const parsed: NpcNearbyEntry = {
+      return {
         displayName,
         identity: String(o.identity || ""),
         isDead: o.isDead === true,
@@ -188,14 +171,12 @@ export function parseNearbyNpcs(raw: string): NpcNearbyEntry[] {
         maxHp: typeof o.maxHp === "number" ? o.maxHp : 100,
         maxMp: typeof o.maxMp === "number" ? o.maxMp : 50,
       };
-      return parsed;
     })
     .filter((e): e is NpcNearbyEntry => e !== null);
 }
 
-export function parseStoryAndStateAiResponse(raw: string): StoryAndStateParsed {
-  const storyBody = extractMjStoryBody(raw);
-  const worldLocation = extractMjWorldBody(raw);
+export function parseStateAiResponse(raw: string): StateParsed {
+  const worldLocation = extractWorldBody(raw);
 
   const userStateText = extractTagContent(raw, TAG_USER_STATE_OPEN, TAG_USER_STATE_CLOSE);
   const spiritStoneText = extractTagContent(raw, TAG_SPIRIT_STONE_OPEN, TAG_SPIRIT_STONE_CLOSE);
@@ -209,7 +190,9 @@ export function parseStoryAndStateAiResponse(raw: string): StoryAndStateParsed {
       const o = obj as Record<string, unknown>;
       const hp = typeof o.currentHp === "number" ? Math.round(o.currentHp) : 0;
       const mp = typeof o.currentMp === "number" ? Math.round(o.currentMp) : 0;
-      userState = { currentHp: hp, currentMp: mp };
+      const xiuweiIncrease = typeof o.xiuweiIncrease === "number" ? Math.max(0, Math.floor(o.xiuweiIncrease)) : undefined;
+      const realmBreakthrough = o.realmBreakthrough === true ? true : undefined;
+      userState = { currentHp: hp, currentMp: mp, xiuweiIncrease, realmBreakthrough };
     }
   }
 
@@ -242,12 +225,7 @@ export function parseStoryAndStateAiResponse(raw: string): StoryAndStateParsed {
         ? o.bonus as string[] | Record<string, number>
         : undefined;
       return {
-        type,
-        name,
-        intro,
-        grade,
-        bonus,
-        count,
+        type, name, intro, grade, bonus, count,
         ...(o.function != null ? { function: o.function } : {}),
       } as ItemAddEntry;
     })
@@ -268,21 +246,13 @@ export function parseStoryAndStateAiResponse(raw: string): StoryAndStateParsed {
   const nearbyNpcs = parseNearbyNpcs(raw);
 
   return {
-    story: { storyBody, worldLocation },
-    state: { userState, spiritStoneChanges, itemAdds, itemRemoves, nearbyNpcs },
+    worldLocation,
+    userState,
+    spiritStoneChanges,
+    itemAdds,
+    itemRemoves,
+    nearbyNpcs,
   };
-}
-
-function narrationPersonLine(person: NarrationPerson): string {
-  switch (person) {
-    case "first":
-      return "叙事人称：第一人称——以主角口吻，用「我」「我们」等叙述。";
-    case "third":
-      return "叙事人称：第三人称——以旁观视角写主角，用「他/她」或其姓名指代主角。";
-    case "second":
-    default:
-      return "叙事人称：第二人称——面向玩家，将主角作为「你」「您」书写。";
-  }
 }
 
 function formatEquipSlot(label: string, slot: EquippedSlotsState[number]): string {
@@ -306,10 +276,7 @@ function formatGongfaSlots(slots: GongfaSlotsState): string {
   for (let i = 0; i < slots.length; i++) {
     const g = slots[i];
     if (!g) continue;
-    const bonusStr = g.bonus && Object.keys(g.bonus).length > 0
-      ? "，加成：" + Object.entries(g.bonus).map(([k, v]) => `${k}+${v}`).join("、")
-      : "";
-    lines.push(`功法：${g.name}（${g.grade}）${g.desc ? "—" + g.desc : ""}${bonusStr}`);
+    lines.push(`功法：${g.name}（${g.grade}）${g.desc ? "—" + g.desc : ""}`);
   }
   return lines.length > 0 ? lines.join("\n") : "无";
 }
@@ -320,8 +287,7 @@ function formatInventoryItem(item: InventoryStackItem): string {
   }
   const d = item as { name?: string; grade?: string; count?: number; desc?: string };
   const grade = d.grade ? `（${d.grade}）` : "";
-  const desc = d.desc ? `—${d.desc}` : "";
-  return `${d.name || "未知物品"}${grade}×${d.count || 1}${desc}`;
+  return `${d.name || "未知物品"}${grade}×${d.count || 1}`;
 }
 
 function formatInventorySlots(slots: Array<InventoryStackItem | null>): string {
@@ -330,26 +296,28 @@ function formatInventorySlots(slots: Array<InventoryStackItem | null>): string {
   return items.map(formatInventoryItem).join("、");
 }
 
-function buildStoryAndStateUserContent(input: StoryAndStateInput): string {
+function buildStateUserContent(input: StateGenerateInput): string {
   const p = input.protagonist;
-  const locationHint = input.currentWorldLocation?.trim()
-    ? `\n当前所在地点：${input.currentWorldLocation.trim()}`
-    : "";
 
   const npcSection = input.npcSnapshot?.trim()
-    ? `\n【当前场景人物】\n${input.npcSnapshot.trim()}\n`
+    ? `\n【当前场景NPC】\n${input.npcSnapshot.trim()}\n`
+    : "";
+
+  const locationHint = input.currentWorldLocation?.trim()
+    ? `\n当前世界地点：${input.currentWorldLocation.trim()}`
     : "";
 
   return [
-    "【主角摘要 · 请据此与历史剧情继续生成后续剧情，并输出状态更新标签】",
+    "【剧情正文】",
+    input.storyBody,
     "",
+    "【主角当前状态】",
     `姓名：${p.displayName}`,
-    `性别：${p.gender || "—"}`,
-    narrationPersonLine(p.narrationPerson),
-    `境界：${Protagonist.formatRealm(p.realm)}`,
-    `灵根：${Protagonist.formatLinggenElements(p.linggen)}`,
+    `境界：${p.realm.major}${p.realm.minor}${p.realmComplete ? "·圆满" : ""}`,
+    `修为状态：${p.realmComplete ? "修为已圆满，可突破" : "修为未圆满"}`,
     `当前血量：${p.currentHp}/${p.maxHp}`,
     `当前法力：${p.currentMp}/${p.maxMp}`,
+    `灵根：${(p as { linggen?: string[] }).linggen?.join("") || "无"}`,
     locationHint,
     "",
     "【装备】",
@@ -360,26 +328,17 @@ function buildStoryAndStateUserContent(input: StoryAndStateInput): string {
     "",
     "【储物袋】",
     formatInventorySlots(p.inventorySlots),
-    "",
     npcSection,
   ].join("\n");
 }
 
-export function buildStoryAndStateRequestPayload(input: StoryAndStateInput): JsonChatRequestPayload {
-  const messages: ChatMessage[] = [];
+export async function generateState(input: StateGenerateInput): Promise<StateParsed> {
+  const messages = [
+    { role: "system" as const, content: STATE_SYSTEM_PRESET },
+    { role: "user" as const, content: buildStateUserContent(input) },
+  ];
 
-  messages.push({ role: "system", content: STORY_AND_STATE_SYSTEM_PRESET });
-
-  messages.push({
-    role: "user",
-    content: buildStoryAndStateUserContent(input),
-  });
-
-  for (const entry of input.chatHistory) {
-    messages.push({ role: entry.role, content: entry.content });
-  }
-
-  return {
+  const payload: JsonChatRequestPayload = {
     apiUrl: input.apiUrl,
     apiKey: input.apiKey,
     model: input.model,
@@ -389,9 +348,7 @@ export function buildStoryAndStateRequestPayload(input: StoryAndStateInput): Jso
     requestTimeoutMs: input.requestTimeoutMs,
     signal: input.signal,
   };
-}
 
-export async function generateStoryAndState(input: StoryAndStateInput): Promise<StoryAndStateParsed> {
-  const raw = await completeChatWithMessagesJson(buildStoryAndStateRequestPayload(input));
-  return parseStoryAndStateAiResponse(raw);
+  const raw = await completeChatWithMessagesJson(payload);
+  return parseStateAiResponse(raw);
 }
