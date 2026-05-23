@@ -251,7 +251,6 @@ export const GONGFA_TRIGGER_CATEGORY: Readonly<Record<GongfaTriggerTiming, "主�
 export const GONGFA_EFFECT_KEYS = [
   "boostPenetration", "boostHitRate", "boostDodgeRate", "boostCritRate",
   "boostCritDmg",
-  "boostFireDamage", "boostIceDamage", "boostPoisonDamage", "boostLightningDamage",
   "dealPhysicalDmg", "dealMagicDmg",
   "dealFireDmg", "dealIceDmg", "dealPoisonDmg", "dealLightningDmg",
 ] as const;
@@ -263,10 +262,6 @@ export const GONGFA_EFFECT_TO_ZH: Readonly<Record<GongfaEffectKey, string>> = {
   boostDodgeRate: "增加闪避率",
   boostCritRate: "增加暴击率",
   boostCritDmg: "增加暴击伤害",
-  boostFireDamage: "增加火伤",
-  boostIceDamage: "增加冰伤",
-  boostPoisonDamage: "增加毒伤",
-  boostLightningDamage: "增加雷伤",
   dealPhysicalDmg: "造成物伤",
   dealMagicDmg: "造成法伤",
   dealFireDmg: "造成火伤",
@@ -278,7 +273,6 @@ export const GONGFA_EFFECT_TO_ZH: Readonly<Record<GongfaEffectKey, string>> = {
 export const GONGFA_EFFECT_CATEGORY: Readonly<Record<GongfaEffectKey, EffectCategory>> = {
   boostPenetration: "增益", boostHitRate: "增益", boostDodgeRate: "增益",
   boostCritRate: "增益", boostCritDmg: "增益",
-  boostFireDamage: "增益", boostIceDamage: "增益", boostPoisonDamage: "增益", boostLightningDamage: "增益",
   dealPhysicalDmg: "伤害", dealMagicDmg: "伤害",
   dealFireDmg: "伤害", dealIceDmg: "伤害", dealPoisonDmg: "伤害", dealLightningDmg: "伤害",
 };
@@ -342,7 +336,6 @@ export const ELIXIR_TRIGGER_CATEGORY: Readonly<Record<ElixirTriggerTiming, "主�
 export const ELIXIR_EFFECT_KEYS = [
   "recoverHp", "recoverMp",
   "boostPatk", "boostMatk", "boostPdef", "boostMdef",
-  "boostFireDamage", "boostIceDamage", "boostPoisonDamage", "boostLightningDamage",
 ] as const;
 export type ElixirEffectKey = (typeof ELIXIR_EFFECT_KEYS)[number];
 
@@ -353,16 +346,11 @@ export const ELIXIR_EFFECT_TO_ZH: Readonly<Record<ElixirEffectKey, string>> = {
   boostMatk: "增加法攻",
   boostPdef: "增加物防",
   boostMdef: "增加法防",
-  boostFireDamage: "增加火伤",
-  boostIceDamage: "增加冰伤",
-  boostPoisonDamage: "增加毒伤",
-  boostLightningDamage: "增加雷伤",
 };
 
 export const ELIXIR_EFFECT_CATEGORY: Readonly<Record<ElixirEffectKey, EffectCategory>> = {
   recoverHp: "恢复", recoverMp: "恢复",
   boostPatk: "增益", boostMatk: "增益", boostPdef: "增益", boostMdef: "增益",
-  boostFireDamage: "增益", boostIceDamage: "增益", boostPoisonDamage: "增益", boostLightningDamage: "增益",
 };
 
 export const ELIXIR_COST_KEYS = ["none"] as const;
@@ -766,55 +754,23 @@ export function applyTypedFunctionOverrides<T extends SpecialEffectTarget>(
 // 品阶与数值体系（各类型共用）
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const GRADE_INDEX: Readonly<Record<string, number>> = {
-  "下品": 0,
-  "中品": 1,
-  "上品": 2,
-  "极品": 3,
-  "仙品": 4,
-  "神品": 5,
-};
+export {
+  GRADE_INDEX,
+  EFFECT_BASE_VALUES,
+  TRIGGER_VALUE_MULTIPLIER,
+  DURATION_PER_TURN_FACTORS,
+  COST_VALUE_MULTIPLIER,
+  COST_BASE_VALUES,
+} from "./gameConstants";
 
-export const EFFECT_BASE_VALUES: Readonly<Record<EffectValueCategory, readonly (readonly [number, number])[]>> = {
-  recover: [[20, 40], [40, 80], [80, 160], [140, 260], [250, 460], [420, 780]],
-  damage:  [[10, 20], [20, 40], [40, 80],  [70, 130],  [120, 220], [200, 360]],
-  boost:   [[3, 7],   [7, 13],  [14, 26],  [24, 46],   [38, 72],   [56, 104]],
-  reduce:  [[3, 7],   [7, 13],  [14, 26],  [24, 46],   [38, 72],   [56, 104]],
-};
-
-export const TRIGGER_VALUE_MULTIPLIER: Readonly<Record<string, number>> = {
-  on_attack: 1.0,
-  on_skill_cast: 1.0,
-  on_default: 0.7,
-  on_turn_start: 0.9,
-  on_full_mana: 1.0,
-  on_hit_taken: 1.1,
-  on_crit: 1.2,
-  on_dodge: 1.2,
-  on_kill: 1.2,
-  on_low_hp: 1.3,
-  on_low_mana: 1.3,
-};
-
-export const DURATION_PER_TURN_FACTORS: readonly (readonly [number, number])[] = [
-  [0, 1.00],
-  [1, 0.65],
-  [2, 0.50],
-  [3, 0.40],
-  [5, 0.30],
-  [10, 0.20],
-] as const;
-
-export const COST_VALUE_MULTIPLIER: Readonly<Record<string, number>> = {
-  none: 1.0,
-  mp: 1.3,
-  hp: 1.5,
-};
-
-export const COST_BASE_VALUES: Readonly<Record<string, readonly number[]>> = {
-  mp: [10, 20, 40, 70, 120, 200],
-  hp: [20, 40, 80, 140, 240, 400],
-};
+import {
+  GRADE_INDEX,
+  EFFECT_BASE_VALUES,
+  TRIGGER_VALUE_MULTIPLIER,
+  DURATION_PER_TURN_FACTORS,
+  COST_VALUE_MULTIPLIER,
+  COST_BASE_VALUES,
+} from "./gameConstants";
 
 export function lookupDurationFactor(duration: number): number {
   let factor = DURATION_PER_TURN_FACTORS[0][1];
@@ -848,5 +804,6 @@ export function computeCostValue(costResource: string, grade: string): number {
   const arr = COST_BASE_VALUES[costResource];
   if (!arr) return 0;
   const gradeIdx = GRADE_INDEX[grade] ?? 0;
-  return arr[Math.min(gradeIdx, arr.length - 1)];
+  const [lo, hi] = arr[Math.min(gradeIdx, arr.length - 1)];
+  return lo + Math.floor(Math.random() * (hi - lo + 1));
 }

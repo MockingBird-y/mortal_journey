@@ -6,7 +6,7 @@ export const INIT_STORY_SYSTEM_PRESET = `
 [修仙背景信息]
 1. 修仙者境界：大境界分为练气、筑基、结丹、元婴、化神，每个大境界又有三个小境界，分为初期、中期、后期，特别注意：练气期不是12层，而是初期中期后期。
 2. 修仙者寿命：每个大境界的修士寿命不同，练气期修士寿命为100岁，筑基期修士寿命为200岁，结丹期修士寿命为500岁，元婴期修士寿命为1000岁，化神期修士寿命为2000岁。
-3. 提升修为方式：修仙者只可以通过灵石（下品灵石、中品灵石、上品灵石、极品灵石、仙品灵石）提升自身修为。
+3. 提升修为方式：修仙者只可以通过灵石（下品灵石、中品灵石、上品灵石、极品灵石、仙品灵石、神品灵石）提升自身修为。
 4. 五行灵根：修士需具备灵根方可感应天地灵气。灵根分为金木水火土及变异属性，灵根越少修炼速度越高，四灵根修炼极慢。
 5. 精算收益风险：修仙者行事前必权衡利弊，无利可图或风险远大于收益的事绝不出手。高境界修士更是算无遗策，每一次行动都经过精密推演。
 6. 境界压制与敬畏：高境界修士对低阶存在绝对压制，视为蝼蚁。低阶修士必须对高阶保持敬畏，越级挑战几乎不可能成功，贸然挑衅等同于自杀。
@@ -45,8 +45,8 @@ export const INIT_STORY_SYSTEM_PRESET = `
  2. 每个 function 对象包含四个字段：trigger（触发时机）、effect（效果）、duration（持续回合）、cost（消耗）。
  3. 按物品类型的 trigger 与 effect 约束（必须严格遵守）：
     · 法宝：trigger 只能是被动触发（on_hit_taken、on_turn_start、on_low_hp、on_low_mana、on_full_mana、on_crit、on_dodge、on_kill），effect 只能是恢复类（recoverHp、recoverMp）或增益类（boost*）。法宝是被动装备，自动触发属性增益或恢复。
-    · 功法：trigger 只能是 on_attack、on_skill_cast、on_default，effect 只能是穿透/命中/闪避/暴击/暴伤增益类（boostPenetration、boostHitRate、boostDodgeRate、boostCritRate、boostCritDmg）、元素增伤类（boostFireDamage、boostIceDamage、boostPoisonDamage、boostLightningDamage）或伤害类（deal*）。功法是主动技能，由玩家主动施展。
-    · 丹药：trigger 固定为 on_attack，effect 只能是恢复类（recoverHp、recoverMp）或攻防增益类（boostPatk、boostMatk、boostPdef、boostMdef）或元素增伤类（boostFireDamage、boostIceDamage、boostPoisonDamage、boostLightningDamage），cost 固定为 none。丹药是消耗品，用于回血回蓝或临战强化。
+    · 功法：trigger 只能是 on_attack、on_skill_cast、on_default，effect 只能是穿透/命中/闪避/暴击/暴伤增益类（boostPenetration、boostHitRate、boostDodgeRate、boostCritRate、boostCritDmg）或伤害类（deal*）。功法是主动技能，由玩家主动施展。
+    · 丹药：trigger 固定为 on_attack，effect 只能是恢复类（recoverHp、recoverMp）或攻防增益类（boostPatk、boostMatk、boostPdef、boostMdef），cost 固定为 none。丹药是消耗品，用于回血回蓝或临战强化。
     · 符箓：trigger 固定为 on_attack，effect 只能是伤害类（deal*），cost 只能是 mp 或 hp（没有 none）。符箓是消耗品，纯伤害输出手段。
     · 阵法：trigger 固定为 on_attack，effect 可以是恢复类（recoverHp、recoverMp）、增益类（boost*）或减益类（reduce*），cost 只能是 mp 或 hp（没有 none）。阵法是战术型物品，强化己方或削弱敌方。
  4. 阵法的持续回合需要是多个回合，不能是即时触发或者1回合。
@@ -61,8 +61,7 @@ export const INIT_STORY_SYSTEM_PRESET = `
       boostPenetration（增加穿透）、boostHitRate（增加命中率）、boostDodgeRate（增加闪避率）、
       boostCritRate（增加暴击率）、boostCritDmg（增加暴击伤害）、boostRecovery（增加恢复效果）、
       boostCastSpeed（增加施法速度）、boostActionSpeed（增加行动速度）、boostEffectChance（增加特效几率）、
-      boostControlResist（增加控制抗性）、boostFireDamage（增加火伤）、boostIceDamage（增加冰伤）、
-      boostPoisonDamage（增加毒伤）、boostLightningDamage（增加雷伤）。
+      boostControlResist（增加控制抗性）。
     · 减益类：reducePatk（减少物攻）、reduceMatk（减少法攻）、reducePdef（减少物防）、reduceMdef（减少法防）、
       reducePenetration（减少穿透）、reduceHitRate（减少命中率）、reduceDodgeRate（减少闪避率）、
       reduceCritRate（减少暴击率）、reduceCritDmg（减少暴击伤害）、reduceRecovery（减少恢复效果）、
@@ -112,7 +111,7 @@ export const INIT_STORY_SYSTEM_PRESET = `
 
 [储物袋开局配置输出规则]
 1. 主角储物袋开局配置：可以生成灵石、丹药、符箓、阵法、材料、杂物等，名称需要与剧情描述、主角背景一致。
-3. 灵石生成规则：灵石只有下品灵石、中品灵石、上品灵石、极品灵石、仙品灵石，不能出现超过主角境界的灵石，数量和主角身份对应，身份越尊贵，灵石越多。
+3. 灵石生成规则：灵石只有下品灵石、中品灵石、上品灵石、极品灵石、仙品灵石、神品灵石，不能出现超过主角境界的灵石，数量和主角身份对应，身份越尊贵，灵石越多。
 4. 其他物品生成规则：其他物品（如丹药、符箓、阵法、材料、杂物等）根据主角出身和境界适当生成。
 5. 输出示例：<mj_storage_body> [
     {"type":"灵石","name":"下品灵石","count": 10},

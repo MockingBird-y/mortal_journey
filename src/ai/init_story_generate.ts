@@ -174,7 +174,7 @@ function safeStr(val: unknown, fallback: string): string {
   return typeof val === "string" && val.trim() ? val.trim() : fallback;
 }
 
-const GRADE_KEYS: readonly (keyof GradeDropRate)[] = ["下品", "中品", "上品", "极品", "仙品"];
+const GRADE_KEYS: readonly (keyof GradeDropRate)[] = ["下品", "中品", "上品", "极品", "仙品", "神品"];
 
 /**
  * 根据主角境界从 `GRADE_DROP_TABLE` 按概率随机出一个品阶。
@@ -183,7 +183,7 @@ const GRADE_KEYS: readonly (keyof GradeDropRate)[] = ["下品", "中品", "上�
 function rollGrade(realmMajor: string, realmMinor: string): ItemGrade {
   const stage = GRADE_DROP_TABLE[realmMajor]?.[realmMinor];
   if (!stage) return "下品";
-  const total = stage.下品 + stage.中品 + stage.上品 + stage.极品 + stage.仙品;
+  const total = stage.下品 + stage.中品 + stage.上品 + stage.极品 + stage.仙品 + stage.神品;
   if (total <= 0) return "下品";
   let roll = Math.random() * total;
   for (const key of GRADE_KEYS) {

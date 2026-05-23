@@ -3,9 +3,9 @@
  *
  * 结构：数据 → 类型 → 再导出
  *
- * - 数据：属性键/映射、游戏常量、境界数据表、品阶数据表
+ * - 数据：属性键/映射（具体数值见 gameConstants.ts）
  * - 类型：基础属性、槽位状态、角色卡接口、UI 动作
- * - 导出：itemInfo 再导出、realmUtils 功能函数再导出
+ * - 导出：itemInfo 再导出、realmUtils 功能函数再导出、gameConstants 再导出
  */
 
 import type {
@@ -13,6 +13,40 @@ import type {
   GongfaItemDefinition,
   InventoryStackItem,
 } from "./itemInfo";
+
+import {
+  BASE_VALUES,
+  EXPONENT,
+  CULTIVATION_BASE,
+  CULTIVATION_EXPONENT,
+  SHOUYUAN_VALUES,
+  EQUIP_BONUS_RATIOS,
+  LINGQI_AFFINITY_BONUS,
+  DERIVED_STAT_DEFAULTS,
+  PRIMARY_TO_DERIVED_MAP,
+  PCT_DERIVED_KEYS,
+  EQUIP_SLOT_COUNT,
+  GONGFA_SLOT_COUNT,
+  ITEM_GRADE_ATTRI_TABLE,
+  MIN_NARRATIVE_AGE_BY_MAJOR,
+} from "./gameConstants";
+
+export {
+  BASE_VALUES,
+  EXPONENT,
+  CULTIVATION_BASE,
+  CULTIVATION_EXPONENT,
+  SHOUYUAN_VALUES,
+  EQUIP_BONUS_RATIOS,
+  LINGQI_AFFINITY_BONUS,
+  DERIVED_STAT_DEFAULTS,
+  PRIMARY_TO_DERIVED_MAP,
+  PCT_DERIVED_KEYS,
+  EQUIP_SLOT_COUNT,
+  GONGFA_SLOT_COUNT,
+  ITEM_GRADE_ATTRI_TABLE,
+  MIN_NARRATIVE_AGE_BY_MAJOR,
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 一、数据 — 属性键与映射
@@ -53,26 +87,6 @@ export const PRIMARY_STAT_KEY_DESC: Readonly<Record<PrimaryStatKey, string>> = {
   fortune: "影响物品掉落品质与随机事件收益",
 };
 
-/**
- * 主属性 → 派生属性映射表。
- * `PCT_DERIVED_KEYS` 内的键按百分比方式计算（基数 × (1 + 主属性 × 比例 ÷ 10000)），
- * 其余键按绝对值加算（主属性 × 比例 ÷ 100 取整）。
- * 例：体魄 100 点 → hp 基数放大 10%、recovery +10。
- */
-export const PRIMARY_TO_DERIVED_MAP: Readonly<Record<PrimaryStatKey, ReadonlyArray<{ key: DerivedStatKey; per100: number }>>> = {
-  physique: [{ key: "hp", per100: 10 }, { key: "recovery", per100: 10 }],
-  spirit: [{ key: "mp", per100: 10 }, { key: "castSpeed", per100: 10 }],
-  guard: [{ key: "pdef", per100: 10 }, { key: "mdef", per100: 10 }, { key: "controlResist", per100: 10 }],
-  perception: [{ key: "penetration", per100: 10 }],
-  agility: [{ key: "dodgeRate", per100: 10 }],
-  crit: [{ key: "critRate", per100: 10 }, { key: "actionSpeed", per100: 10 }],
-  insight: [{ key: "effectChance", per100: 10 }],
-  fortune: [],
-};
-
-/** 按百分比计算的派生属性键（基数来自境界表，主属性对其做乘法放大） */
-export const PCT_DERIVED_KEYS: ReadonlySet<string> = new Set(["hp", "mp", "pdef"]);
-
 export const DERIVED_STAT_KEYS = [
   "hp",
   "mp",
@@ -90,10 +104,6 @@ export const DERIVED_STAT_KEYS = [
   "actionSpeed",
   "effectChance",
   "controlResist",
-  "fireDamage",
-  "iceDamage",
-  "poisonDamage",
-  "lightningDamage",
 ] as const;
 
 export type DerivedStatKey = (typeof DERIVED_STAT_KEYS)[number];
@@ -115,38 +125,14 @@ export const DERIVED_STAT_KEY_TO_ZH: Readonly<Record<DerivedStatKey, string>> = 
   actionSpeed: "行动速度",
   effectChance: "特效几率",
   controlResist: "控制抗性",
-  fireDamage: "火伤",
-  iceDamage: "冰伤",
-  poisonDamage: "毒伤",
-  lightningDamage: "雷伤",
-};
-
-/** 非境界派生属性的初始默认值（境界表不提供的属性按此初始化） */
-export const DERIVED_STAT_DEFAULTS: Readonly<Partial<Record<DerivedStatKey, number>>> = {
-  penetration: 0,
-  hitRate: 100,
-  dodgeRate: 0,
-  critRate: 0,
-  critDmg: 150,
-  recovery: 100,
-  castSpeed: 0,
-  actionSpeed: 0,
-  effectChance: 100,
-  controlResist: 0,
-  fireDamage: 0,
-  iceDamage: 0,
-  poisonDamage: 0,
-  lightningDamage: 0,
 };
 
 export type ZhStatBonusMap = Partial<Record<string, number>>;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 一、数据 — 游戏常量
+// 一、数据 — 游戏常量（结构部分）
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const EQUIP_SLOT_COUNT = 4;
-export const GONGFA_SLOT_COUNT = 8;
 export const BASE_STAT_KEYS = DERIVED_STAT_KEYS;
 
 export const REALM_ORDER = ["练气", "筑基", "结丹", "元婴", "化神"] as const;
@@ -171,11 +157,6 @@ export interface RealmBaseStatsRow {
   pdef: number;
   mdef: number;
 }
-
-const BASE_VALUES = {
-  hp: 200, mp: 100, patk: 10, matk: 10, pdef: 5, mdef: 5,
-};
-const EXPONENT = 1.5;
 
 export function realmStageIndex(realm: string, stage: string): number {
   const majorIdx = (REALM_ORDER as readonly string[]).indexOf(realm);
@@ -210,9 +191,6 @@ export const TABLE: readonly RealmBaseStatsRow[] = (REALM_ORDER as readonly stri
 // 一、数据 — 修为需求表（几何增长：base × growth^(level-1)）
 // ═══════════════════════════════════════════════════════════════════════════
 
-const CULTIVATION_BASE = 1000;
-const CULTIVATION_EXPONENT = 1.5;
-
 function computeCultivation(level: number): number {
   return Math.round(CULTIVATION_BASE * Math.pow(level, CULTIVATION_EXPONENT));
 }
@@ -221,62 +199,6 @@ export const CULTIVATION_VALUES: readonly number[] = Array.from(
   { length: REALM_ORDER.length * SUB_STAGES.length },
   (_, i) => computeCultivation(i + 1),
 );
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 一、数据 — 寿元表（按阶段索引）
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const SHOUYUAN_VALUES = [
-  100, 110, 120,
-  200, 225, 250,
-  500, 550, 600,
-  1000, 1250, 1500,
-  2000, 2500, 3000,
-] as const;
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 一、数据 — 装备倍率表（按阶段索引）
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const EQUIP_BONUS_RATIOS = [
-  1.0, 1.2, 1.5,
-  2.0, 2.5, 3.2,
-  4.0, 5.2, 6.5,
-  8.5, 10.5, 13.0,
-  16.0, 20.0, 25.0,
-] as const;
-
-/**
- * 功法灵根契合加成倍率。
- * 当功法 lingQi 与主角灵根之一相同时，在境界倍率基础上额外乘以此倍率。
- * 值为 0.3，即契合时总倍率 = realmRatio × (1 + 0.3)。
- */
-export const LINGQI_AFFINITY_BONUS = 0.3;
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 一、数据 — 品阶属性表
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const ITEM_GRADE_ATTRI_TABLE: Readonly<Record<string, readonly number[]>> = {
-  physique: [5, 15, 40, 80, 150, 280],
-  spirit: [5, 15, 40, 80, 150, 280],
-  guard: [3, 10, 30, 60, 110, 200],
-  perception: [3, 10, 25, 50, 90, 170],
-  agility: [3, 10, 25, 50, 90, 170],
-  crit: [3, 10, 28, 55, 100, 190],
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 一、数据 — 叙事年龄下限
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const MIN_NARRATIVE_AGE_BY_MAJOR: Readonly<Record<string, number>> = {
-  练气: 16,
-  筑基: 100,
-  结丹: 200,
-  元婴: 500,
-  化神: 1000,
-};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 二、结构 — 类型与接口
@@ -300,10 +222,6 @@ export type PlayerBaseStats = {
   effectChance: number;
   cultivationSpeed: number;
   controlResist: number;
-  fireDamage: number;
-  iceDamage: number;
-  poisonDamage: number;
-  lightningDamage: number;
 };
 
 export interface CultivationRealm {

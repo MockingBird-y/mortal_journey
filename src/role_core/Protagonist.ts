@@ -599,7 +599,7 @@ export class Protagonist {
       this.addToInventory({
         name: item.name,
         desc: item.intro,
-        grade: item.grade as "下品" | "中品" | "上品" | "极品" | "仙品",
+        grade: item.grade as "下品" | "中品" | "上品" | "极品" | "仙品" | "神品",
         count: item.count,
         itemType,
         ...(fn ? { function: fn } : {}),
