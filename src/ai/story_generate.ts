@@ -89,7 +89,10 @@ function narrationPersonLine(person: NarrationPerson): string {
 
 function formatEquipSlot(label: string, slot: EquippedSlotsState[number]): string {
   if (!slot) return `${label}：无`;
-  return `${label}：${slot.name}（${slot.grade}）${slot.desc ? "—" + slot.desc : ""}`;
+  const bonusStr = slot.bonus && Object.keys(slot.bonus).length > 0
+    ? "，加成：" + Object.entries(slot.bonus).map(([k, v]) => `${k}+${v}`).join("、")
+    : "";
+  return `${label}：${slot.name}（${slot.grade}）${slot.desc ? "—" + slot.desc : ""}${bonusStr}`;
 }
 
 function formatEquippedSlots(slots: EquippedSlotsState): string {

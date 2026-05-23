@@ -53,6 +53,7 @@ export interface ItemDefinitionBase {
 
 export interface TreasureItemDefinition extends ItemDefinitionBase {
   itemType: "法宝";
+  bonus: ItemBonusMap;
   function?: TreasureSpecialEffect;
 }
 

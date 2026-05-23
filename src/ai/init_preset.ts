@@ -77,15 +77,17 @@ export const INIT_STORY_SYSTEM_PRESET = `
 1. 主角的法宝开局配置：法宝的名称需要与剧情描述、主角背景一致。
 2. 法宝输出规则：必须输出一对标签：<mj_equip_body> 与 </mj_equip_body> 各恰好一次，拼写原样、区分大小写。
 3. 开局法宝一般给到2-3个法宝即可。
-3. 法宝信息：法宝信息包含类型type、名称name、介绍intro、功能function。function 格式见上方[function生成规则]。
-4. 输出示例：<mj_equip_body> [
-    {"type":"法宝","name":"青钢剑","intro":"外门制式，刃口锋利，每回合初自动提升物理攻击","function":{"trigger":"on_turn_start","effect":"boostPatk","duration":3,"cost":"none"}},
-    {"type":"法宝","name":"静心戒","intro":"稳固神识的粗胚法器，暴击时自动提升暴击几率","function":{"trigger":"on_crit","effect":"boostCritRate","duration":3,"cost":"none"}},
-    {"type":"法宝","name":"粗布劲装","intro":"耐磨行装，受击时提供额外防御","function":{"trigger":"on_hit_taken","effect":"boostPdef","duration":3,"cost":"none"}},
-    {"type":"法宝","name":"水心镜","intro":"水灵凝聚而成的护心铜镜，法力不足时自动恢复法力","function":{"trigger":"on_low_mana","effect":"recoverMp","duration":0,"cost":"none"}},
-    {"type":"法宝","name":"泰山石","intro":"取自泰山深处的玄黄石核，受击时激发土灵护体，提升物理防御","function":{"trigger":"on_hit_taken","effect":"boostPdef","duration":3,"cost":"none"}},
-    {"type":"法宝","name":"离火球","intro":"凝炼地火而成的赤红火球，受击时激发火灵反震，提升法术攻击","function":{"trigger":"on_hit_taken","effect":"boostMatk","duration":3,"cost":"none"}},
-    {"type":"法宝","name":"七玄镇妖木","intro":"以七种灵木炼制的镇妖法杖，每回合初散发木灵之气，提升法术攻击","function":{"trigger":"on_turn_start","effect":"boostMatk","duration":3,"cost":"none"}},
+3. 法宝信息：法宝信息包含类型type、名称name、介绍intro、属性加成bonus、功能function。function 格式见上方[function生成规则]。
+4. 法宝属性加成bonus规则：bonus为1个基础属性名称字符串。基础属性类型：血量、法力、物攻、法攻、物防、法防、穿透、命中率、闪避率、暴击率、暴击伤害、恢复效果、施法速度、行动速度、特效几率、控制抗性。额外属性由系统根据品阶自动随机补充。
+5. 介绍intro规则：介绍只描述法宝的外观、材质、来历，不要描述属性加成或功能效果。
+6. 属性加成与功能不可重叠：bonus对应的基础属性不能与function的effect效果指向同一属性。例如bonus为物攻时，function的effect不能是boostPatk；bonus为血量时，function的effect不能是recoverHp。属性对应关系：血量对应recoverHp/boostPatk中的血量相关，法力对应recoverMp，物攻对应boostPatk，法攻对应boostMatk，物防对应boostPdef，法防对应boostMdef，穿透对应boostPenetration，命中率对应boostHitRate，闪避率对应boostDodgeRate，暴击率对应boostCritRate，暴击伤害对应boostCritDmg，恢复效果对应boostRecovery，施法速度对应boostCastSpeed，行动速度对应boostActionSpeed，特效几率对应boostEffectChance，控制抗性对应boostControlResist。
+7. 输出示例：<mj_equip_body> [
+    {"type":"法宝","name":"青钢剑","intro":"外门制式长剑，刃口锋利，剑柄缠有旧布","bonus":"物攻","function":{"trigger":"on_turn_start","effect":"boostHitRate","duration":3,"cost":"none"}},
+    {"type":"法宝","name":"静心戒","intro":"粗胚玉戒，表面刻有静心符文","bonus":"暴击率","function":{"trigger":"on_crit","effect":"boostCritDmg","duration":3,"cost":"none"}},
+    {"type":"法宝","name":"粗布劲装","intro":"厚实耐磨的灰色劲装，缝线密实","bonus":"物防","function":{"trigger":"on_hit_taken","effect":"boostMdef","duration":3,"cost":"none"}},
+    {"type":"法宝","name":"水心镜","intro":"水灵凝聚而成的护心铜镜，通体透明","bonus":"法力","function":{"trigger":"on_low_hp","effect":"recoverHp","duration":0,"cost":"none"}},
+    {"type":"法宝","name":"泰山石","intro":"取自泰山深处的玄黄石核，沉甸厚重","bonus":"物防","function":{"trigger":"on_hit_taken","effect":"boostCritRate","duration":3,"cost":"none"}},
+    {"type":"法宝","name":"离火球","intro":"凝炼地火而成的赤红火球，表面有细密裂纹","bonus":"法攻","function":{"trigger":"on_hit_taken","effect":"boostPenetration","duration":3,"cost":"none"}},
 ] </mj_equip_body>。
 
 [功法开局配置输出规则]
@@ -100,26 +102,28 @@ export const INIT_STORY_SYSTEM_PRESET = `
 4.5 身法：提升修仙者的身法速度，增加修仙者的闪避率和行动速度。
 4.6 会心：提升修仙者在施法或攻击的专注度，增加修仙者的暴击几率和特殊效果触发概率。
 5. 功法信息：功法信息包含类型type、名称name、介绍intro、属性加成bonus、功能function。function 格式见上方[function生成规则]。
+5.1 介绍intro规则：介绍只描述功法的来历、流派、外观特征，不要描述属性加成或功能效果。
 6. 输出示例：<mj_magic_body> [
-    {"type":"功法","name":"青云剑诀","lingQi":"金","intro":"宗门入门剑诀，可造成法术伤害","bonus":"会心","function":{"trigger":"on_attack","effect":"dealMagicDmg","duration":0,"cost":"mp"}},
-    {"type":"功法","name":"吐纳诀","lingQi":"","intro":"调和气机、固本培元，可提高暴击率","bonus":"灵力","function":{"trigger":"on_default","effect":"boostCritRate","duration":10,"cost":"none"}},
-    {"type":"功法","name":"万木长生功","lingQi":"木","intro":"汲取草木精华滋养己身，提升闪避","bonus":"体魄","function":{"trigger":"on_default","effect":"boostDodgeRate","duration":5,"cost":"none"}},
-    {"type":"功法","name":"玄水诀","lingQi":"水","intro":"以水灵凝聚护体真元，提升穿透能力","bonus":"神识","function":{"trigger":"on_default","effect":"boostPenetration","duration":5,"cost":"none"}},
-    {"type":"功法","name":"烈焰焚天诀","lingQi":"火","intro":"引天地火灵入体，攻击时附带火属性伤害","bonus":"灵力","function":{"trigger":"on_attack","effect":"dealFireDmg","duration":0,"cost":"mp"}},
-    {"type":"功法","name":"厚土铸体诀","lingQi":"土","intro":"以土灵淬炼肉身，攻击时造成物理伤害","bonus":"护体","function":{"trigger":"on_attack","effect":"dealPhysicalDmg","duration":0,"cost":"mp"}},
+    {"type":"功法","name":"青云剑诀","lingQi":"金","intro":"剑意如青云舒卷，飘逸中暗藏锋芒，修至深处周身隐现淡淡青气","bonus":"会心","function":{"trigger":"on_attack","effect":"dealMagicDmg","duration":0,"cost":"mp"}},
+    {"type":"功法","name":"吐纳诀","lingQi":"","intro":"调和气机、固本培元，运转时气息悠长绵延，如春水润物无声","bonus":"灵力","function":{"trigger":"on_default","effect":"boostCritRate","duration":10,"cost":"none"}},
+    {"type":"功法","name":"万木长生功","lingQi":"木","intro":"汲取草木精华滋养己身，修炼时周遭花木无风自摇，隐有青翠灵光流转","bonus":"体魄","function":{"trigger":"on_default","effect":"boostDodgeRate","duration":5,"cost":"none"}},
+    {"type":"功法","name":"玄水诀","lingQi":"水","intro":"凝聚水灵之力化为护体真元，修习时体表泛起淡蓝水纹，寒气逼人","bonus":"神识","function":{"trigger":"on_default","effect":"boostPenetration","duration":5,"cost":"none"}},
+    {"type":"功法","name":"烈焰焚天诀","lingQi":"火","intro":"引天地火灵入体，功法运转时双目赤红，掌心隐现灼热焰芒","bonus":"灵力","function":{"trigger":"on_attack","effect":"dealFireDmg","duration":0,"cost":"mp"}},
+    {"type":"功法","name":"厚土铸体诀","lingQi":"土","intro":"以土灵淬炼肉身，修炼时肌肤泛起岩甲般纹路，沉稳如岳","bonus":"护体","function":{"trigger":"on_attack","effect":"dealPhysicalDmg","duration":0,"cost":"mp"}},
 ] </mj_magic_body>。
 
 [储物袋开局配置输出规则]
 1. 主角储物袋开局配置：可以生成灵石、丹药、符箓、阵法、材料、杂物等，名称需要与剧情描述、主角背景一致。
+2. 介绍intro规则：介绍只描述物品的外观、气味、材质、来历，不要描述功能效果，采用修仙小说的写法。
 3. 灵石生成规则：灵石只有下品灵石、中品灵石、上品灵石、极品灵石、仙品灵石、神品灵石，不能出现超过主角境界的灵石，数量和主角身份对应，身份越尊贵，灵石越多。
 4. 其他物品生成规则：其他物品（如丹药、符箓、阵法、材料、杂物等）根据主角出身和境界适当生成。
 5. 输出示例：<mj_storage_body> [
     {"type":"灵石","name":"下品灵石","count": 10},
-    {"type":"丹药","name":"辟谷丹","intro":"低阶辟谷丹，可恢复少量法力","function":{"trigger":"on_attack","effect":"recoverMp","duration":0,"cost":"none"},"count":2},
-    {"type":"符箓","name":"火云符","intro":"攻击型符箓，释放后化作火云，对目标造成法术伤害","function":{"trigger":"on_attack","effect":"dealFireDmg","duration":0,"cost":"mp"},"count":2},
-    {"type":"阵法","name":"回春阵","intro":"低阶治愈阵法，可缓慢恢复自身少量气血","function":{"trigger":"on_attack","effect":"recoverHp","duration":5,"cost":"mp"},"count":1},
-    {"type":"杂物","name":"宗门令牌","intro":"外门弟子通行木牌","count":1},
-    {"type":"材料","name":"铁矿石","intro":"从山中采集的铁矿石","count":6},
+    {"type":"丹药","name":"辟谷丹","intro":"拇指大小的碧绿丹丸，入口即化，隐有草木清香","function":{"trigger":"on_attack","effect":"recoverMp","duration":0,"cost":"none"},"count":2},
+    {"type":"符箓","name":"火云符","intro":"朱砂绘就的赤黄符纸，符纹如火焰跳动，触之微烫","function":{"trigger":"on_attack","effect":"dealFireDmg","duration":0,"cost":"mp"},"count":2},
+    {"type":"阵法","name":"回春阵","intro":"刻有回春篆文的青玉阵盘，灵气注入后泛起柔和绿芒","function":{"trigger":"on_attack","effect":"recoverHp","duration":5,"cost":"mp"},"count":1},
+    {"type":"杂物","name":"宗门令牌","intro":"外门弟子通行木牌，正面刻有宗门徽记","count":1},
+    {"type":"材料","name":"铁矿石","intro":"从山中采集的灰黑矿石，质地坚硬，敲击有清脆金属声","count":6},
 ] </mj_storage_body>。
 
 [输出契约·全文末尾·必须遵守]

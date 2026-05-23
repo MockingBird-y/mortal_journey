@@ -29,11 +29,13 @@ import {
   type ProtagonistDetailAction,
   BASE_STAT_KEYS,
   DERIVED_STAT_DEFAULTS,
+  DERIVED_STAT_KEY_TO_ZH,
   PRIMARY_STAT_KEYS,
   PRIMARY_TO_DERIVED_MAP,
   PCT_DERIVED_KEYS,
   PRIMARY_STAT_KEY_TO_ZH,
   type PrimaryStatKey,
+  type DerivedStatKey,
 } from "./types/playInfo";
 import {
   getBaseStats,
@@ -207,6 +209,14 @@ export class Protagonist {
     return o;
   })();
 
+  private static readonly ZH_DERIVED_TO_PLAYER_KEY: Readonly<Record<string, string>> = (() => {
+    const o: Record<string, string> = {};
+    for (const en of Object.keys(DERIVED_STAT_KEY_TO_ZH) as DerivedStatKey[]) {
+      o[DERIVED_STAT_KEY_TO_ZH[en]] = en;
+    }
+    return o;
+  })();
+
   /**
    * 获取境界表底数；若查表失败则回退为实例内存储的 `playerBase`。
    *
@@ -258,6 +268,25 @@ export class Protagonist {
   }
 
   /**
+   * 将法宝栏中所有法宝的 bonus（派生属性中文键）按境界倍率直接加算到派生属性对象上。
+   */
+  private applyTreasureBonuses(target: PlayerBaseStats): void {
+    const ratio = getEquipBonusRealmRatio(this.realm.major, this.realm.minor);
+    const t = target as Record<string, number>;
+    for (const tr of this.equippedSlots) {
+      if (!tr) continue;
+      const bonus = tr.bonus;
+      if (!bonus || typeof bonus !== "object") continue;
+      for (const [zh, v] of Object.entries(bonus)) {
+        if (typeof v !== "number" || !Number.isFinite(v)) continue;
+        const key = Protagonist.ZH_DERIVED_TO_PLAYER_KEY[zh];
+        if (!key) continue;
+        t[key] = (t[key] ?? 0) + Math.trunc(v * ratio);
+      }
+    }
+  }
+
+  /**
    * 根据主属性 → 派生属性映射表，将主属性值按比例换算并累加到目标派生属性对象上。
    * hp/mp/def 按百分比乘法（基数 × (1 + 主属性值 × per100 / 10000)），其余属性按绝对值加算。
    *
@@ -294,6 +323,7 @@ export class Protagonist {
     const merged = this.realmTableBaseOrStored();
     const primaryStats = this.collectPrimaryBonuses();
     Protagonist.applyPrimaryToDerived(primaryStats, merged);
+    this.applyTreasureBonuses(merged);
     return merged;
   }
 

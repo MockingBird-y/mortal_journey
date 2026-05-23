@@ -8,7 +8,7 @@
 import { INIT_STORY_SYSTEM_PRESET } from "./init_preset";
 import { completeChatWithMessagesJson, type JsonChatRequestPayload } from "./openAiChatBridge";
 import { Protagonist } from "../role_core/Protagonist";
-import { EQUIP_SLOT_COUNT, LINGQI_AFFINITY_BONUS } from "../role_core/types/playInfo";
+import { EQUIP_SLOT_COUNT, LINGQI_AFFINITY_BONUS, TREASURE_BONUS_COUNT_BY_GRADE, rollGradeAttriValue, TREASURE_GRADE_ATTRI_TABLE, GONGFA_GRADE_ATTRI_TABLE } from "../role_core/types/playInfo";
 import {
   createSpiritStoneInventoryStack,
   SPIRIT_STONE_TABLE_KEYS_ORDERED,
@@ -97,8 +97,10 @@ const MJ_STORAGE_BODY_CLOSE = "</mj_storage_body>";
 
 // ── 工具函数 ──────────────────────────────────────────────────────────────
 
-const VALID_BONUS_NAMES: ReadonlySet<string> = new Set(["体魄", "灵力", "护体", "神识", "身法", "会心"]);
-const DEFAULT_BONUS_VALUE = 5;
+const VALID_BONUS_NAMES: ReadonlySet<string> = new Set(Object.keys(GONGFA_GRADE_ATTRI_TABLE));
+
+const VALID_DERIVED_BONUS_NAMES = Object.keys(TREASURE_GRADE_ATTRI_TABLE);
+const VALID_DERIVED_BONUS_NAMES_ARR: readonly string[] = VALID_DERIVED_BONUS_NAMES;
 
 const VALID_LING_QI: ReadonlySet<string> = new Set(["无", "金", "木", "水", "火", "土"]);
 
@@ -113,11 +115,29 @@ function parseLingQi(raw: unknown): LingQi {
  * AI 输出为字符串（如 `"会心"`），转为 `{ "会心": 5 }`。
  * 非 string 或不在六项之列时返回空对象。
  */
-function parseBonusField(raw: unknown): Record<string, number> {
+function parseBonusField(raw: unknown, grade: string): Record<string, number> {
   if (typeof raw !== "string") return {};
   const name = raw.trim();
   if (!VALID_BONUS_NAMES.has(name)) return {};
-  return { [name]: DEFAULT_BONUS_VALUE };
+  return { [name]: rollGradeAttriValue(name, grade, GONGFA_GRADE_ATTRI_TABLE) };
+}
+
+function parseTreasureBonusField(raw: unknown, grade: string): Record<string, number> {
+  const totalCount = TREASURE_BONUS_COUNT_BY_GRADE[grade] ?? 1;
+  const names: string[] = [];
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (VALID_DERIVED_BONUS_NAMES.includes(trimmed)) names.push(trimmed);
+  }
+  while (names.length < totalCount) {
+    names.push(VALID_DERIVED_BONUS_NAMES_ARR[Math.floor(Math.random() * VALID_DERIVED_BONUS_NAMES_ARR.length)]);
+  }
+  const result: Record<string, number> = {};
+  for (const name of names) {
+    const v = rollGradeAttriValue(name, grade, TREASURE_GRADE_ATTRI_TABLE);
+    result[name] = (result[name] ?? 0) + v;
+  }
+  return result;
 }
 
 function extractTagContent(raw: string, openTag: string, closeTag: string): string {
@@ -386,6 +406,7 @@ function parseEquipObject(e: unknown, realmMajor: string, realmMinor: string): T
     desc: safeStr(obj.intro, ""),
     grade,
     count: 1,
+    bonus: parseTreasureBonusField(obj.bonus, grade),
     function: applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "法宝") ?? undefined, "法宝"),
   };
 }
@@ -403,7 +424,7 @@ function parseGongfaObject(e: unknown, realmMajor: string, realmMinor: string, p
     desc: safeStr(obj.intro, ""),
     grade,
     count: 1,
-    bonus: parseBonusField(obj.bonus),
+    bonus: parseBonusField(obj.bonus, grade),
     function: applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "功法", affinity) ?? undefined, "功法"),
   };
 }
@@ -431,13 +452,13 @@ function parseStorageObject(e: unknown, realmMajor: string, realmMinor: string, 
       affinity = LINGQI_AFFINITY_BONUS;
     }
     const fn = applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, itemType, affinity) ?? undefined, "功法");
-    return { itemType: "功法", name, lingQi, desc, grade, count, bonus: parseBonusField(obj.bonus), function: fn } as GongfaItemDefinition;
+    return { itemType: "功法", name, lingQi, desc, grade, count, bonus: parseBonusField(obj.bonus, grade), function: fn } as GongfaItemDefinition;
   }
 
   switch (itemType) {
     case "法宝": {
       const fn = applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "法宝") ?? undefined, "法宝");
-      return { itemType: "法宝", name, desc, grade, count, function: fn } as TreasureItemDefinition;
+      return { itemType: "法宝", name, desc, grade, count, bonus: parseTreasureBonusField(obj.bonus, grade), function: fn } as TreasureItemDefinition;
     }
     case "符箓": {
       const fn = applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "符箓") ?? undefined, "符箓");

@@ -281,6 +281,11 @@ export function buildWearableDetailPayload(
   const sections: ProtagonistDetailSection[] = [];
   pushSec(sections, "简介", it.desc);
   pushSec(sections, "品级", it.grade);
+  const bonus =
+    source?.type === "equipped" && realm
+      ? formatZhBonusWithRealmEquip(it.bonus as Record<string, number>, realm)
+      : formatZhBonus(it.bonus as Record<string, number>);
+  if (bonus) pushSec(sections, "属性加成", bonus);
   pushFunctionSection(sections, it.function);
 
   const actions: ProtagonistDetailActionButton[] = [];
@@ -332,7 +337,7 @@ export function buildGongfaDetailPayload(
 ): ProtagonistDetailPayload {
   const sections: ProtagonistDetailSection[] = [];
   const affinity = playerLinggen && gf.lingQi && gf.lingQi !== "无" && playerLinggen.includes(gf.lingQi);
-  pushSec(sections, "契合灵根", gf.lingQi + (affinity ? `（灵根契合，加成 ×${(1 + LINGQI_AFFINITY_BONUS).toFixed(1)}）` : ""));
+  pushSec(sections, "契合灵根", gf.lingQi);
   pushSec(sections, "简介", gf.desc);
   pushSec(sections, "品级", gf.grade);
   const bonus =

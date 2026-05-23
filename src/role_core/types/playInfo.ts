@@ -27,8 +27,11 @@ import {
   PCT_DERIVED_KEYS,
   EQUIP_SLOT_COUNT,
   GONGFA_SLOT_COUNT,
-  ITEM_GRADE_ATTRI_TABLE,
+  GONGFA_GRADE_ATTRI_TABLE,
+  TREASURE_GRADE_ATTRI_TABLE,
   MIN_NARRATIVE_AGE_BY_MAJOR,
+  TREASURE_BONUS_COUNT_BY_GRADE,
+  rollGradeAttriValue,
 } from "./gameConstants";
 
 export {
@@ -44,8 +47,11 @@ export {
   PCT_DERIVED_KEYS,
   EQUIP_SLOT_COUNT,
   GONGFA_SLOT_COUNT,
-  ITEM_GRADE_ATTRI_TABLE,
+  GONGFA_GRADE_ATTRI_TABLE,
+  TREASURE_GRADE_ATTRI_TABLE,
   MIN_NARRATIVE_AGE_BY_MAJOR,
+  TREASURE_BONUS_COUNT_BY_GRADE,
+  rollGradeAttriValue,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
