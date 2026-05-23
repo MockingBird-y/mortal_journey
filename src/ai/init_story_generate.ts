@@ -8,56 +8,39 @@
 import { INIT_STORY_SYSTEM_PRESET } from "./init_preset";
 import { completeChatWithMessagesJson, type JsonChatRequestPayload } from "./openAiChatBridge";
 import { Protagonist } from "../role_core/Protagonist";
-import { EQUIP_SLOT_COUNT, LINGQI_AFFINITY_BONUS, TREASURE_BONUS_COUNT_BY_GRADE, rollGradeAttriValue, TREASURE_GRADE_ATTRI_TABLE, GONGFA_GRADE_ATTRI_TABLE } from "../role_core/types/playInfo";
+import { EQUIP_SLOT_COUNT } from "../role_core/types/playInfo";
+import type { TreasureItemDefinition, GongfaItemDefinition, InventoryStackItem, ProtagonistPlayInfo, GongfaSlotsState, EquippedSlotsState, NarrationPerson, TraitEntry } from "../role_core/types/playInfo";
+import type { SpiritStoneName } from "../role_core/types/spiritStone";
+import type { NpcNearbyEntry } from "./storyAndState_generate";
 import {
-  createSpiritStoneInventoryStack,
-  SPIRIT_STONE_TABLE_KEYS_ORDERED,
-  type SpiritStoneName,
-} from "../role_core/types/spiritStone";
-import type {
-  GongfaItemDefinition,
-  ItemGrade,
-  TreasureItemDefinition,
-  TalismanItemDefinition,
-  FormationItemDefinition,
-  MaterialItemDefinition,
-  MiscItemDefinition,
-  CategorizedItemDefinition,
-  GradeDropRate,
-  LingQi,
-} from "../role_core/types/itemInfo";
-import { GRADE_DROP_TABLE } from "../role_core/types/itemInfo";
-import type { InventoryStackItem, ProtagonistPlayInfo, GongfaSlotsState, EquippedSlotsState, NarrationPerson, TraitEntry } from "../role_core/types/playInfo";
-import {
-  TREASURE_TRIGGER_KEYS,
-  GONGFA_TRIGGER_KEYS,
-  TREASURE_EFFECT_KEYS,
-  GONGFA_EFFECT_KEYS,
-  ELIXIR_EFFECT_KEYS,
-  TALISMAN_EFFECT_KEYS,
-  FORMATION_EFFECT_KEYS,
-  TREASURE_COST_KEYS,
-  GONGFA_COST_KEYS,
-  ELIXIR_COST_KEYS,
-  TALISMAN_COST_KEYS,
-  FORMATION_COST_KEYS,
-  type SpecialEffect,
-  type EffectValueCategory,
-  type SpecialEffectTarget,
-  applyTypedFunctionOverrides,
-  computeEffectValue,
-  computeCostValue,
-  lookupEffectCategory,
-  firstEffectKeyOfCategoryAcrossTypes,
-  TREASURE_ALLOWED_TRIGGERS,
-  GONGFA_ALLOWED_TRIGGERS,
-  ITEM_TYPE_ALLOWED_EFFECTS,
-  treasureEffectKeyToCategory,
-  gongfaEffectKeyToCategory,
-  elixirEffectKeyToCategory,
-  talismanEffectKeyToCategory,
-  formationEffectKeyToCategory,
-} from "../role_core/types/special_effects";
+  safeStr,
+  safeCount,
+  rollGrade,
+  parseLingQi,
+  parseBonusField,
+  parseTreasureBonusField,
+  validateAiFunction,
+  parseEquipObject,
+  parseGongfaObject,
+  parseStorageObject,
+  TYPE_TO_ITEM_TYPE,
+  VALID_BONUS_NAMES,
+  GRADE_KEYS,
+  spiritStoneAllowedUpTo,
+  extractTagContent,
+  tryParseJsonArray,
+  TREASURE_TRIGGER_FALLBACK,
+  GONGFA_TRIGGER_FALLBACK,
+  effectKeysForType,
+  costKeysForType,
+  effectKeyToCategoryForType,
+  triggerKeysForType,
+  sanitizeJsonLike,
+  VALID_LING_QI,
+  VALID_DERIVED_BONUS_NAMES,
+  VALID_DERIVED_BONUS_NAMES_ARR,
+} from "./parseAiItem";
+import { SPIRIT_STONE_TABLE_KEYS_ORDERED } from "../role_core/types/spiritStone";
 
 /** 调用网关所需字段 + 生成参数 */
 export interface InitStoryApiConfig {
@@ -95,266 +78,8 @@ const MJ_MAGIC_BODY_CLOSE = "</mj_magic_body>";
 const MJ_STORAGE_BODY_OPEN = "<mj_storage_body>";
 const MJ_STORAGE_BODY_CLOSE = "</mj_storage_body>";
 
-// ── 工具函数 ──────────────────────────────────────────────────────────────
-
-const VALID_BONUS_NAMES: ReadonlySet<string> = new Set(Object.keys(GONGFA_GRADE_ATTRI_TABLE));
-
-const VALID_DERIVED_BONUS_NAMES = Object.keys(TREASURE_GRADE_ATTRI_TABLE);
-const VALID_DERIVED_BONUS_NAMES_ARR: readonly string[] = VALID_DERIVED_BONUS_NAMES;
-
-const VALID_LING_QI: ReadonlySet<string> = new Set(["无", "金", "木", "水", "火", "土"]);
-
-function parseLingQi(raw: unknown): LingQi {
-  if (typeof raw !== "string") return "无";
-  const v = raw.trim();
-  return (VALID_LING_QI.has(v) ? v : "无") as LingQi;
-}
-
-/**
- * 将 AI 输出的 bonus 字段解析为属性加成对象。
- * AI 输出为字符串（如 `"会心"`），转为 `{ "会心": 5 }`。
- * 非 string 或不在六项之列时返回空对象。
- */
-function parseBonusField(raw: unknown, grade: string): Record<string, number> {
-  if (typeof raw !== "string") return {};
-  const name = raw.trim();
-  if (!VALID_BONUS_NAMES.has(name)) return {};
-  return { [name]: rollGradeAttriValue(name, grade, GONGFA_GRADE_ATTRI_TABLE) };
-}
-
-function parseTreasureBonusField(raw: unknown, grade: string): Record<string, number> {
-  const totalCount = TREASURE_BONUS_COUNT_BY_GRADE[grade] ?? 1;
-  const names: string[] = [];
-  if (typeof raw === "string") {
-    const trimmed = raw.trim();
-    if (VALID_DERIVED_BONUS_NAMES.includes(trimmed)) names.push(trimmed);
-  }
-  while (names.length < totalCount) {
-    names.push(VALID_DERIVED_BONUS_NAMES_ARR[Math.floor(Math.random() * VALID_DERIVED_BONUS_NAMES_ARR.length)]);
-  }
-  const result: Record<string, number> = {};
-  for (const name of names) {
-    const v = rollGradeAttriValue(name, grade, TREASURE_GRADE_ATTRI_TABLE);
-    result[name] = (result[name] ?? 0) + v;
-  }
-  return result;
-}
-
-function extractTagContent(raw: string, openTag: string, closeTag: string): string {
-  const i = raw.indexOf(openTag);
-  if (i < 0) return "";
-  const from = i + openTag.length;
-  const j = raw.indexOf(closeTag, from);
-  if (j < 0) return raw.slice(from).trim();
-  return raw.slice(from, j).trim();
-}
-
-function sanitizeJsonLike(text: string): string {
-  let s = text;
-  s = s.replace(/\{"([^"]*)"\s*(?:,\s*"[^"]*")*\}/g, (m) => {
-    const items: string[] = [];
-    const re = /"([^"]*)"/g;
-    let r: RegExpExecArray | null;
-    while ((r = re.exec(m)) !== null) items.push('"' + r[1] + '"');
-    return "[" + items.join(",") + "]";
-  });
-  s = s.replace(/,\s*([}\]])/g, "$1");
-  return s;
-}
-
-function tryParseJsonArray(text: string): unknown[] | null {
-  const trimmed = text.trim();
-  if (!trimmed) return null;
-  const tryParse = (src: string): unknown[] | null => {
-    try {
-      const parsed = JSON.parse(src);
-      if (Array.isArray(parsed)) return parsed;
-      return null;
-    } catch {
-      return null;
-    }
-  };
-  let result = tryParse(trimmed);
-  if (result) return result;
-  const start = trimmed.indexOf("[");
-  const end = trimmed.lastIndexOf("]");
-  if (start >= 0 && end > start) {
-    const segment = trimmed.slice(start, end + 1);
-    result = tryParse(segment);
-    if (result) return result;
-    result = tryParse(sanitizeJsonLike(segment));
-    if (result) return result;
-  }
-  result = tryParse(sanitizeJsonLike(trimmed));
-  if (result) return result;
-  return null;
-}
-
-function safeStr(val: unknown, fallback: string): string {
-  return typeof val === "string" && val.trim() ? val.trim() : fallback;
-}
-
-const GRADE_KEYS: readonly (keyof GradeDropRate)[] = ["下品", "中品", "上品", "极品", "仙品", "神品"];
-
-/**
- * 根据主角境界从 `GRADE_DROP_TABLE` 按概率随机出一个品阶。
- * 查不到对应境界时 fallback 为 `"下品"`。
- */
-function rollGrade(realmMajor: string, realmMinor: string): ItemGrade {
-  const stage = GRADE_DROP_TABLE[realmMajor]?.[realmMinor];
-  if (!stage) return "下品";
-  const total = stage.下品 + stage.中品 + stage.上品 + stage.极品 + stage.仙品 + stage.神品;
-  if (total <= 0) return "下品";
-  let roll = Math.random() * total;
-  for (const key of GRADE_KEYS) {
-    roll -= stage[key];
-    if (roll <= 0) return key;
-  }
-  return "下品";
-}
-
-function safeCount(val: unknown): number {
-  const n = typeof val === "number" ? val : parseInt(String(val), 10);
-  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 1;
-}
-
-function spiritStoneAllowedUpTo(realmMajor: string): SpiritStoneName {
-  const mapping: Record<string, SpiritStoneName> = {
-    "练气": "下品灵石",
-    "筑基": "中品灵石",
-    "结丹": "上品灵石",
-    "元婴": "极品灵石",
-    "化神": "仙品灵石",
-  };
-  return mapping[realmMajor] ?? "下品灵石";
-}
-
-const TREASURE_TRIGGER_FALLBACK = "on_hit_taken";
-const GONGFA_TRIGGER_FALLBACK = "on_attack";
-
-function effectKeysForType(itemType: string): readonly string[] {
-  switch (itemType) {
-    case "法宝": return TREASURE_EFFECT_KEYS;
-    case "功法": return GONGFA_EFFECT_KEYS;
-    case "丹药": return ELIXIR_EFFECT_KEYS;
-    case "符箓": return TALISMAN_EFFECT_KEYS;
-    case "阵法": return FORMATION_EFFECT_KEYS;
-    default: return [];
-  }
-}
-
-function costKeysForType(itemType: string): readonly string[] {
-  switch (itemType) {
-    case "法宝": return TREASURE_COST_KEYS;
-    case "功法": return GONGFA_COST_KEYS;
-    case "丹药": return ELIXIR_COST_KEYS;
-    case "符箓": return TALISMAN_COST_KEYS;
-    case "阵法": return FORMATION_COST_KEYS;
-    default: return [];
-  }
-}
-
-function effectKeyToCategoryForType(effectLabel: string, itemType: string): EffectValueCategory {
-  switch (itemType) {
-    case "法宝": return treasureEffectKeyToCategory(effectLabel as typeof TREASURE_EFFECT_KEYS[number]);
-    case "功法": return gongfaEffectKeyToCategory(effectLabel as typeof GONGFA_EFFECT_KEYS[number]);
-    case "丹药": return elixirEffectKeyToCategory(effectLabel as typeof ELIXIR_EFFECT_KEYS[number]);
-    case "符箓": return talismanEffectKeyToCategory(effectLabel as typeof TALISMAN_EFFECT_KEYS[number]);
-    case "阵法": return formationEffectKeyToCategory(effectLabel as typeof FORMATION_EFFECT_KEYS[number]);
-    default: return lookupEffectCategory(effectLabel);
-  }
-}
-
-function triggerKeysForType(itemType: string): readonly string[] {
-  switch (itemType) {
-    case "法宝": return TREASURE_TRIGGER_KEYS;
-    case "功法": return GONGFA_TRIGGER_KEYS;
-    default: return [];
-  }
-}
-
-function validateAiFunction(raw: unknown, grade: string, itemType: string, affinityBonus?: number): SpecialEffect | null {
-  if (!raw || typeof raw !== "object") return null;
-  const obj = raw as Record<string, unknown>;
-
-  const allTriggers = [
-    ...TREASURE_TRIGGER_KEYS, ...GONGFA_TRIGGER_KEYS,
-    ...ELIXIR_EFFECT_KEYS.length ? [] : [],
-  ];
-  let trigger = obj.trigger;
-  if (typeof trigger !== "string") return null;
-
-  const validTriggers = triggerKeysForType(itemType);
-  if (validTriggers.length > 0 && !validTriggers.includes(trigger)) {
-    if (itemType === "法宝") trigger = TREASURE_TRIGGER_FALLBACK;
-    else if (itemType === "功法") trigger = GONGFA_TRIGGER_FALLBACK;
-    else return null;
-  } else if (validTriggers.length === 0 && !(allTriggers as readonly string[]).includes(trigger)) {
-    trigger = "on_attack";
-  }
-
-  const allowedEffectKeys = effectKeysForType(itemType);
-  let effectLabel: string | null = null;
-  const eff = obj.effect;
-  if (typeof eff === "string") {
-    if (!allowedEffectKeys.includes(eff)) return null;
-    effectLabel = eff;
-  } else if (eff && typeof eff === "object") {
-    const effObj = eff as Record<string, unknown>;
-    const label = effObj.label;
-    if (typeof label !== "string" || !allowedEffectKeys.includes(label)) return null;
-    effectLabel = label;
-  } else {
-    return null;
-  }
-
-  const category = effectKeyToCategoryForType(effectLabel, itemType);
-  const allowedEffects = ITEM_TYPE_ALLOWED_EFFECTS[itemType as SpecialEffectTarget];
-  if (allowedEffects && !allowedEffects.has(category)) {
-    const fallbackCat = Array.from(allowedEffects)[0];
-    effectLabel = firstEffectKeyOfCategoryAcrossTypes(fallbackCat);
-  }
-
-  const dur = obj.duration;
-  if (typeof dur !== "number" || !Number.isFinite(dur) || dur < 0) return null;
-
-  const allowedCostKeys = costKeysForType(itemType);
-  let costResource: string | null = null;
-  const cst = obj.cost;
-  if (typeof cst === "string") {
-    if (!allowedCostKeys.includes(cst)) return null;
-    costResource = cst;
-  } else if (cst && typeof cst === "object") {
-    const cstObj = cst as Record<string, unknown>;
-    const resource = cstObj.resource;
-    if (typeof resource !== "string" || !allowedCostKeys.includes(resource)) return null;
-    costResource = resource;
-  } else {
-    return null;
-  }
-
-  const finalCategory = effectKeyToCategoryForType(effectLabel, itemType);
-  const effectValue = computeEffectValue(finalCategory, grade, trigger as string, Math.max(0, Math.floor(dur)), costResource, affinityBonus);
-  const costValue = computeCostValue(costResource, grade);
-
-  return {
-    trigger: trigger as never,
-    effect: { label: effectLabel as never, value: effectValue },
-    duration: Math.max(0, Math.floor(dur)),
-    cost: { resource: costResource as never, value: costValue },
-  };
-}
-
-/** AI 返回的 type 字段 → itemInfo 的 itemType 映射 */
-const TYPE_TO_ITEM_TYPE: Record<string, CategorizedItemDefinition["itemType"]> = {
-  "法宝": "法宝",
-  "功法": "功法",
-  "丹药": "丹药",
-  "符箓": "符箓",
-  "阵法": "阵法",
-  "材料": "材料",
-  "杂物": "杂物",
-};
+const NPC_NEARBY_OPEN = "<NPC_NEARBY_TAG>";
+const NPC_NEARBY_CLOSE = "</NPC_NEARBY_TAG>";
 
 // ── 解析结果 ──────────────────────────────────────────────────────────────
 
@@ -372,6 +97,7 @@ export interface InitStateParsed {
 export interface InitStoryFullResult {
   story: InitStoryParsed;
   state: InitStateParsed;
+  nearbyNpcs: NpcNearbyEntry[];
 }
 
 // ── 解析 ──────────────────────────────────────────────────────────────────
@@ -397,89 +123,6 @@ export function parseInitStoryAiResponse(raw: string): InitStoryParsed {
   };
 }
 
-function parseEquipObject(e: unknown, realmMajor: string, realmMinor: string): TreasureItemDefinition {
-  const obj = e as Record<string, unknown>;
-  const grade = rollGrade(realmMajor, realmMinor);
-  return {
-    itemType: "法宝",
-    name: safeStr(obj.name, "未命名法宝"),
-    desc: safeStr(obj.intro, ""),
-    grade,
-    count: 1,
-    bonus: parseTreasureBonusField(obj.bonus, grade),
-    function: applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "法宝") ?? undefined, "法宝"),
-  };
-}
-
-function parseGongfaObject(e: unknown, realmMajor: string, realmMinor: string, playerLinggen?: readonly string[] | null): GongfaItemDefinition {
-  const obj = e as Record<string, unknown>;
-  const grade = rollGrade(realmMajor, realmMinor);
-  const lingQi = parseLingQi(obj.lingQi);
-  const affinity = playerLinggen && lingQi && lingQi !== "无" && playerLinggen.includes(lingQi)
-    ? LINGQI_AFFINITY_BONUS : undefined;
-  return {
-    itemType: "功法",
-    name: safeStr(obj.name, "未命名功法"),
-    lingQi,
-    desc: safeStr(obj.intro, ""),
-    grade,
-    count: 1,
-    bonus: parseBonusField(obj.bonus, grade),
-    function: applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "功法", affinity) ?? undefined, "功法"),
-  };
-}
-
-function parseStorageObject(e: unknown, realmMajor: string, realmMinor: string, playerLinggen?: readonly string[] | null): InventoryStackItem | null {
-  const obj = e as Record<string, unknown>;
-  const typeStr = safeStr(obj.type, "杂物");
-
-  if (typeStr === "灵石") {
-    const name = safeStr(obj.name, "下品灵石") as SpiritStoneName;
-    const count = safeCount(obj.count);
-    if (count <= 0) return null;
-    return createSpiritStoneInventoryStack(name, count);
-  }
-
-  const name = safeStr(obj.name, "未命名物品");
-  const desc = safeStr(obj.intro, "");
-  const grade = rollGrade(realmMajor, realmMinor);
-  const count = safeCount(obj.count);
-  const itemType = TYPE_TO_ITEM_TYPE[typeStr] ?? "杂物";
-  let affinity: number | undefined;
-  if (itemType === "功法") {
-    const lingQi = parseLingQi(obj.lingQi);
-    if (playerLinggen && lingQi && lingQi !== "无" && playerLinggen.includes(lingQi)) {
-      affinity = LINGQI_AFFINITY_BONUS;
-    }
-    const fn = applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, itemType, affinity) ?? undefined, "功法");
-    return { itemType: "功法", name, lingQi, desc, grade, count, bonus: parseBonusField(obj.bonus, grade), function: fn } as GongfaItemDefinition;
-  }
-
-  switch (itemType) {
-    case "法宝": {
-      const fn = applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "法宝") ?? undefined, "法宝");
-      return { itemType: "法宝", name, desc, grade, count, bonus: parseTreasureBonusField(obj.bonus, grade), function: fn } as TreasureItemDefinition;
-    }
-    case "符箓": {
-      const fn = applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "符箓") ?? undefined, "符箓");
-      return { itemType: "符箓", name, desc, grade, count, function: fn } as TalismanItemDefinition;
-    }
-    case "阵法": {
-      const fn = applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "阵法") ?? undefined, "阵法");
-      return { itemType: "阵法", name, desc, grade, count, function: fn } as FormationItemDefinition;
-    }
-    case "丹药": {
-      const fn = applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "丹药") ?? undefined, "丹药");
-      return { itemType: "丹药", name, desc, grade, count, effects: { recover: { hp: 0, mp: 0 } }, function: fn };
-    }
-    case "材料":
-      return { itemType: "材料", name, desc, grade, count } as MaterialItemDefinition;
-    case "杂物":
-    default:
-      return { itemType: "杂物", name, desc, grade, count } as MiscItemDefinition;
-  }
-}
-
 export function parseInitStateAiResponse(raw: string, realmMajor: string, realmMinor: string, playerLinggen?: readonly string[] | null): InitStateParsed {
   const equipText = extractTagContent(raw, MJ_EQUIP_BODY_OPEN, MJ_EQUIP_BODY_CLOSE);
   const magicText = extractTagContent(raw, MJ_MAGIC_BODY_OPEN, MJ_MAGIC_BODY_CLOSE);
@@ -500,11 +143,56 @@ export function parseInitStateAiResponse(raw: string, realmMajor: string, realmM
   return { equips, gongfas, storage };
 }
 
-/** 解析 AI 完整返回：剧情 + 世界地点 + 开局状态 */
+function parseInitNearbyNpcs(raw: string): NpcNearbyEntry[] {
+  const text = extractTagContent(raw, NPC_NEARBY_OPEN, NPC_NEARBY_CLOSE);
+  const arr = tryParseJsonArray(text) ?? [];
+  return arr
+    .map((e: unknown): NpcNearbyEntry | null => {
+      if (!e || typeof e !== "object") return null;
+      const o = e as Record<string, unknown>;
+      const displayName = typeof o.displayName === "string" ? o.displayName.trim() : "";
+      if (!displayName) return null;
+      const realm = o.realm && typeof o.realm === "object"
+        ? o.realm as { major: string; minor: string }
+        : { major: "练气", minor: "初期" };
+      const linggenRaw = o.linggen;
+      const linggen = Array.isArray(linggenRaw)
+        ? linggenRaw.map((x: unknown) => String(x).trim()).filter(Boolean)
+        : typeof linggenRaw === "string"
+          ? linggenRaw.split("").filter((c: string) => "金木水火土".includes(c))
+          : [];
+      return {
+        displayName,
+        identity: String(o.identity || ""),
+        isDead: o.isDead === true,
+        favorability: typeof o.favorability === "number" ? o.favorability : 0,
+        currentStageGoal: String(o.currentStageGoal || ""),
+        longTermGoal: String(o.longTermGoal || ""),
+        hobby: String(o.hobby || ""),
+        fear: String(o.fear || ""),
+        personality: String(o.personality || ""),
+        gender: String(o.gender || "男"),
+        age: typeof o.age === "number" ? o.age : 0,
+        linggen,
+        realm,
+        currentHp: typeof o.currentHp === "number" ? o.currentHp : 100,
+        currentMp: typeof o.currentMp === "number" ? o.currentMp : 50,
+        maxHp: typeof o.maxHp === "number" ? o.maxHp : 100,
+        maxMp: typeof o.maxMp === "number" ? o.maxMp : 50,
+        equippedSlots: Array.isArray(o.equippedSlots) ? o.equippedSlots : undefined,
+        gongfaSlots: Array.isArray(o.gongfaSlots) ? o.gongfaSlots : undefined,
+        inventorySlots: Array.isArray(o.inventorySlots) ? o.inventorySlots : undefined,
+      } as NpcNearbyEntry;
+    })
+    .filter((e): e is NpcNearbyEntry => e !== null);
+}
+
+/** 解析 AI 完整返回：剧情 + 世界地点 + 开局状态 + NPC */
 export function parseInitStoryFull(raw: string, realmMajor: string, realmMinor: string, playerLinggen?: readonly string[] | null): InitStoryFullResult {
   return {
     story: parseInitStoryAiResponse(raw),
     state: parseInitStateAiResponse(raw, realmMajor, realmMinor, playerLinggen),
+    nearbyNpcs: parseInitNearbyNpcs(raw),
   };
 }
 

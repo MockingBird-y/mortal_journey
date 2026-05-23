@@ -279,6 +279,23 @@ export interface ProtagonistPlayInfo extends CharacterPlayInfoCommon {
   xiuwei: number;
 }
 
+export type PowerTier = "小怪" | "精英怪" | "小boss" | "大boss" | "普通NPC";
+
+export interface NpcPlayInfo extends CharacterPlayInfoCommon {
+  role: "npc";
+  identity: string;
+  favorability: number;
+  isDead: boolean;
+  powerTier: PowerTier;
+  currentStageGoal: string;
+  longTermGoal: string;
+  hobby: string;
+  fear: string;
+  personality: string;
+  traits: TraitEntry[];
+  xiuwei: number;
+}
+
 export type EquipSlotKey = number;
 
 export type ProtagonistDetailAction =

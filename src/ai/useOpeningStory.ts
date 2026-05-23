@@ -4,7 +4,6 @@
 
 import { ref, watch, type ComputedRef, type Ref } from "vue";
 import { generateInitStory } from "./init_story_generate";
-import { generateState } from "./state_generate";
 import { gameLog } from "../log/gameLog";
 import {
   cloneWorldTime,
@@ -12,6 +11,7 @@ import {
   type WorldTime,
 } from "../role_core/worldTime";
 import { Protagonist, protagonist } from "../role_core/Protagonist";
+import { npcStore } from "../role_core/npcStore";
 import type { FateChoiceResult } from "../fate_choice/types";
 
 export type OpeningStoryPhase = "idle" | "loading" | "ready" | "error";
@@ -118,21 +118,8 @@ export function useOpeningStoryFromFateChoice(
           if (current) {
             current.applyInitState(result.state);
           }
-          try {
-            const latest = protagonist.value;
-            if (latest) {
-              const stateResult = await generateState({
-                apiUrl: url,
-                apiKey: String(apiKey || "").trim() || undefined,
-                model,
-                protagonist: latest,
-                storyBody: result.story.storyBody,
-                signal: ac.signal,
-              });
-              if (abortCtl !== ac) return;
-            }
-          } catch (e3) {
-            gameLog.warn("[OpeningStory] 开局NPC状态更新失败（不影响剧情显示）：" + (e3 instanceof Error ? e3.message : String(e3)));
+          if (result.nearbyNpcs.length > 0) {
+            npcStore.applyNpcUpdates(result.nearbyNpcs, p.linggen);
           }
           phase.value = "ready";
         } else {

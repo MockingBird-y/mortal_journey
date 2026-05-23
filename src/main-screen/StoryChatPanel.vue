@@ -1,12 +1,10 @@
 <script setup lang="ts">
-/**
- * 中栏：剧情与对话 — 展示开局剧情，支持玩家输入并调用 AI 继续生成后续剧情。
- */
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import type { OpeningStoryPhase } from "../ai/useOpeningStory";
-import { generateStory, type StoryChatEntry, type StoryParsed } from "../ai/story_generate";
-import { generateState, type StateParsed } from "../ai/state_generate";
+import { generateStoryAndState, type StoryChatEntry, type StoryAndStateParsed } from "../ai/storyAndState_generate";
 import { protagonist } from "../role_core/Protagonist";
+import { npcStore } from "../role_core/npcStore";
+import { Character } from "../role_core/Character";
 import { gameLog } from "../log/gameLog";
 
 const props = withDefaults(
@@ -92,43 +90,40 @@ async function handleSend(): Promise<void> {
     content: m.content,
   }));
 
+  const npcSnapshot = buildNpcSnapshot();
+
   const ac = new AbortController();
   abortCtl = ac;
 
   try {
-    const parsed: StoryParsed = await generateStory({
+    const result: StoryAndStateParsed = await generateStoryAndState({
       apiUrl: url,
       apiKey: String(props.apiKey || "").trim() || undefined,
       model,
       protagonist: p,
       chatHistory,
       currentWorldLocation: props.currentWorldLocation || undefined,
+      npcSnapshot: npcSnapshot || undefined,
       signal: ac.signal,
     });
 
     if (abortCtl !== ac) return;
 
-    if (parsed.storyBody.trim()) {
-      chatMessages.value.push({ type: "story", content: parsed.storyBody.trim() });
-      if (parsed.worldLocation.trim()) {
-        emit("update:worldLocation", parsed.worldLocation.trim());
+    const { story, state } = result;
+
+    if (story.storyBody.trim()) {
+      chatMessages.value.push({ type: "story", content: story.storyBody.trim() });
+      if (story.worldLocation.trim()) {
+        emit("update:worldLocation", story.worldLocation.trim());
       }
-      try {
-        const current = protagonist.value;
-        if (current) {
-          const stateResult = await generateState({
-            apiUrl: url,
-            apiKey: String(props.apiKey || "").trim() || undefined,
-            model,
-            protagonist: current,
-            storyBody: parsed.storyBody.trim(),
-            signal: ac.signal,
-          });
-          if (abortCtl !== ac) return;
-          protagonist.value?.applyStateChanges(stateResult);
-        }
-      } catch (se) {
-        gameLog.warn("[StoryChat] 状态更新失败（不影响剧情显示）：" + (se instanceof Error ? se.message : String(se)));
+
+      const current = protagonist.value;
+      if (current) {
+        current.applyStateChanges(state);
+      }
+
+      if (state.nearbyNpcs.length > 0) {
+        npcStore.applyNpcUpdates(state.nearbyNpcs, p.linggen);
       }
     } else {
       genError.value = "模型返回的剧情正文为空。";
@@ -141,6 +136,22 @@ async function handleSend(): Promise<void> {
     if (abortCtl === ac) abortCtl = null;
     generating.value = false;
   }
+}
+
+function buildNpcSnapshot(): string {
+  const npcs = npcStore.allNpcs();
+  if (npcs.length === 0) return "";
+  const lines: string[] = [];
+  for (const npc of npcs) {
+    const favor = npc.favorability;
+    const hp = `${npc.currentHp}/${npc.maxHp}`;
+    const mp = `${npc.currentMp}/${npc.maxMp}`;
+    const dead = npc.isDead ? " [已故]" : "";
+    lines.push(
+      `${npc.displayName}（${npc.identity}，${Character.formatRealm(npc.realm)}，好感${favor}，HP ${hp}，MP ${mp}）${dead}`,
+    );
+  }
+  return lines.join("\n");
 }
 
 function onInputKeydown(e: KeyboardEvent): void {

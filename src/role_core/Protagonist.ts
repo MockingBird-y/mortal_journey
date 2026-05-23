@@ -2,7 +2,7 @@
  * @fileoverview 主角玩家类：聚合所有角色数据（境界/属性/HPMP/装备/功法/储物袋），
  * 提供统一的读写方法与派生计算。全局单例通过 `Protagonist.current` 访问（Vue ref）。
  *
- * 储物袋操作见 `ProtagonistInventory.ts`；法宝/功法操作见 `ProtagonistEquip.ts`。
+ * 继承自 `Character` 基类，主角特有字段：修为/叙事人称/出身/天赋。
  */
 
 import { ref, type Ref } from "vue";
@@ -15,71 +15,47 @@ import type {
 } from "./types/itemInfo";
 import type { SpecialEffect } from "./types/special_effects";
 import { normalizeTypedAiFunction, applyFunctionOverrides } from "./types/special_effects";
-import {
-  type CultivationRealm,
-  type EquippedSlotsState,
-  EQUIP_SLOT_COUNT,
-  GONGFA_SLOT_COUNT,
-  type GongfaSlotsState,
-  type NarrationPerson,
-  type PlayerBaseStats,
-  type ProtagonistPlayInfo,
-  type TraitEntry,
-  type EquipSlotKey,
-  type ProtagonistDetailAction,
-  BASE_STAT_KEYS,
-  DERIVED_STAT_DEFAULTS,
-  DERIVED_STAT_KEY_TO_ZH,
-  PRIMARY_STAT_KEYS,
-  PRIMARY_TO_DERIVED_MAP,
-  PCT_DERIVED_KEYS,
-  PRIMARY_STAT_KEY_TO_ZH,
-  type PrimaryStatKey,
-  type DerivedStatKey,
+import type {
+  EquippedSlotsState,
+  GongfaSlotsState,
+  NarrationPerson,
+  ProtagonistPlayInfo,
+  TraitEntry,
 } from "./types/playInfo";
 import {
-  getBaseStats,
-  getEquipBonusRealmRatio,
-  getEquipBonusRatioWithAffinity,
-  getProtagonistNarrativeAge,
-  getShouyuanForRealm,
+  EQUIP_SLOT_COUNT,
+  GONGFA_SLOT_COUNT,
+  BASE_STAT_KEYS,
 } from "./types/playInfo";
 import {
   SPIRIT_STONE_TABLE_KEYS_ORDERED,
   type SpiritStoneName,
 } from "./types/spiritStone";
 import type { InitStateParsed } from "../ai/init_story_generate";
-import type { StateParsed } from "../ai/state_generate";
+import type { StateParsed } from "../ai/storyAndState_generate";
 import {
   buildEquippedSlotsFromParsed,
   buildGongfaSlotsFromParsed,
   buildInventoryFromParsed,
 } from "../ai/init_story_generate";
+import { Character } from "./Character";
 import {
   DEFAULT_INVENTORY_SLOT_COUNT,
   INVENTORY_SLOT_EXPAND_STEP,
-  setInventorySlot as invSetSlot,
-  addToInventory as invAdd,
-  addSpiritStone as invAddStone,
-  removeSpiritStone as invRemoveStone,
-} from "./ProtagonistInventory";
+} from "./CharacterInventory";
+import { isTreasureItem } from "./CharacterEquip";
 import {
-  isTreasureItem,
-  setGongfaSlot as eqSetGongfa,
-  unequipGongfaToInventory as eqUnequipGf,
-  equipGongfaFromInventory as eqEquipGf,
-  setEquippedSlot as eqSetEquip,
-  equipFromInventory as eqEquip,
-  unequipToInventory as eqUnequip,
-  applyDetailAction as eqApply,
-} from "./ProtagonistEquip";
+  getBaseStats,
+  getProtagonistNarrativeAge,
+  getShouyuanForRealm,
+} from "./types/playInfo";
 
 const VALID_ITEM_TYPES: ReadonlySet<string> = new Set([
   "法宝", "功法", "丹药", "符箓", "阵法", "材料", "杂物",
 ]);
 
-/** 主角玩家类：聚合境界、属性、法宝、功法、储物袋等全部角色状态。 */
-export class Protagonist {
+/** 主角玩家类：继承 Character，增加修为、叙事人称、出身、天赋等主角特有状态。 */
+export class Protagonist extends Character {
 
   /**
    * 当前主角的全局单例（Vue ref）。
@@ -96,76 +72,21 @@ export class Protagonist {
   /** 功法栏固定格数。 */
   static readonly GONGFA_SLOT_COUNT = GONGFA_SLOT_COUNT;
 
-  /**
-   * 将灵根元素数组格式化为无分隔拼接字符串，供 AI prompt 与 UI 展示。
-   *
-   * @param elements 灵根元素名列表（如 `["金","木"]`）。
-   * @returns 拼接后的连续字符串；空数组时返回 `"—"`。
-   */
-  static formatLinggenElements(elements: string[]): string {
-    const els = elements.map((e) => String(e).trim()).filter(Boolean);
-    return els.length ? els.join("") : "—";
-  }
-
-  /**
-   * 将境界对象格式化为单行展示文案（如 `"练气初期"`），供 AI prompt 与 UI 展示。
-   *
-   * @param realm 主角的 `realm` 字段。
-   * @returns 境界文案；`major` 为空时返回 `"—"`。
-   */
-  static formatRealm(realm: CultivationRealm): string {
-    const major = realm.major?.trim() || "—";
-    const minor = realm.minor?.trim() || "";
-    return minor ? `${major}${minor}` : major;
-  }
-
   // ===================================================================
-  // 数据字段
+  // 数据字段（主角特有）
   // ===================================================================
 
   readonly role = "protagonist" as const;
-  /** 角色唯一标识。 */
-  id: string;
-  /** 显示名称。 */
-  displayName: string;
   /** 叙事人称（第一/第二/第三人称）。 */
   narrationPerson: NarrationPerson;
   /** 出生地点。 */
   birthPlace: string;
   /** 出身故事。 */
   originStory: string;
-  /** 头像 URL。 */
-  avatarUrl: string;
-  /** 性别。 */
-  gender: string;
-  /** 年龄（岁）。 */
-  age: number;
-  /** 寿元上限（岁）。 */
-  shouyuan: number;
-  /** 当前境界。 */
-  realm: CultivationRealm;
-  /** 当前修为值。 */
-  xiuwei: number;
-  /** 基础属性（境界表底数 + 法宝/功法加成推导）。 */
-  playerBase: PlayerBaseStats;
-  /** 生命上限。 */
-  maxHp: number;
-  /** 法力上限。 */
-  maxMp: number;
-  /** 当前生命。 */
-  currentHp: number;
-  /** 当前法力。 */
-  currentMp: number;
-  /** 法宝栏（4 格统一法宝槽）。 */
-  equippedSlots: EquippedSlotsState;
-  /** 功法栏（8 格固定）。 */
-  gongfaSlots: GongfaSlotsState;
-  /** 储物袋格子列表。 */
-  inventorySlots: Array<InventoryStackItem | null>;
   /** 天赋/词条列表。 */
   traits: TraitEntry[];
-  /** 灵根元素列表。 */
-  linggen: string[];
+  /** 当前修为值。 */
+  xiuwei: number;
 
   /**
    * 从 `ProtagonistPlayInfo` 数据对象构造实例。
@@ -173,220 +94,17 @@ export class Protagonist {
    * @param data 符合 `playInfo` 规范的主角数据快照。
    */
   constructor(data: ProtagonistPlayInfo) {
-    this.id = data.id;
-    this.displayName = data.displayName;
+    super(data);
     this.narrationPerson = data.narrationPerson;
     this.birthPlace = data.birthPlace;
     this.originStory = data.originStory;
-    this.avatarUrl = data.avatarUrl;
-    this.gender = data.gender;
-    this.age = data.age;
-    this.shouyuan = data.shouyuan;
-    this.realm = data.realm;
-    this.xiuwei = data.xiuwei;
-    this.playerBase = data.playerBase;
-    this.maxHp = data.maxHp;
-    this.maxMp = data.maxMp;
-    this.currentHp = data.currentHp;
-    this.currentMp = data.currentMp;
-    this.equippedSlots = data.equippedSlots;
-    this.gongfaSlots = data.gongfaSlots;
-    this.inventorySlots = data.inventorySlots;
     this.traits = data.traits;
-    this.linggen = data.linggen;
+    this.xiuwei = data.xiuwei;
   }
 
   // ===================================================================
-  // 派生属性
+  // 修为
   // ===================================================================
-
-  /** 中文加成键 → 英文运行时属性键的正向映射（由八维主属性中文映射逆推）。 */
-  private static readonly ZH_BONUS_TO_PLAYER_KEY: Readonly<Record<string, PrimaryStatKey>> = (() => {
-    const o: Record<string, PrimaryStatKey> = {};
-    for (const en of Object.keys(PRIMARY_STAT_KEY_TO_ZH) as PrimaryStatKey[]) {
-      o[PRIMARY_STAT_KEY_TO_ZH[en]] = en;
-    }
-    return o;
-  })();
-
-  private static readonly ZH_DERIVED_TO_PLAYER_KEY: Readonly<Record<string, string>> = (() => {
-    const o: Record<string, string> = {};
-    for (const en of Object.keys(DERIVED_STAT_KEY_TO_ZH) as DerivedStatKey[]) {
-      o[DERIVED_STAT_KEY_TO_ZH[en]] = en;
-    }
-    return o;
-  })();
-
-  /**
-   * 获取境界表底数；若查表失败则回退为实例内存储的 `playerBase`。
-   *
-   * @returns 境界表行克隆或 `playerBase` 快照。
-   */
-  private realmTableBaseOrStored(): PlayerBaseStats {
-    const fromTable = getBaseStats(this.realm.major, this.realm.minor);
-    return fromTable ? { ...fromTable } : { ...this.playerBase };
-  }
-
-  /**
-   * 将物品 `bonus`（中文键）按境界倍率加算到目标属性对象上。
-   * 与 `getEquipBonusRealmRatio` 搭配：每项按 `Math.trunc(value × ratio)` 累加。
-   *
-   * @param target 被原地累加的对象。
-   * @param bonus 装备或功法的 `bonus` 对象；`undefined` 或非对象时无操作。
-   * @param realmRatio 境界倍率；默认 `1`（不乘）。
-   */
-  private static addZhItemBonusInto(
-    target: Record<string, number>,
-    bonus: Record<string, number | undefined> | undefined,
-    realmRatio = 1,
-  ): void {
-    if (!bonus || typeof bonus !== "object") return;
-    const r = typeof realmRatio === "number" && Number.isFinite(realmRatio) && realmRatio > 0 ? realmRatio : 1;
-    for (const [zh, v] of Object.entries(bonus)) {
-      if (typeof v !== "number" || !Number.isFinite(v)) continue;
-      const key = Protagonist.ZH_BONUS_TO_PLAYER_KEY[zh];
-      if (!key) continue;
-      target[key] = (target[key] ?? 0) + Math.trunc(v * r);
-    }
-  }
-
-  /**
-   * 收集功法栏中所有物品的 bonus，按境界倍率加算到主属性字典。
-   *
-   * @returns 主属性名 → 数值的映射对象。
-   */
-  private collectPrimaryBonuses(): Record<string, number> {
-    const primaryStats: Record<string, number> = {};
-    for (const gf of this.gongfaSlots) {
-      if (!gf) continue;
-      const ratio = getEquipBonusRatioWithAffinity(
-        this.realm.major, this.realm.minor, gf.lingQi, this.linggen,
-      );
-      Protagonist.addZhItemBonusInto(primaryStats, gf.bonus, ratio);
-    }
-    return primaryStats;
-  }
-
-  /**
-   * 将法宝栏中所有法宝的 bonus（派生属性中文键）按境界倍率直接加算到派生属性对象上。
-   */
-  private applyTreasureBonuses(target: PlayerBaseStats): void {
-    const ratio = getEquipBonusRealmRatio(this.realm.major, this.realm.minor);
-    const t = target as Record<string, number>;
-    for (const tr of this.equippedSlots) {
-      if (!tr) continue;
-      const bonus = tr.bonus;
-      if (!bonus || typeof bonus !== "object") continue;
-      for (const [zh, v] of Object.entries(bonus)) {
-        if (typeof v !== "number" || !Number.isFinite(v)) continue;
-        const key = Protagonist.ZH_DERIVED_TO_PLAYER_KEY[zh];
-        if (!key) continue;
-        t[key] = (t[key] ?? 0) + Math.trunc(v * ratio);
-      }
-    }
-  }
-
-  /**
-   * 根据主属性 → 派生属性映射表，将主属性值按比例换算并累加到目标派生属性对象上。
-   * hp/mp/def 按百分比乘法（基数 × (1 + 主属性值 × per100 / 10000)），其余属性按绝对值加算。
-   *
-   * @param primaryStats 主属性值字典。
-   * @param target 被原地累加的派生属性对象。
-   */
-  private static applyPrimaryToDerived(
-    primaryStats: Record<string, number>,
-    target: PlayerBaseStats,
-  ): void {
-    const t = target as Record<string, number>;
-    for (const pk of PRIMARY_STAT_KEYS) {
-      const statValue = primaryStats[pk];
-      if (typeof statValue !== "number" || statValue <= 0) continue;
-      const entries = PRIMARY_TO_DERIVED_MAP[pk];
-      for (const entry of entries) {
-        const factor = (statValue * entry.per100) / 100;
-        if (PCT_DERIVED_KEYS.has(entry.key)) {
-          t[entry.key] = Math.round(t[entry.key] * (1 + factor / 100));
-        } else {
-          t[entry.key] += Math.round(factor);
-        }
-      }
-    }
-  }
-
-  /**
-   * 角色面板应展示的最终派生属性：
-   * 境界底数 + 主属性按映射表换算的加成。
-   *
-   * @returns 新 `PlayerBaseStats` 对象。
-   */
-  getDerivedStats(): PlayerBaseStats {
-    const merged = this.realmTableBaseOrStored();
-    const primaryStats = this.collectPrimaryBonuses();
-    Protagonist.applyPrimaryToDerived(primaryStats, merged);
-    this.applyTreasureBonuses(merged);
-    return merged;
-  }
-
-  /**
-   * 获取当前八维主属性值（仅来自功法加成，不含境界底数）。
-   *
-   * @returns 主属性键 → 数值的映射（未装备功法的属性值为 0）。
-   */
-  getPrimaryStats(): Readonly<Record<PrimaryStatKey, number>> {
-    const bonuses = this.collectPrimaryBonuses();
-    const result: Record<string, number> = {};
-    for (const k of PRIMARY_STAT_KEYS) {
-      result[k] = bonuses[k] ?? 0;
-    }
-    return result as Readonly<Record<PrimaryStatKey, number>>;
-  }
-
-  // ===================================================================
-  // 生命 / 法力（HP / MP）
-  // ===================================================================
-
-  /**
-   * 设置当前生命与法力，并分别裁剪到 `[0, max]` 区间。
-   *
-   * @param currentHp 当前生命（会被四舍五入为整数）。
-   * @param currentMp 当前法力（会被四舍五入为整数）。
-   */
-  setCurrentHpMp(currentHp: number, currentMp: number): void {
-    const maxH = Math.max(1, this.maxHp);
-    const maxM = Math.max(1, this.maxMp);
-    this.currentHp = Math.max(0, Math.min(maxH, Math.round(currentHp)));
-    this.currentMp = Math.max(0, Math.min(maxM, Math.round(currentMp)));
-  }
-
-  /**
-   * 设置生命与法力上限（至少为 1），并将当前值裁剪到不超过新上限。
-   *
-   * @param maxHp 最大生命。
-   * @param maxMp 最大法力。
-   */
-  setMaxHpMp(maxHp: number, maxMp: number): void {
-    this.maxHp = Math.max(1, Math.floor(maxHp));
-    this.maxMp = Math.max(1, Math.floor(maxMp));
-    this.currentHp = Math.min(this.currentHp, this.maxHp);
-    this.currentMp = Math.min(this.currentMp, this.maxMp);
-  }
-
-  // ===================================================================
-  // 境界 · 修为 · 年龄 · 寿元
-  // ===================================================================
-
-  /**
-   * 设置境界大、小阶段；空白字符串时回退到 `"练气"` / `"初期"`。
-   *
-   * @param major 大境界名称（如 `"筑基"`）。
-   * @param minor 小阶段名称（如 `"中期"`）。
-   */
-  setRealm(major: string, minor: string): void {
-    this.realm = {
-      major: major.trim() || "练气",
-      minor: minor.trim() || "初期",
-    };
-  }
 
   /**
    * 设置修为值；非有限数或负数时归零。
@@ -395,189 +113,6 @@ export class Protagonist {
    */
   setXiuwei(n: number): void {
     this.xiuwei = typeof n === "number" && Number.isFinite(n) ? Math.max(0, n) : 0;
-  }
-
-  /**
-   * 设置年龄；非有限数时保持不变。
-   *
-   * @param age 年龄（岁）。
-   */
-  setAge(age: number): void {
-    this.age = typeof age === "number" && Number.isFinite(age) ? Math.max(0, Math.floor(age)) : this.age;
-  }
-
-  /**
-   * 设置寿元；非有限数时保持不变。
-   *
-   * @param n 寿元（岁）。
-   */
-  setShouyuan(n: number): void {
-    this.shouyuan = typeof n === "number" && Number.isFinite(n) ? Math.max(0, Math.floor(n)) : this.shouyuan;
-  }
-
-  /**
-   * 设置显示名称；空白时回退为 `"未命名"`。
-   *
-   * @param name 显示名。
-   */
-  setDisplayName(name: string): void {
-    this.displayName = String(name).trim() || "未命名";
-  }
-
-  /**
-   * 设置头像 URL；`null`/`undefined` 时存为空串。
-   *
-   * @param url 头像地址字符串。
-   */
-  setAvatarUrl(url: string): void {
-    this.avatarUrl = url != null ? String(url) : "";
-  }
-
-  /**
-   * 合并更新 `playerBase` 中出现在 `BASE_STAT_KEYS` 内的数值字段。
-   *
-   * @param partial 仅需覆盖的键值对；不在键集中的键会被静默忽略。
-   */
-  patchPlayerBase(partial: Partial<PlayerBaseStats>): void {
-    for (const k of BASE_STAT_KEYS) {
-      if (Object.prototype.hasOwnProperty.call(partial, k)) {
-        const v = partial[k];
-        if (typeof v === "number" && Number.isFinite(v)) this.playerBase[k] = v;
-      }
-    }
-  }
-
-  // ===================================================================
-  // 储物袋（委托给 ProtagonistInventory）
-  // ===================================================================
-
-  /**
-   * 写入储物袋指定格；写入后自动整理（前移空位、收缩行数）。
-   *
-   * @param index 格子下标。
-   * @param item 堆叠物品或 `null`（清空该格）。
-   * @returns 下标合法且已写入时为 `true`。
-   */
-  setInventorySlot(index: number, item: InventoryStackItem | null): boolean {
-    return invSetSlot(this, index, item);
-  }
-
-  /**
-   * 将物品放入第一个空格；袋满时自动扩容一行后再放。
-   *
-   * @param item 储物堆叠项。
-   * @returns 放入的格子下标；扩容后仍失败时为 `-1`。
-   */
-  addToInventory(item: InventoryStackItem): number {
-    return invAdd(this, item);
-  }
-
-  // ===================================================================
-  // 灵石（委托给 ProtagonistInventory）
-  // ===================================================================
-
-  /**
-   * 向储物袋中添加灵石；若已有同名灵石堆叠则累加数量，否则在首位空槽创建新堆叠。
-   *
-   * @param name 灵石种类键。
-   * @param count 增加的颗数。
-   */
-  addSpiritStone(name: SpiritStoneName, count: number): void {
-    invAddStone(this, name, count);
-  }
-
-  /**
-   * 从储物袋中扣除灵石；按堆叠逐格扣减，数量不足时仅扣到零并输出警告。
-   *
-   * @param name 灵石种类键。
-   * @param count 需要扣除的颗数。
-   */
-  removeSpiritStone(name: SpiritStoneName, count: number): void {
-    invRemoveStone(this, name, count);
-  }
-
-  // ===================================================================
-  // 功法（委托给 ProtagonistEquip）
-  // ===================================================================
-
-  /**
-   * 写入功法栏指定格。
-   *
-   * @param index 功法栏下标（`[0, GONGFA_SLOT_COUNT)`）。
-   * @param item 功法定义或 `null`（清空）。
-   * @returns 下标合法且已写入时为 `true`。
-   */
-  setGongfaSlot(index: number, item: GongfaItemDefinition | null): boolean {
-    return eqSetGongfa(this, index, item);
-  }
-
-  /**
-   * 将功法栏指定格的功法卸下放入储物袋首个空位；袋满时自动扩容。
-   *
-   * @param gongfaSlotIndex 功法栏下标。
-   * @returns 成功移入（或该格本就为空）时为 `true`。
-   */
-  unequipGongfaToInventory(gongfaSlotIndex: number): boolean {
-    return eqUnequipGf(this, gongfaSlotIndex);
-  }
-
-  /**
-   * 从储物袋指定格取出功法装备到首个空功法格。
-   *
-   * @param inventoryIndex 储物袋下标。
-   * @returns 装备成功时为 `true`；栏满或该格非功法时为 `false`。
-   */
-  equipGongfaFromInventory(inventoryIndex: number): boolean {
-    return eqEquipGf(this, inventoryIndex);
-  }
-
-  // ===================================================================
-  // 穿戴（委托给 ProtagonistEquip）
-  // ===================================================================
-
-  /**
-   * 直接设置法宝栏指定格的物品。
-   *
-   * @param slot 法宝栏下标（`0 ~ EQUIP_SLOT_COUNT-1`）。
-   * @param item 法宝实例或 `null`（卸下）。
-   * @returns 下标合法且已写入时为 `true`。
-   */
-  setEquippedSlot(slot: EquipSlotKey, item: TreasureItemDefinition | null): boolean {
-    return eqSetEquip(this, slot, item);
-  }
-
-  /**
-   * 从储物袋指定格装备法宝到第一个空法宝格；若法宝栏已满则交换到袋中该格。
-   *
-   * @param inventoryIndex 储物袋下标。
-   * @returns 装备成功时为 `true`。
-   */
-  equipFromInventory(inventoryIndex: number): boolean {
-    return eqEquip(this, inventoryIndex);
-  }
-
-  /**
-   * 将法宝栏指定格的物品卸下放入储物袋首个空位；袋满时自动扩容。
-   *
-   * @param slot 法宝栏下标。
-   * @returns 槽为空（视为成功）或成功放入时为 `true`。
-   */
-  unequipToInventory(slot: EquipSlotKey): boolean {
-    return eqUnequip(this, slot);
-  }
-
-  // ===================================================================
-  // 详情弹窗动作
-  // ===================================================================
-
-  /**
-   * 执行主角详情弹窗底部按钮对应的法宝/功法装卸逻辑。
-   *
-   * @param a 详情弹窗动作判别联合。
-   * @returns 操作成功时为 `true`。
-   */
-  applyDetailAction(a: ProtagonistDetailAction): boolean {
-    return eqApply(this, a);
   }
 
   // ===================================================================
@@ -659,29 +194,15 @@ export class Protagonist {
    * @returns 与 `playInfo` 规范一致的纯数据快照。
    */
   toData(): ProtagonistPlayInfo {
+    const base = this.toCommonData();
     return {
+      ...base,
       role: "protagonist",
-      id: this.id,
-      displayName: this.displayName,
       narrationPerson: this.narrationPerson,
       birthPlace: this.birthPlace,
       originStory: this.originStory,
-      avatarUrl: this.avatarUrl,
-      gender: this.gender,
-      age: this.age,
-      shouyuan: this.shouyuan,
-      realm: this.realm,
-      xiuwei: this.xiuwei,
-      playerBase: this.playerBase,
-      maxHp: this.maxHp,
-      maxMp: this.maxMp,
-      currentHp: this.currentHp,
-      currentMp: this.currentMp,
-      equippedSlots: this.equippedSlots,
-      gongfaSlots: this.gongfaSlots,
-      inventorySlots: this.inventorySlots,
       traits: this.traits,
-      linggen: this.linggen,
+      xiuwei: this.xiuwei,
     };
   }
 
@@ -882,22 +403,6 @@ export class Protagonist {
   // ===================================================================
   // 静态工具方法
   // ===================================================================
-
-  /**
-   * 构造按默认值初始化的属性占位对象。
-   *
-   * 境界提供的属性（hp/mp/atk/def）初始为 0（等待从境界表填充），
-   * 其余属性取 `DERIVED_STAT_DEFAULTS` 中的配置值。
-   *
-   * @returns 默认化的 `PlayerBaseStats`。
-   */
-  private static emptyPlayerBase(): PlayerBaseStats {
-    const o: Record<string, number> = {};
-    for (const k of BASE_STAT_KEYS) {
-      o[k] = (DERIVED_STAT_DEFAULTS as Record<string, number | undefined>)[k] ?? 0;
-    }
-    return o as PlayerBaseStats;
-  }
 
   /**
    * 将存档中的功法栏数组规范为固定长度、逐项可为 `null`。

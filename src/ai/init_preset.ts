@@ -126,12 +126,64 @@ export const INIT_STORY_SYSTEM_PRESET = `
     {"type":"材料","name":"铁矿石","intro":"从山中采集的灰黑矿石，质地坚硬，敲击有清脆金属声","count":6},
 ] </mj_storage_body>。
 
+[NPC开局生成规则]
+ 1. 开局剧情中出现的周围人物（如同门、师父、长老、对手等），必须在 <NPC_NEARBY_TAG> 中生成对应角色卡。
+ 2. 好感度初始化：新创建 NPC 的 favorability 默认应落在 -19~19（中性波动区），再依据开局剧情细化到具体值；不要开场就给极端高好感或极端仇恨。
+ 3. 好感度分段（按 -99~99 逐步推进，不可无因跳阶）：女 NPC 在 0~99 为 0-19 普通同门、20-39 朋友、40-59 亲密、60-79 爱慕/情侣、80-99 至死不渝；在 -99~0 为 -1~-19 轻度反感、-20~-39 疏离敌视、-40~-59 明显厌恶、-60~-79 强烈仇视、-80~-99 不死不休。男 NPC 在 0~99 为 0-19 普通同门、20-39 朋友、40-59 亲密无间、60-79 手足兄弟、80-99 生死之交；在 -99~0 为 -1~-19 轻度反感、-20~-39 疏离敌视、-40~-59 明显厌恶、-60~-79 强烈仇视、-80~-99 不死不休。
+ 4. 生成 linggen 要求：单灵根（天灵根）应少量且偏强角色；双/三灵根作为常见分布；四灵根在练气/筑基多为弱势，但在结丹及以上应按"少见但强"的路线处理。
+ 5. NPC等级逻辑（powerTier）：小怪有武器和防具即可，功法为 1 门攻击 + 1 门辅助；精英怪四槽装备齐全，功法为 2 门攻击 + 2 门辅助；小boss/大boss 装备和功法品阶更高。普通NPC（如同门弟子）不需要完整战设，equippedSlots 和 gongfaSlots 可少填。
+ 6. NPC生成需要包含的信息：
+    6.1 displayName：NPC名字，2-4个字，必须唯一。
+    6.2 identity：NPC身份。
+    6.3 currentStageGoal/longTermGoal：短期/长期目标。
+    6.4 hobby/fear/personality：兴趣、恐惧、性格。
+    6.5 favorability：对主角好感度，-99~99。
+    6.6 gender/age/linggen/realm：性别、年龄、灵根、境界。
+    6.7 equippedSlots：法宝栏（最多4个），每个法宝包含 type、name、intro、grade、bonus。
+    6.8 gongfaSlots：功法槽，长度为 8，未学位置填 null。
+    6.9 inventorySlots：背包槽，最多12格。
+    6.10 currentHp/currentMp/maxHp/maxMp：血量和法力。
+ 7. NPC生成示例：
+    <NPC_NEARBY_TAG>[
+      {
+        "displayName": "李清容",
+        "identity": "七玄门外门弟子",
+        "currentStageGoal": "在半年内突破至练气中期，并在宗门小比中进入前十",
+        "longTermGoal": "走出宗门庇护，自立道统护住亲友",
+        "hobby": "夜里在竹林练剑、收集旧剑谱与异闻",
+        "fear": "最怕同伴因自己决策失误而亡",
+        "personality": "说话克制；战斗先守后攻；对陌生人谨慎，对熟人护短",
+        "favorability": 12,
+        "gender": "女",
+        "age": 16,
+        "linggen": ["水"],
+        "realm": { "major": "练气", "minor": "初期" },
+        "equippedSlots": [
+          {"type": "武器", "name": "精刚剑", "intro": "一把用精刚所打造而成的剑", "grade": "中品", "bonus": "物攻"},
+          {"type": "防具", "name": "布衣", "intro": "普通布衣", "grade": "下品", "bonus": "物防"}
+        ],
+        "gongfaSlots": [
+          {"type": "攻击功法", "name": "长春功", "intro": "入门功法", "grade": "下品", "bonus": "灵力"},
+          {"type": "辅助功法", "name": "眨眼剑法", "intro": "入门剑法", "grade": "下品", "bonus": "身法"},
+          null, null, null, null, null, null
+        ],
+        "inventorySlots": [
+          {"type": "灵石", "name": "下品灵石", "count": 10}
+        ],
+        "currentHp": 120,
+        "currentMp": 60,
+        "maxHp": 120,
+        "maxMp": 60
+      }
+    ]</NPC_NEARBY_TAG>
+
 [输出契约·全文末尾·必须遵守]
-你本条助手回复在结构上必须且只能包含下列五段（顺序固定）：
+你本条助手回复在结构上必须且只能包含下列六段（顺序固定）：
 1. <mj_world_body>当前主场景专名</mj_world_body>
 2. <mj_story_body>简体中文开局叙事全文（约500–800字）</mj_story_body>
 3. <mj_equip_body>当前法宝配置</mj_equip_body>
 4. <mj_magic_body>当前功法配置</mj_magic_body>
 5. <mj_storage_body>当前储物袋物品配置</mj_storage_body>
+6. <NPC_NEARBY_TAG>开局周围人物列表</NPC_NEARBY_TAG>
 禁止缺少任何一段；禁止仅在标签外写玩家可读剧情；禁止改写标签名的大小写或字符。
 `;
