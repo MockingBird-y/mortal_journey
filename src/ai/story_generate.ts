@@ -1,7 +1,7 @@
 import { STORY_SYSTEM_PRESET } from "./story_preset";
 import { completeChatWithMessagesJson, type JsonChatRequestPayload, type ChatMessage } from "./openAiChatBridge";
 import { Protagonist } from "../role_core/Protagonist";
-import type { ProtagonistPlayInfo, NarrationPerson } from "../role_core/types/playInfo";
+import type { ProtagonistPlayInfo, NarrationPerson, EquippedSlotsState, GongfaSlotsState, InventoryStackItem, TraitEntry } from "../role_core/types/playInfo";
 
 export interface StoryChatEntry {
   role: "user" | "assistant";
@@ -52,17 +52,89 @@ function narrationPersonLine(person: NarrationPerson): string {
   }
 }
 
+function formatEquipSlot(label: string, slot: EquippedSlotsState[number]): string {
+  if (!slot) return `${label}：无`;
+  const bonusStr = slot.bonus && Object.keys(slot.bonus).length > 0
+    ? "，加成：" + Object.entries(slot.bonus).map(([k, v]) => `${k}+${v}`).join("、")
+    : "";
+  return `${label}：${slot.name}（${slot.grade}）${slot.desc ? "—" + slot.desc : ""}${bonusStr}`;
+}
+
+function formatEquippedSlots(slots: EquippedSlotsState): string {
+  const lines: string[] = [];
+  for (let i = 0; i < slots.length; i++) {
+    lines.push(formatEquipSlot(`法宝${i + 1}`, slots[i]));
+  }
+  return lines.join("\n");
+}
+
+function formatGongfaSlots(slots: GongfaSlotsState): string {
+  const lines: string[] = [];
+  for (let i = 0; i < slots.length; i++) {
+    const g = slots[i];
+    if (!g) continue;
+    lines.push(`功法：${g.name}（${g.grade}）${g.desc ? "—" + g.desc : ""}`);
+  }
+  return lines.length > 0 ? lines.join("\n") : "无";
+}
+
+function formatInventoryItem(item: InventoryStackItem): string {
+  if ("type" in item && item.type === "灵石") {
+    return `${item.name}×${item.count}`;
+  }
+  const d = item as { name?: string; grade?: string; count?: number; desc?: string };
+  const grade = d.grade ? `（${d.grade}）` : "";
+  return `${d.name || "未知物品"}${grade}×${d.count || 1}`;
+}
+
+function formatInventorySlots(slots: Array<InventoryStackItem | null>): string {
+  const items = slots.filter((s): s is InventoryStackItem => s !== null);
+  if (items.length === 0) return "无";
+  return items.map(formatInventoryItem).join("、");
+}
+
+function formatTrait(t: TraitEntry): string {
+  if (typeof t === "string") return t;
+  const d = t.desc?.trim();
+  return d ? `${t.name}：${d}` : t.name;
+}
+
 function buildStoryUserContent(p: ProtagonistPlayInfo): string {
+  const traits = p.traits.length > 0
+    ? p.traits.map(formatTrait).join("\n")
+    : "无";
+  const origin = p.originStory?.trim() || "—";
+  const birthPlace = p.birthPlace?.trim() || "—";
+
   return [
     "【主角摘要 · 请据此与历史剧情继续生成后续剧情】",
     "",
     `姓名：${p.displayName}`,
     `性别：${p.gender || "—"}`,
     narrationPersonLine(p.narrationPerson),
-    `境界：${Protagonist.formatRealm(p.realm)}`,
+    `境界：${Protagonist.formatRealm(p.realm)}${p.realmComplete ? "·圆满" : ""}`,
+    `修为状态：${p.realmComplete ? "修为已圆满，可突破" : "修为未圆满"}`,
     `灵根：${Protagonist.formatLinggenElements(p.linggen)}`,
+    `年龄：${p.age}`,
+    `寿元：${p.shouyuan}`,
     `当前血量：${p.currentHp}/${p.maxHp}`,
     `当前法力：${p.currentMp}/${p.maxMp}`,
+    "",
+    "【出身背景】",
+    `出身地点：${birthPlace}`,
+    origin,
+    "",
+    "【天赋】",
+    traits,
+    "",
+    "【装备】",
+    formatEquippedSlots(p.equippedSlots),
+    "",
+    "【功法】",
+    formatGongfaSlots(p.gongfaSlots),
+    "",
+    "【储物袋】",
+    formatInventorySlots(p.inventorySlots),
     "",
   ].join("\n");
 }

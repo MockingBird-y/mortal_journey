@@ -28,8 +28,8 @@ export interface StateGenerateInput {
 }
 
 export interface UserStateChange {
-  currentHp: number;
-  currentMp: number;
+  hpPercent: number;
+  mpPercent: number;
   xiuweiIncrease?: number;
   realmBreakthrough?: boolean;
 }
@@ -69,10 +69,8 @@ export interface NpcNearbyEntry {
   age: number;
   linggen: string[];
   realm: { major: string; minor: string };
-  currentHp: number;
-  currentMp: number;
-  maxHp: number;
-  maxMp: number;
+  hpPercent: number;
+  mpPercent: number;
   equippedSlots?: unknown[];
   gongfaSlots?: unknown[];
   inventorySlots?: unknown[];
@@ -166,10 +164,11 @@ function parseNearbyNpcs(raw: string): NpcNearbyEntry[] {
         age: typeof o.age === "number" ? o.age : 0,
         linggen,
         realm,
-        currentHp: typeof o.currentHp === "number" ? o.currentHp : 100,
-        currentMp: typeof o.currentMp === "number" ? o.currentMp : 50,
-        maxHp: typeof o.maxHp === "number" ? o.maxHp : 100,
-        maxMp: typeof o.maxMp === "number" ? o.maxMp : 50,
+        hpPercent: typeof o.hpPercent === "number" ? Math.max(0, Math.min(100, Math.round(o.hpPercent))) : 100,
+        mpPercent: typeof o.mpPercent === "number" ? Math.max(0, Math.min(100, Math.round(o.mpPercent))) : 100,
+        equippedSlots: Array.isArray(o.equippedSlots) ? o.equippedSlots : undefined,
+        gongfaSlots: Array.isArray(o.gongfaSlots) ? o.gongfaSlots : undefined,
+        inventorySlots: Array.isArray(o.inventorySlots) ? o.inventorySlots : undefined,
       };
     })
     .filter((e): e is NpcNearbyEntry => e !== null);
@@ -188,11 +187,11 @@ export function parseStateAiResponse(raw: string): StateParsed {
     const obj = safeJsonParse(userStateText);
     if (obj && typeof obj === "object") {
       const o = obj as Record<string, unknown>;
-      const hp = typeof o.currentHp === "number" ? Math.round(o.currentHp) : 0;
-      const mp = typeof o.currentMp === "number" ? Math.round(o.currentMp) : 0;
+      const hpPercent = typeof o.hpPercent === "number" ? Math.max(0, Math.min(100, Math.round(o.hpPercent))) : 100;
+      const mpPercent = typeof o.mpPercent === "number" ? Math.max(0, Math.min(100, Math.round(o.mpPercent))) : 100;
       const xiuweiIncrease = typeof o.xiuweiIncrease === "number" ? Math.max(0, Math.floor(o.xiuweiIncrease)) : undefined;
       const realmBreakthrough = o.realmBreakthrough === true ? true : undefined;
-      userState = { currentHp: hp, currentMp: mp, xiuweiIncrease, realmBreakthrough };
+      userState = { hpPercent, mpPercent, xiuweiIncrease, realmBreakthrough };
     }
   }
 

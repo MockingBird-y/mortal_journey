@@ -198,8 +198,8 @@ export class Protagonist extends Character {
     const capM = Math.max(1, Math.round(derived.mp));
     this.maxHp = capH;
     this.maxMp = capM;
-    this.currentHp = capH;
-    this.currentMp = capM;
+    this.currentHp = Math.max(0, Math.min(capH, Math.round(capH * parsed.hpPercent / 100)));
+    this.currentMp = Math.max(0, Math.min(capM, Math.round(capM * parsed.mpPercent / 100)));
   }
 
   /**
@@ -209,7 +209,10 @@ export class Protagonist extends Character {
    */
   applyStateChanges(state: StateParsed): void {
     if (state.userState) {
-      this.setCurrentHpMp(state.userState.currentHp, state.userState.currentMp);
+      this.setCurrentHpMp(
+        Math.round(this.maxHp * state.userState.hpPercent / 100),
+        Math.round(this.maxMp * state.userState.mpPercent / 100),
+      );
       if (typeof state.userState.xiuweiIncrease === "number") {
         this.addXiuwei(state.userState.xiuweiIncrease);
       }
@@ -230,7 +233,7 @@ export class Protagonist extends Character {
     for (const item of state.itemAdds) {
       if (item.type === "灵石") continue;
       const itemType = VALID_ITEM_TYPES.has(item.type) ? item.type as CategorizedItemDefinition["itemType"] : "杂物";
-      const fn: SpecialEffect | undefined = applyFunctionOverrides(normalizeTypedAiFunction(item.function, itemType as import("./types/special_effects").SpecialEffectTarget), itemType);
+      const fn: SpecialEffect | undefined = applyFunctionOverrides(normalizeTypedAiFunction(item.function, itemType as import("./types/special_effects").SpecialEffectTarget, item.grade), itemType);
       this.addToInventory({
         name: item.name,
         desc: item.intro,

@@ -53,8 +53,11 @@ interface NormalizeOpts<TTrigger extends string, TEffect extends string, TCost e
   triggerKeys: readonly TTrigger[];
   defaultTrigger: TTrigger;
   effectKeys: readonly TEffect[];
+  effectKeyToCategory: (label: TEffect) => EffectValueCategory;
   costKeys: readonly TCost[];
   defaultCost: TCost;
+  grade?: string;
+  affinityBonus?: number;
 }
 
 function normalizeGeneric<TTrigger extends string, TEffect extends string, TCost extends string>(
@@ -70,6 +73,7 @@ function normalizeGeneric<TTrigger extends string, TEffect extends string, TCost
     : opts.defaultTrigger;
 
   let effectLabel: TEffect | undefined;
+  let effectValueExplicit = false;
   let effectValue = 1;
   const rawEffect = o.effect;
   if (typeof rawEffect === "string") {
@@ -81,6 +85,7 @@ function normalizeGeneric<TTrigger extends string, TEffect extends string, TCost
     }
     if (typeof eo.value === "number" && Number.isFinite(eo.value)) {
       effectValue = eo.value;
+      effectValueExplicit = true;
     }
   }
   if (!effectLabel) return undefined;
@@ -89,6 +94,7 @@ function normalizeGeneric<TTrigger extends string, TEffect extends string, TCost
   const duration = typeof rawDuration === "number" && Number.isFinite(rawDuration) ? rawDuration : 0;
 
   let costResource: TCost = opts.defaultCost;
+  let costValueExplicit = false;
   let costValue = 0;
   const rawCost = o.cost;
   if (typeof rawCost === "string") {
@@ -103,9 +109,19 @@ function normalizeGeneric<TTrigger extends string, TEffect extends string, TCost
     }
     if (typeof co.value === "number" && Number.isFinite(co.value)) {
       costValue = co.value;
+      costValueExplicit = true;
     } else {
       costValue = costResource !== opts.defaultCost ? 1 : 0;
     }
+  }
+
+  const grade = opts.grade;
+  if (grade && !effectValueExplicit) {
+    const category = opts.effectKeyToCategory(effectLabel);
+    effectValue = computeEffectValue(category, grade, trigger as string, Math.max(0, Math.floor(duration)), costResource as string, opts.affinityBonus);
+  }
+  if (grade && !costValueExplicit) {
+    costValue = computeCostValue(costResource as string, grade);
   }
 
   return { trigger, effect: { label: effectLabel, value: effectValue }, duration, cost: { resource: costResource, value: costValue } };
@@ -214,14 +230,16 @@ export function firstTreasureEffectKeyOfCategory(vc: EffectValueCategory): Treas
   return firstKeyOfValueCategory(TREASURE_EFFECT_KEYS, TREASURE_EFFECT_CATEGORY, vc);
 }
 
-export function normalizeTreasureAiFunction(raw: unknown): TreasureSpecialEffect | undefined {
+export function normalizeTreasureAiFunction(raw: unknown, grade?: string): TreasureSpecialEffect | undefined {
   return normalizeGeneric({
     raw,
     triggerKeys: TREASURE_TRIGGER_KEYS,
     defaultTrigger: "on_hit_taken",
     effectKeys: TREASURE_EFFECT_KEYS,
+    effectKeyToCategory: treasureEffectKeyToCategory,
     costKeys: TREASURE_COST_KEYS,
     defaultCost: "none",
+    grade,
   }) as TreasureSpecialEffect | undefined;
 }
 
@@ -307,14 +325,17 @@ export function firstGongfaEffectKeyOfCategory(vc: EffectValueCategory): GongfaE
   return firstKeyOfValueCategory(GONGFA_EFFECT_KEYS, GONGFA_EFFECT_CATEGORY, vc);
 }
 
-export function normalizeGongfaAiFunction(raw: unknown): GongfaSpecialEffect | undefined {
+export function normalizeGongfaAiFunction(raw: unknown, grade?: string, affinityBonus?: number): GongfaSpecialEffect | undefined {
   return normalizeGeneric({
     raw,
     triggerKeys: GONGFA_TRIGGER_KEYS,
     defaultTrigger: "on_attack",
     effectKeys: GONGFA_EFFECT_KEYS,
+    effectKeyToCategory: gongfaEffectKeyToCategory,
     costKeys: GONGFA_COST_KEYS,
     defaultCost: "none",
+    grade,
+    affinityBonus,
   }) as GongfaSpecialEffect | undefined;
 }
 
@@ -380,14 +401,16 @@ export function firstElixirEffectKeyOfCategory(vc: EffectValueCategory): ElixirE
   return firstKeyOfValueCategory(ELIXIR_EFFECT_KEYS, ELIXIR_EFFECT_CATEGORY, vc);
 }
 
-export function normalizeElixirAiFunction(raw: unknown): ElixirSpecialEffect | undefined {
+export function normalizeElixirAiFunction(raw: unknown, grade?: string): ElixirSpecialEffect | undefined {
   const result = normalizeGeneric({
     raw,
     triggerKeys: ELIXIR_TRIGGER_KEYS,
     defaultTrigger: "on_attack",
     effectKeys: ELIXIR_EFFECT_KEYS,
+    effectKeyToCategory: elixirEffectKeyToCategory,
     costKeys: ELIXIR_COST_KEYS,
     defaultCost: "none",
+    grade,
   });
   if (!result) return undefined;
   return {
@@ -461,14 +484,16 @@ export function firstTalismanEffectKeyOfCategory(vc: EffectValueCategory): Talis
   return firstKeyOfValueCategory(TALISMAN_EFFECT_KEYS, TALISMAN_EFFECT_CATEGORY, vc);
 }
 
-export function normalizeTalismanAiFunction(raw: unknown): TalismanSpecialEffect | undefined {
+export function normalizeTalismanAiFunction(raw: unknown, grade?: string): TalismanSpecialEffect | undefined {
   const result = normalizeGeneric({
     raw,
     triggerKeys: TALISMAN_TRIGGER_KEYS,
     defaultTrigger: "on_attack",
     effectKeys: TALISMAN_EFFECT_KEYS,
+    effectKeyToCategory: talismanEffectKeyToCategory,
     costKeys: TALISMAN_COST_KEYS,
     defaultCost: "mp",
+    grade,
   });
   if (!result) return undefined;
   return {
@@ -580,14 +605,16 @@ export function firstFormationEffectKeyOfCategory(vc: EffectValueCategory): Form
   return firstKeyOfValueCategory(FORMATION_EFFECT_KEYS, FORMATION_EFFECT_CATEGORY, vc);
 }
 
-export function normalizeFormationAiFunction(raw: unknown): FormationSpecialEffect | undefined {
+export function normalizeFormationAiFunction(raw: unknown, grade?: string): FormationSpecialEffect | undefined {
   const result = normalizeGeneric({
     raw,
     triggerKeys: FORMATION_TRIGGER_KEYS,
     defaultTrigger: "on_attack",
     effectKeys: FORMATION_EFFECT_KEYS,
+    effectKeyToCategory: formationEffectKeyToCategory,
     costKeys: FORMATION_COST_KEYS,
     defaultCost: "mp",
+    grade,
   });
   if (!result) return undefined;
   return {
@@ -694,13 +721,15 @@ export const ITEM_TYPE_ALLOWED_EFFECTS: Readonly<Record<SpecialEffectTarget, Rea
 export function normalizeTypedAiFunction(
   raw: unknown,
   itemType: SpecialEffectTarget,
+  grade?: string,
+  affinityBonus?: number,
 ): ItemSpecialEffect | undefined {
   switch (itemType) {
-    case "法宝": return normalizeTreasureAiFunction(raw);
-    case "功法": return normalizeGongfaAiFunction(raw);
-    case "丹药": return normalizeElixirAiFunction(raw);
-    case "符箓": return normalizeTalismanAiFunction(raw);
-    case "阵法": return normalizeFormationAiFunction(raw);
+    case "法宝": return normalizeTreasureAiFunction(raw, grade);
+    case "功法": return normalizeGongfaAiFunction(raw, grade, affinityBonus);
+    case "丹药": return normalizeElixirAiFunction(raw, grade);
+    case "符箓": return normalizeTalismanAiFunction(raw, grade);
+    case "阵法": return normalizeFormationAiFunction(raw, grade);
     default: return undefined;
   }
 }

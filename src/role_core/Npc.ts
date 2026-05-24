@@ -110,10 +110,10 @@ export class Npc extends Character {
       displayName: entry.displayName,
       realm: { major: realmMajor, minor: realmMinor },
       playerBase: baseStats,
-      maxHp: entry.maxHp ?? 100,
-      maxMp: entry.maxMp ?? 50,
-      currentHp: entry.currentHp ?? 100,
-      currentMp: entry.currentMp ?? 50,
+      maxHp: 100,
+      maxMp: 50,
+      currentHp: 100,
+      currentMp: 50,
       avatarUrl: "",
       gender: entry.gender ?? "男",
       linggen: entry.linggen ?? [],
@@ -142,8 +142,10 @@ export class Npc extends Character {
     const capM = Math.max(1, Math.round(derived.mp));
     npc.maxHp = capH;
     npc.maxMp = capM;
-    npc.currentHp = Math.max(0, Math.min(npc.currentHp, capH));
-    npc.currentMp = Math.max(0, Math.min(npc.currentMp, capM));
+    const hpPct = typeof entry.hpPercent === "number" && entry.hpPercent >= 0 && entry.hpPercent <= 100 ? entry.hpPercent : 100;
+    const mpPct = typeof entry.mpPercent === "number" && entry.mpPercent >= 0 && entry.mpPercent <= 100 ? entry.mpPercent : 100;
+    npc.currentHp = Math.max(0, Math.min(capH, Math.round(capH * hpPct / 100)));
+    npc.currentMp = Math.max(0, Math.min(capM, Math.round(capM * mpPct / 100)));
 
     return npc;
   }
@@ -163,8 +165,8 @@ export class Npc extends Character {
     if (entry.hobby) this.hobby = entry.hobby;
     if (entry.fear) this.fear = entry.fear;
     if (entry.personality) this.personality = entry.personality;
-    if (typeof entry.currentHp === "number") this.currentHp = Math.max(0, Math.min(this.maxHp, Math.round(entry.currentHp)));
-    if (typeof entry.currentMp === "number") this.currentMp = Math.max(0, Math.min(this.maxMp, Math.round(entry.currentMp)));
+    if (typeof entry.hpPercent === "number") this.currentHp = Math.max(0, Math.min(this.maxHp, Math.round(this.maxHp * entry.hpPercent / 100)));
+    if (typeof entry.mpPercent === "number") this.currentMp = Math.max(0, Math.min(this.maxMp, Math.round(this.maxMp * entry.mpPercent / 100)));
 
     const realmMajor = entry.realm?.major ?? this.realm.major;
     const realmMinor = entry.realm?.minor ?? this.realm.minor;

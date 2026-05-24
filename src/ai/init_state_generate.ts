@@ -35,8 +35,8 @@ export interface InitStateParsed {
   gongfas: GongfaItemDefinition[];
   storage: InventoryStackItem[];
   worldLocation: string;
-  currentHp: number;
-  currentMp: number;
+  hpPercent: number;
+  mpPercent: number;
   spiritStones: { op: "add"; name: string; count: number }[];
   nearbyNpcs: NpcNearbyEntry[];
 }
@@ -111,10 +111,8 @@ function parseInitNearbyNpcs(raw: string): NpcNearbyEntry[] {
         age: typeof o.age === "number" ? o.age : 0,
         linggen,
         realm,
-        currentHp: typeof o.currentHp === "number" ? o.currentHp : 100,
-        currentMp: typeof o.currentMp === "number" ? o.currentMp : 50,
-        maxHp: typeof o.maxHp === "number" ? o.maxHp : 100,
-        maxMp: typeof o.maxMp === "number" ? o.maxMp : 50,
+        hpPercent: typeof o.hpPercent === "number" ? Math.max(0, Math.min(100, Math.round(o.hpPercent))) : 100,
+        mpPercent: typeof o.mpPercent === "number" ? Math.max(0, Math.min(100, Math.round(o.mpPercent))) : 100,
         equippedSlots: Array.isArray(o.equippedSlots) ? o.equippedSlots : undefined,
         gongfaSlots: Array.isArray(o.gongfaSlots) ? o.gongfaSlots : undefined,
         inventorySlots: Array.isArray(o.inventorySlots) ? o.inventorySlots : undefined,
@@ -150,14 +148,14 @@ export function parseInitStateAiResponse(raw: string, realmMajor: string, realmM
     .map((e: unknown) => parseStorageObject(e, realmMajor, realmMinor, playerLinggen))
     .filter((item): item is InventoryStackItem => item !== null);
 
-  let currentHp = 0;
-  let currentMp = 0;
+  let hpPercent = 100;
+  let mpPercent = 100;
   if (userStateText) {
     const obj = safeJsonParse(userStateText);
     if (obj && typeof obj === "object") {
       const o = obj as Record<string, unknown>;
-      currentHp = typeof o.currentHp === "number" ? Math.round(o.currentHp) : 0;
-      currentMp = typeof o.currentMp === "number" ? Math.round(o.currentMp) : 0;
+      hpPercent = typeof o.hpPercent === "number" ? Math.max(0, Math.min(100, Math.round(o.hpPercent))) : 100;
+      mpPercent = typeof o.mpPercent === "number" ? Math.max(0, Math.min(100, Math.round(o.mpPercent))) : 100;
     }
   }
 
@@ -175,7 +173,7 @@ export function parseInitStateAiResponse(raw: string, realmMajor: string, realmM
 
   const nearbyNpcs = parseInitNearbyNpcs(raw);
 
-  return { equips, gongfas, storage, worldLocation, currentHp, currentMp, spiritStones, nearbyNpcs };
+  return { equips, gongfas, storage, worldLocation, hpPercent, mpPercent, spiritStones, nearbyNpcs };
 }
 
 export function buildEquippedSlotsFromParsed(parsed: InitStateParsed): EquippedSlotsState {
