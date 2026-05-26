@@ -1,9 +1,7 @@
 <script setup lang="ts">
-/**
- * 主角详情弹窗：结构与 `mortal_journey/main.html` 中 `mj-item-detail-root` / `mj-trait-detail-root` 一致。
- */
-import { onMounted, onUnmounted, ref, watch } from "vue";
+import { onMounted, onUnmounted, watch } from "vue";
 import type { ProtagonistDetailAction, ProtagonistDetailPayload } from "./protagonistDetailPayload";
+import { useScrollLock } from "../composables/useScrollLock";
 
 const props = defineProps<{
   open: boolean;
@@ -14,6 +12,8 @@ const emit = defineEmits<{
   close: [];
   action: [a: ProtagonistDetailAction];
 }>();
+
+const scrollLock = useScrollLock();
 
 function onActionClick(a: ProtagonistDetailAction) {
   emit("action", a);
@@ -37,17 +37,17 @@ function onKeydown(ev: KeyboardEvent) {
 watch(
   () => props.open,
   (v) => {
-    if (v) document.body.style.overflow = "hidden";
-    else document.body.style.overflow = "";
+    if (v) scrollLock.acquire();
+    else scrollLock.release();
   },
 );
 
 onMounted(() => {
   document.addEventListener("keydown", onKeydown, true);
 });
+
 onUnmounted(() => {
   document.removeEventListener("keydown", onKeydown, true);
-  document.body.style.overflow = "";
 });
 </script>
 

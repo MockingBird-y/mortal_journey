@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, toRef } from "vue";
+import { toRef, computed } from "vue";
 import { useOpeningStoryFromFateChoice } from "../ai/useOpeningStory";
+import { useApiConfig } from "../ai/useApiConfig";
 import { protagonist } from "../role_core/Protagonist";
 import type { FateChoiceResult } from "../fate_choice/types";
 import SideToolbarPanel from "./SideToolbarPanel.vue";
@@ -10,16 +11,15 @@ import StoryChatPanel from "./StoryChatPanel.vue";
 const props = defineProps<{
   visible: boolean;
   fateChoice?: FateChoiceResult | null;
-  apiUrl?: string;
-  apiKey?: string;
-  apiModel?: string;
 }>();
+
+const { apiUrl, apiKey, apiModel } = useApiConfig();
 
 const fateChoiceRef = toRef(props, "fateChoice");
 const apiSlice = computed(() => ({
-  apiUrl: props.apiUrl ?? "",
-  apiKey: props.apiKey ?? "",
-  apiModel: props.apiModel ?? "",
+  apiUrl: apiUrl.value,
+  apiKey: apiKey.value,
+  apiModel: apiModel.value,
 }));
 
 const { storyBody, phase, errorMessage, worldTime, worldTimeBaseline, worldLocation } =
@@ -60,9 +60,6 @@ function onBack() {
           :story-text="storyBody"
           :phase="phase"
           :error-message="errorMessage"
-          :api-url="props.apiUrl"
-          :api-key="props.apiKey"
-          :api-model="props.apiModel"
           :current-world-location="worldLocation"
           @update:world-location="worldLocation = $event"
         />

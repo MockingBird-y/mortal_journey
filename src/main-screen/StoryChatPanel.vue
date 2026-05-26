@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, watch } from "vue";
 import type { OpeningStoryPhase } from "../ai/useOpeningStory";
+import { useApiConfig } from "../ai/useApiConfig";
 import { generateStory, type StoryChatEntry } from "../ai/story_generate";
 import { generateState, type StateParsed } from "../ai/state_generate";
 import { protagonist } from "../role_core/Protagonist";
@@ -13,21 +14,17 @@ const props = withDefaults(
     storyText?: string;
     phase?: OpeningStoryPhase;
     errorMessage?: string;
-    apiUrl?: string;
-    apiKey?: string;
-    apiModel?: string;
     currentWorldLocation?: string;
   }>(),
   {
     storyText: "",
     phase: "idle",
     errorMessage: "",
-    apiUrl: "",
-    apiKey: "",
-    apiModel: "",
     currentWorldLocation: "",
   },
 );
+
+const { apiUrl, apiKey, apiModel } = useApiConfig();
 
 const emit = defineEmits<{
   "update:worldLocation": [value: string];
@@ -73,8 +70,8 @@ async function handleSend(): Promise<void> {
     return;
   }
 
-  const url = String(props.apiUrl || "").trim();
-  const model = String(props.apiModel || "").trim();
+  const url = String(apiUrl.value || "").trim();
+  const model = String(apiModel.value || "").trim();
   if (!url || !model) {
     genError.value = "未配置 API URL 或模型。";
     return;
@@ -99,7 +96,7 @@ async function handleSend(): Promise<void> {
   try {
     const storyResult = await generateStory({
       apiUrl: url,
-      apiKey: String(props.apiKey || "").trim() || undefined,
+      apiKey: String(apiKey.value || "").trim() || undefined,
       model,
       protagonist: p,
       chatHistory,
@@ -118,7 +115,7 @@ async function handleSend(): Promise<void> {
     try {
       const stateResult: StateParsed = await generateState({
         apiUrl: url,
-        apiKey: String(props.apiKey || "").trim() || undefined,
+        apiKey: String(apiKey.value || "").trim() || undefined,
         model,
         storyBody: storyResult.storyBody,
         protagonist: p,

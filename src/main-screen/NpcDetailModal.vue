@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from "vue";
+import { onMounted, onUnmounted, watch } from "vue";
 import type { NpcDetailPayload } from "./npcDetailPayload";
+import { useScrollLock } from "../composables/useScrollLock";
 
 const props = defineProps<{
   open: boolean;
@@ -10,6 +11,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: [];
 }>();
+
+const scrollLock = useScrollLock();
 
 function onBackdropClick() {
   emit("close");
@@ -29,8 +32,8 @@ function onKeydown(ev: KeyboardEvent) {
 watch(
   () => props.open,
   (v) => {
-    if (v) document.body.style.overflow = "hidden";
-    else document.body.style.overflow = "";
+    if (v) scrollLock.acquire();
+    else scrollLock.release();
   },
 );
 
@@ -40,7 +43,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener("keydown", onKeydown, true);
-  document.body.style.overflow = "";
 });
 </script>
 

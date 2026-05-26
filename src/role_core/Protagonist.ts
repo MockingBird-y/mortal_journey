@@ -5,7 +5,7 @@
  * 继承自 `Character` 基类，主角特有字段：修为/叙事人称/出身/天赋。
  */
 
-import { ref, type Ref } from "vue";
+import { ref, triggerRef, type Ref } from "vue";
 import type { FateChoiceResult } from "../fate_choice/types";
 import type {
   CategorizedItemDefinition,
@@ -67,6 +67,10 @@ export class Protagonist extends Character {
    */
   static current: Ref<Protagonist | null> = ref(null);
 
+  static notifyChanged(): void {
+    triggerRef(Protagonist.current);
+  }
+
   /** 开局储物袋默认格数。 */
   static readonly DEFAULT_INVENTORY_SLOT_COUNT = DEFAULT_INVENTORY_SLOT_COUNT;
 
@@ -120,6 +124,7 @@ export class Protagonist extends Character {
    */
   setXiuwei(n: number): void {
     this.xiuwei = typeof n === "number" && Number.isFinite(n) ? Math.max(0, n) : 0;
+    Protagonist.notifyChanged();
   }
 
   addXiuwei(amount: number): void {
@@ -128,6 +133,7 @@ export class Protagonist extends Character {
     const cap = getCultivationRequired(this.realm.major, this.realm.minor);
     if (cap == null) {
       this.xiuwei += amount;
+      Protagonist.notifyChanged();
       return;
     }
     this.xiuwei = Math.min(this.xiuwei + amount, cap);
@@ -135,6 +141,7 @@ export class Protagonist extends Character {
       this.xiuwei = cap;
       this.realmComplete = true;
     }
+    Protagonist.notifyChanged();
   }
 
   breakthrough(): boolean {
@@ -176,7 +183,116 @@ export class Protagonist extends Character {
     const sy = getShouyuanForRealm(nextMajor, nextMinor);
     if (sy != null) this.shouyuan = sy;
 
+    Protagonist.notifyChanged();
     return true;
+  }
+
+  // ===================================================================
+  // Character mutator overrides — trigger reactivity after change
+  // ===================================================================
+
+  override setCurrentHpMp(currentHp: number, currentMp: number): void {
+    super.setCurrentHpMp(currentHp, currentMp);
+    Protagonist.notifyChanged();
+  }
+
+  override setMaxHpMp(maxHp: number, maxMp: number): void {
+    super.setMaxHpMp(maxHp, maxMp);
+    Protagonist.notifyChanged();
+  }
+
+  override setRealm(major: string, minor: string): void {
+    super.setRealm(major, minor);
+    Protagonist.notifyChanged();
+  }
+
+  override setAge(age: number): void {
+    super.setAge(age);
+    Protagonist.notifyChanged();
+  }
+
+  override setShouyuan(n: number): void {
+    super.setShouyuan(n);
+    Protagonist.notifyChanged();
+  }
+
+  override setDisplayName(name: string): void {
+    super.setDisplayName(name);
+    Protagonist.notifyChanged();
+  }
+
+  override setAvatarUrl(url: string): void {
+    super.setAvatarUrl(url);
+    Protagonist.notifyChanged();
+  }
+
+  override patchPlayerBase(partial: Partial<import("./types/playInfo").PlayerBaseStats>): void {
+    super.patchPlayerBase(partial);
+    Protagonist.notifyChanged();
+  }
+
+  override setInventorySlot(index: number, item: InventoryStackItem | null): boolean {
+    const result = super.setInventorySlot(index, item);
+    Protagonist.notifyChanged();
+    return result;
+  }
+
+  override addToInventory(item: InventoryStackItem): number {
+    const result = super.addToInventory(item);
+    Protagonist.notifyChanged();
+    return result;
+  }
+
+  override addSpiritStone(name: import("./types/spiritStone").SpiritStoneName, count: number): void {
+    super.addSpiritStone(name, count);
+    Protagonist.notifyChanged();
+  }
+
+  override removeSpiritStone(name: import("./types/spiritStone").SpiritStoneName, count: number): void {
+    super.removeSpiritStone(name, count);
+    Protagonist.notifyChanged();
+  }
+
+  override setGongfaSlot(index: number, item: import("./types/itemInfo").GongfaItemDefinition | null): boolean {
+    const result = super.setGongfaSlot(index, item);
+    Protagonist.notifyChanged();
+    return result;
+  }
+
+  override unequipGongfaToInventory(gongfaSlotIndex: number): boolean {
+    const result = super.unequipGongfaToInventory(gongfaSlotIndex);
+    Protagonist.notifyChanged();
+    return result;
+  }
+
+  override equipGongfaFromInventory(inventoryIndex: number): boolean {
+    const result = super.equipGongfaFromInventory(inventoryIndex);
+    Protagonist.notifyChanged();
+    return result;
+  }
+
+  override setEquippedSlot(slot: import("./types/playInfo").EquipSlotKey, item: import("./types/itemInfo").TreasureItemDefinition | null): boolean {
+    const result = super.setEquippedSlot(slot, item);
+    Protagonist.notifyChanged();
+    return result;
+  }
+
+  override equipFromInventory(inventoryIndex: number): boolean {
+    const result = super.equipFromInventory(inventoryIndex);
+    Protagonist.notifyChanged();
+    return result;
+  }
+
+  override unequipToInventory(slot: import("./types/playInfo").EquipSlotKey): boolean {
+    const result = super.unequipToInventory(slot);
+    Protagonist.notifyChanged();
+    return result;
+  }
+
+  override applyDetailAction(a: import("./types/playInfo").ProtagonistDetailAction): boolean {
+    const result = super.applyDetailAction(a);
+    Protagonist.notifyChanged();
+    return result;
   }
 
   // ===================================================================
@@ -200,6 +316,7 @@ export class Protagonist extends Character {
     this.maxMp = capM;
     this.currentHp = Math.max(0, Math.min(capH, Math.round(capH * parsed.hpPercent / 100)));
     this.currentMp = Math.max(0, Math.min(capM, Math.round(capM * parsed.mpPercent / 100)));
+    Protagonist.notifyChanged();
   }
 
   /**
@@ -255,10 +372,9 @@ export class Protagonist extends Character {
         if (cell.count <= 0) this.setInventorySlot(i, null);
       }
     }
-  }
 
-  // ===================================================================
-  // 序列化
+    Protagonist.notifyChanged();
+  }
   // ===================================================================
 
   /**

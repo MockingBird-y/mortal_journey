@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { npcStore } from "../role_core/npcStore";
 import { buildNpcDetailPayload, buildNpcListEntryPayload } from "./npcDetailPayload";
 import type { NpcDetailPayload } from "./npcDetailPayload";
+import { useScrollLock } from "../composables/useScrollLock";
 import NpcDetailModal from "./NpcDetailModal.vue";
 
 const props = defineProps<{
@@ -12,6 +13,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: [];
 }>();
+
+const scrollLock = useScrollLock();
 
 const detailOpen = ref(false);
 const detailPayload = ref<NpcDetailPayload | null>(null);
@@ -57,8 +60,8 @@ function closeNpcDetail() {
 watch(
   () => props.open,
   (v) => {
-    if (v) document.body.style.overflow = "hidden";
-    else document.body.style.overflow = "";
+    if (v) scrollLock.acquire();
+    else scrollLock.release();
   },
 );
 
@@ -67,7 +70,6 @@ onMounted(() => {
 });
 onUnmounted(() => {
   document.removeEventListener("keydown", onKeydown, true);
-  document.body.style.overflow = "";
 });
 </script>
 
