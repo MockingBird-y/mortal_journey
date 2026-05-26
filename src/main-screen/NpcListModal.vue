@@ -75,24 +75,26 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div
-      v-if="open"
-      class="mj-trait-modal-root mj-protagonist-detail-root"
-      role="presentation"
-      aria-hidden="false"
-    >
+    <Transition name="mj-backdrop">
       <div
-        class="mj-trait-modal-backdrop"
-        tabindex="-1"
-        aria-label="关闭"
-        @click="onBackdropClick"
-      />
-      <div
-        class="mj-trait-modal mj-item-detail-panel"
-        role="dialog"
-        aria-modal="true"
-        @click.stop
+        v-if="open"
+        class="mj-trait-modal-root mj-protagonist-detail-root"
+        role="presentation"
+        aria-hidden="false"
       >
+        <div
+          class="mj-trait-modal-backdrop"
+          tabindex="-1"
+          aria-label="关闭"
+          @click="onBackdropClick"
+        />
+        <Transition name="mj-modal" appear>
+          <div
+            class="mj-trait-modal mj-item-detail-panel"
+            role="dialog"
+            aria-modal="true"
+            @click.stop
+          >
         <button type="button" class="mj-trait-modal-close" aria-label="关闭" @click="onCloseClick">
           ×
         </button>
@@ -130,8 +132,10 @@ onUnmounted(() => {
             <div class="npc-list-entry__favor">好感：{{ entry.summary.favorLabel }}（{{ entry.summary.favorability }}）</div>
           </div>
         </div>
-      </div>
+       </div>
+      </Transition>
     </div>
+    </Transition>
     <NpcDetailModal
       :open="detailOpen"
       :payload="detailPayload"

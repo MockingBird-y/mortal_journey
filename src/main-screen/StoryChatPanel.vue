@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import type { OpeningStoryPhase } from "../ai/useOpeningStory";
 import { useApiConfig } from "../ai/useApiConfig";
 import { generateStory, type StoryChatEntry } from "../ai/story_generate";
@@ -8,6 +8,7 @@ import { protagonist } from "../role_core/Protagonist";
 import { npcStore } from "../role_core/npcStore";
 import { Character } from "../role_core/Character";
 import { gameLog } from "../log/gameLog";
+import { useTypewriter } from "../composables/useTypewriter";
 
 const props = withDefaults(
   defineProps<{
@@ -49,6 +50,24 @@ function autoResizeTextarea(): void {
 }
 
 let abortCtl: AbortController | null = null;
+
+const lastStoryContent = computed(() => {
+  const msgs = chatMessages.value;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i].type === "story") return msgs[i].content;
+  }
+  return "";
+});
+const { displayed: typewriterText, skipToEnd: skipTypewriter } = useTypewriter(lastStoryContent, 25);
+
+function isLatestStory(idx: number): boolean {
+  const msgs = chatMessages.value;
+  if (msgs[idx].type !== "story") return false;
+  for (let i = msgs.length - 1; i > idx; i--) {
+    if (msgs[i].type === "story") return false;
+  }
+  return true;
+}
 
 watch(
   () => props.storyText,
@@ -202,9 +221,13 @@ function onInputKeydown(e: KeyboardEvent): void {
             v-for="(msg, idx) in chatMessages"
             :key="idx"
             :class="['main-panel__chat-bubble', msg.type === 'user' ? 'main-panel__chat-bubble--user' : 'main-panel__chat-bubble--story']"
+            @click="isLatestStory(idx) && skipTypewriter()"
           >
             <template v-if="msg.type === 'story'">
-              <div class="main-panel__story-prose">{{ msg.content }}</div>
+              <div
+                class="main-panel__story-prose"
+                :class="{ 'main-panel__story-prose--typing': isLatestStory(idx) && typewriterText.length < msg.content.length }"
+              >{{ isLatestStory(idx) ? typewriterText : msg.content }}</div>
             </template>
             <template v-else>
               {{ msg.content }}

@@ -1,6 +1,9 @@
 import { createApp } from "vue";
 import App from "./App.vue";
 
+import "./design-tokens.css";
+import "./rarity-shared.css";
+import "./transitions.css";
 import "./base.css";
 import "./start_frame/start_frame.css";
 import "./log/logPanel.css";

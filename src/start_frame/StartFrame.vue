@@ -66,7 +66,7 @@ function onLoadSave(it: SaveIndexEntry) {
 </script>
 
 <template>
-  <div id="splash-screen" :class="{ hidden: mainScreenVisible }">
+  <div id="splash-screen">
     <div id="splash-bg" aria-hidden="true"></div>
 
     <div id="splash-content">
@@ -101,15 +101,17 @@ function onLoadSave(it: SaveIndexEntry) {
     </div>
   </div>
 
-  <div
-    id="api-settings-root"
-    class="splash-modal-root"
-    :class="{ hidden: !apiModalOpen }"
-    :aria-hidden="apiModalOpen ? 'false' : 'true'"
-    @keydown="(e: KeyboardEvent) => { if (e.key === 'Escape') { closeApiSettings(); e.preventDefault(); } }"
-  >
-    <div class="splash-modal-backdrop" tabindex="-1" @click="closeApiSettings"></div>
-    <div class="splash-modal" role="dialog" aria-modal="true" aria-labelledby="api-settings-title">
+  <Transition name="mj-backdrop">
+    <div
+      v-if="apiModalOpen"
+      id="api-settings-root"
+      class="splash-modal-root"
+      aria-hidden="false"
+      @keydown="(e: KeyboardEvent) => { if (e.key === 'Escape') { closeApiSettings(); e.preventDefault(); } }"
+    >
+      <div class="splash-modal-backdrop" tabindex="-1" @click="closeApiSettings"></div>
+      <Transition name="mj-modal" appear>
+        <div class="splash-modal" role="dialog" aria-modal="true" aria-labelledby="api-settings-title">
       <button type="button" class="splash-modal-close" aria-label="关闭" @click="closeApiSettings">×</button>
       <h3 id="api-settings-title" class="splash-modal-title">API 设置</h3>
       <p class="splash-modal-sub">目前仅支持OpenAI格式的api。</p>
@@ -164,17 +166,21 @@ function onLoadSave(it: SaveIndexEntry) {
         {{ apiStatus }}
       </div>
     </div>
-  </div>
+      </Transition>
+    </div>
+  </Transition>
 
-  <div
-    id="save-load-root"
-    class="splash-modal-root"
-    :class="{ hidden: !saveModalOpen }"
-    :aria-hidden="saveModalOpen ? 'false' : 'true'"
+  <Transition name="mj-backdrop">
+    <div
+      v-if="saveModalOpen"
+      id="save-load-root"
+      class="splash-modal-root"
+      aria-hidden="false"
     @keydown="(e: KeyboardEvent) => { if (e.key === 'Escape') { closeSaveLoad(); e.preventDefault(); } }"
   >
     <div class="splash-modal-backdrop" tabindex="-1" @click="closeSaveLoad"></div>
-    <div class="splash-modal" role="dialog" aria-modal="true" aria-labelledby="save-load-title">
+    <Transition name="mj-modal" appear>
+      <div class="splash-modal" role="dialog" aria-modal="true" aria-labelledby="save-load-title">
       <button type="button" class="splash-modal-close" aria-label="关闭" @click="closeSaveLoad">×</button>
       <h3 id="save-load-title" class="splash-modal-title">读取人生</h3>
       <p class="splash-modal-sub">选择一个存档继续修行（存档保存在本机浏览器中）。</p>
@@ -209,6 +215,8 @@ function onLoadSave(it: SaveIndexEntry) {
       >
         {{ saveStatus }}
       </div>
+     </div>
+      </Transition>
     </div>
-  </div>
+  </Transition>
 </template>

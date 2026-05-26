@@ -168,7 +168,6 @@ function customBirthSummary(): string {
 <template>
   <Teleport to="body">
     <div
-      v-show="visible"
       id="fc-character-screen"
       class="fc-screen"
       role="dialog"
@@ -285,7 +284,8 @@ function customBirthSummary(): string {
                   v-for="trait in currentTraitOptions"
                   :key="trait.name"
                   class="trait-card"
-                  :class="['rarity-' + trait.rarity, { selected: trait.locked }]"
+                  :class="[{ selected: trait.locked }]"
+                  :data-rarity="trait.rarity"
                   :data-trait-name="trait.name"
                   role="button"
                   tabindex="0"

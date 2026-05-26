@@ -33,14 +33,30 @@ function onMainScreenBack() {
 
 <template>
   <DebugLogPanel />
-  <StartFrame
-    :main-screen-visible="mainScreenVisible"
-    @start-new-life="openFateChoice"
-  />
-  <FateChoiceScreen :visible="fateChoiceVisible" @close="closeFateChoice" @complete="onFateChoiceComplete" />
-  <MainScreen
-    :visible="mainScreenVisible"
-    :fate-choice="lastFateChoice"
-    @back="onMainScreenBack"
-  />
+
+  <Transition name="mj-fade">
+    <StartFrame
+      v-if="!mainScreenVisible && !fateChoiceVisible"
+      :main-screen-visible="mainScreenVisible"
+      @start-new-life="openFateChoice"
+    />
+  </Transition>
+
+  <Transition name="mj-slide-up">
+    <FateChoiceScreen
+      v-if="fateChoiceVisible"
+      :visible="fateChoiceVisible"
+      @close="closeFateChoice"
+      @complete="onFateChoiceComplete"
+    />
+  </Transition>
+
+  <Transition name="mj-main">
+    <MainScreen
+      v-if="mainScreenVisible"
+      :visible="mainScreenVisible"
+      :fate-choice="lastFateChoice"
+      @back="onMainScreenBack"
+    />
+  </Transition>
 </template>

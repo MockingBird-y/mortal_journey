@@ -36,7 +36,6 @@ function onBack() {
 
 <template>
   <div
-    v-show="visible"
     class="main-screen"
     role="application"
     aria-label="凡人修仙传主界面"
