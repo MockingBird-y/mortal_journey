@@ -24,7 +24,6 @@ import {
 import {
   getBaseStats,
   getEquipBonusRealmRatio,
-  getEquipBonusRatioWithAffinity,
 } from "./realmUtils";
 import type { SpiritStoneName } from "./types/spiritStone";
 import {
@@ -141,11 +140,9 @@ export class Character {
 
   protected collectPrimaryBonuses(): Record<string, number> {
     const primaryStats: Record<string, number> = {};
+    const ratio = getEquipBonusRealmRatio(this.realm.major, this.realm.minor);
     for (const gf of this.gongfaSlots) {
       if (!gf) continue;
-      const ratio = getEquipBonusRatioWithAffinity(
-        this.realm.major, this.realm.minor, gf.lingQi, this.linggen,
-      );
       Character.addZhItemBonusInto(primaryStats, gf.bonus, ratio);
     }
     return primaryStats;

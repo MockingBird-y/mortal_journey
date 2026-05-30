@@ -21,7 +21,6 @@ import {
   CULTIVATION_EXPONENT,
   SHOUYUAN_VALUES,
   EQUIP_BONUS_RATIOS,
-  LINGQI_AFFINITY_BONUS,
   DERIVED_STAT_DEFAULTS,
   PRIMARY_TO_DERIVED_MAP,
   PCT_DERIVED_KEYS,
@@ -41,7 +40,6 @@ export {
   CULTIVATION_EXPONENT,
   SHOUYUAN_VALUES,
   EQUIP_BONUS_RATIOS,
-  LINGQI_AFFINITY_BONUS,
   DERIVED_STAT_DEFAULTS,
   PRIMARY_TO_DERIVED_MAP,
   PCT_DERIVED_KEYS,
@@ -332,7 +330,6 @@ export type {
 export {
   getBaseStats,
   getEquipBonusRealmRatio,
-  getEquipBonusRatioWithAffinity,
   getProtagonistNarrativeAge,
   getShouyuanForRealm,
   getCultivationRequired,

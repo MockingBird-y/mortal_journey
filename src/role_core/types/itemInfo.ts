@@ -20,9 +20,6 @@ import type {
 /** worldbook：品阶仅能为以下之一 */
 export type ItemGrade = "下品" | "中品" | "上品" | "极品" | "仙品" | "神品";
 
-/** 契合灵根：五行灵根之一 */
-export type LingQi = "无" | "金" | "木" | "水" | "火" | "土";
-
 /** 配置表或 AI 条目上的中文加成；允许表外键 */
 export type ItemBonusMap = ZhStatBonusMap | Record<string, number>;
 
@@ -64,7 +61,6 @@ export interface TreasureItemDefinition extends ItemDefinitionBase {
 export interface GongfaItemDefinition extends ItemDefinitionBase {
   itemType: "功法";
   bonus: ItemBonusMap;
-  lingQi: LingQi;
   function?: GongfaSpecialEffect;
 }
 

@@ -16,7 +16,7 @@ import type {
   TreasureItemDefinition,
 } from "../role_core/types/itemInfo";
 import type { CultivationRealm, EquipSlotKey, TraitEntry } from "../role_core/types/playInfo";
-import { BASE_STAT_KEYS, DERIVED_STAT_KEY_TO_ZH, getEquipBonusRealmRatio, getEquipBonusRatioWithAffinity, LINGQI_AFFINITY_BONUS, type PlayerBaseStats } from "../role_core/types/playInfo";
+import { BASE_STAT_KEYS, DERIVED_STAT_KEY_TO_ZH, getEquipBonusRealmRatio, type PlayerBaseStats } from "../role_core/types/playInfo";
 import type { ItemSpecialEffect } from "../role_core/types/special_effects";
 import { lookupCostZh, lookupEffectZh, lookupTriggerZh } from "../role_core/types/special_effects";
 import { gradeToTraitRarity } from "./protagonistPanelDisplay";
@@ -126,7 +126,6 @@ function formatZhBonus(b: Record<string, number> | undefined): string | undefine
 function formatZhBonusWithRealmEquip(
   b: Record<string, number> | undefined,
   realm: CultivationRealm,
-  affinity?: boolean | null,
 ): string | undefined {
   if (!b || typeof b !== "object") return undefined;
   const realmRatio = getEquipBonusRealmRatio(realm.major, realm.minor);
@@ -139,11 +138,6 @@ function formatZhBonusWithRealmEquip(
       const realmExtra = Math.trunc(v * (realmRatio - 1));
       const rs = realmExtra >= 0 ? "+" : "";
       extras.push(`境界加成 ${rs}${realmExtra}`);
-    }
-    if (affinity) {
-      const affExtra = Math.trunc(v * realmRatio * LINGQI_AFFINITY_BONUS);
-      const as2 = affExtra >= 0 ? "+" : "";
-      extras.push(`灵根加成 ${as2}${affExtra}`);
     }
     if (extras.length) line += ` (${extras.join("；")})`;
     return line;
@@ -185,7 +179,7 @@ function formatMagnification(m: Record<string, number> | undefined): string | un
  * 消耗：消耗法力 20
  * ```
  */
-function formatSpecialEffect(fn: ItemSpecialEffect | undefined, affinity?: boolean | null): string | undefined {
+function formatSpecialEffect(fn: ItemSpecialEffect | undefined): string | undefined {
   if (!fn) return undefined;
   const lines: string[] = [];
 
@@ -195,13 +189,7 @@ function formatSpecialEffect(fn: ItemSpecialEffect | undefined, affinity?: boole
   const effLabel = lookupEffectZh(fn.effect.label as string);
   if (effLabel) {
     const sign = fn.effect.value >= 0 ? "+" : "";
-    let effLine = `效果：${effLabel} ${sign}${fn.effect.value}`;
-    if (affinity) {
-      const affExtra = Math.trunc(fn.effect.value * LINGQI_AFFINITY_BONUS);
-      const as2 = affExtra >= 0 ? "+" : "";
-      effLine += ` (灵根加成 ${as2}${affExtra})`;
-    }
-    lines.push(effLine);
+    lines.push(`效果：${effLabel} ${sign}${fn.effect.value}`);
   }
 
   if (typeof fn.duration === "number") {
@@ -224,8 +212,8 @@ function formatSpecialEffect(fn: ItemSpecialEffect | undefined, affinity?: boole
  * @param out - 目标段落数组。
  * @param fn - 物品的特殊效果（可为 `undefined`）。
  */
-function pushFunctionSection(out: ProtagonistDetailSection[], fn: ItemSpecialEffect | undefined, affinity?: boolean | null): void {
-  const text = formatSpecialEffect(fn, affinity);
+function pushFunctionSection(out: ProtagonistDetailSection[], fn: ItemSpecialEffect | undefined): void {
+  const text = formatSpecialEffect(fn);
   if (text) pushSec(out, "功能", text);
 }
 
@@ -333,19 +321,17 @@ export function buildGongfaDetailPayload(
   gf: GongfaItemDefinition,
   source?: GongfaDetailSource,
   realm?: CultivationRealm | null,
-  playerLinggen?: readonly string[] | null,
+  _playerLinggen?: readonly string[] | null,
 ): ProtagonistDetailPayload {
   const sections: ProtagonistDetailSection[] = [];
-  const affinity = playerLinggen && gf.lingQi && gf.lingQi !== "无" && playerLinggen.includes(gf.lingQi);
-  pushSec(sections, "契合灵根", gf.lingQi);
   pushSec(sections, "简介", gf.desc);
   pushSec(sections, "品级", gf.grade);
   const bonus =
     source?.type === "bar" && realm
-      ? formatZhBonusWithRealmEquip(gf.bonus as Record<string, number>, realm, affinity)
+      ? formatZhBonusWithRealmEquip(gf.bonus as Record<string, number>, realm)
       : formatZhBonus(gf.bonus as Record<string, number>);
   if (bonus) pushSec(sections, "修炼加成", bonus);
-  pushFunctionSection(sections, gf.function, affinity);
+  pushFunctionSection(sections, gf.function);
 
   const actions: ProtagonistDetailActionButton[] = [];
   if (source?.type === "bar") {

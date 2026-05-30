@@ -57,7 +57,6 @@ interface NormalizeOpts<TTrigger extends string, TEffect extends string, TCost e
   costKeys: readonly TCost[];
   defaultCost: TCost;
   grade?: string;
-  affinityBonus?: number;
 }
 
 function normalizeGeneric<TTrigger extends string, TEffect extends string, TCost extends string>(
@@ -118,7 +117,7 @@ function normalizeGeneric<TTrigger extends string, TEffect extends string, TCost
   const grade = opts.grade;
   if (grade && !effectValueExplicit) {
     const category = opts.effectKeyToCategory(effectLabel);
-    effectValue = computeEffectValue(category, grade, trigger as string, Math.max(0, Math.floor(duration)), costResource as string, opts.affinityBonus);
+    effectValue = computeEffectValue(category, grade, trigger as string, Math.max(0, Math.floor(duration)), costResource as string);
   }
   if (grade && !costValueExplicit) {
     costValue = computeCostValue(costResource as string, grade);
@@ -325,7 +324,7 @@ export function firstGongfaEffectKeyOfCategory(vc: EffectValueCategory): GongfaE
   return firstKeyOfValueCategory(GONGFA_EFFECT_KEYS, GONGFA_EFFECT_CATEGORY, vc);
 }
 
-export function normalizeGongfaAiFunction(raw: unknown, grade?: string, affinityBonus?: number): GongfaSpecialEffect | undefined {
+export function normalizeGongfaAiFunction(raw: unknown, grade?: string): GongfaSpecialEffect | undefined {
   return normalizeGeneric({
     raw,
     triggerKeys: GONGFA_TRIGGER_KEYS,
@@ -335,7 +334,6 @@ export function normalizeGongfaAiFunction(raw: unknown, grade?: string, affinity
     costKeys: GONGFA_COST_KEYS,
     defaultCost: "none",
     grade,
-    affinityBonus,
   }) as GongfaSpecialEffect | undefined;
 }
 
@@ -722,11 +720,10 @@ export function normalizeTypedAiFunction(
   raw: unknown,
   itemType: SpecialEffectTarget,
   grade?: string,
-  affinityBonus?: number,
 ): ItemSpecialEffect | undefined {
   switch (itemType) {
     case "法宝": return normalizeTreasureAiFunction(raw, grade);
-    case "功法": return normalizeGongfaAiFunction(raw, grade, affinityBonus);
+    case "功法": return normalizeGongfaAiFunction(raw, grade);
     case "丹药": return normalizeElixirAiFunction(raw, grade);
     case "符箓": return normalizeTalismanAiFunction(raw, grade);
     case "阵法": return normalizeFormationAiFunction(raw, grade);
@@ -816,7 +813,6 @@ export function computeEffectValue(
   trigger: string,
   duration: number,
   costResource: string,
-  affinityBonus?: number,
 ): number {
   const baseArr = EFFECT_BASE_VALUES[category];
   const gradeIdx = GRADE_INDEX[grade] ?? 0;
@@ -825,8 +821,7 @@ export function computeEffectValue(
   const triggerMul = TRIGGER_VALUE_MULTIPLIER[trigger] ?? 1.0;
   const durFactor = lookupDurationFactor(duration);
   const costMul = COST_VALUE_MULTIPLIER[costResource] ?? 1.0;
-  const affMul = affinityBonus != null && affinityBonus > 0 ? (1 + affinityBonus) : 1.0;
-  return Math.max(1, Math.floor(base * triggerMul * durFactor * costMul * affMul));
+  return Math.max(1, Math.floor(base * triggerMul * durFactor * costMul));
 }
 
 export function computeCostValue(costResource: string, grade: string): number {

@@ -28,11 +28,10 @@ export const INIT_STATE_SYSTEM_PRESET = `
 [功法开局配置规则]
 1. 主角的功法开局配置：攻击功法和辅助功法各一个，名称需要与剧情描述、主角背景一致。
 2. 输出格式：<mj_magic_body> … </mj_magic_body>，内为 JSON 数组。
-3. 功法信息：包含 type（功法）、name、lingQi（契合灵根）、intro、bonus、function。
-4. lingQi：六种——""（无）、"金"、"木"、"水"、"火"、"土"。
-5. bonus 类型：只能是体魄、灵力、护体、神识、身法、会心其中一个。
-6. intro 规则：只描述功法的来历、流派、外观特征。
-7. 示例：<mj_magic_body> [{"type":"功法","name":"青云剑诀","lingQi":"金","intro":"剑意如青云舒卷","bonus":"会心","function":{"trigger":"on_attack","effect":"dealMagicDmg","duration":0,"cost":"mp"}},{"type":"功法","name":"吐纳诀","lingQi":"","intro":"调和气机、固本培元","bonus":"灵力","function":{"trigger":"on_default","effect":"boostCritRate","duration":10,"cost":"none"}}] </mj_magic_body>
+3. 功法信息：包含 type（功法）、name、intro、bonus、function。
+4. bonus 类型：只能是体魄、灵力、护体、神识、身法、会心其中一个。
+5. intro 规则：只描述功法的来历、流派、外观特征。
+6. 示例：<mj_magic_body> [{"type":"功法","name":"青云剑诀","intro":"剑意如青云舒卷","bonus":"会心","function":{"trigger":"on_attack","effect":"dealMagicDmg","duration":0,"cost":"mp"}},{"type":"功法","name":"吐纳诀","intro":"调和气机、固本培元","bonus":"灵力","function":{"trigger":"on_default","effect":"boostCritRate","duration":10,"cost":"none"}}] </mj_magic_body>
 
 [储物袋开局配置规则]
 1. 主角储物袋开局配置：可以生成灵石、丹药、符箓、阵法、材料、杂物等。
@@ -66,8 +65,8 @@ export const INIT_STATE_SYSTEM_PRESET = `
 1. 开局剧情中出现的周围人物，必须在 <NPC_NEARBY_TAG> 中生成对应角色卡。
 2. NPC境界参考剧情：宗门普通弟子一般在练气期，师叔/执事在筑基期，长者在结丹期。大境界从练气、筑基、结丹、元婴、化神中选择，小境界从初期、中期、后期选择。
 3. 好感度初始化：默认落在 -19~19。
-4. NPC的法宝和功法结构与主角完全相同：法宝须含 type（法宝）、name、intro、bonus（1个属性名称字符串）、function；功法须含 type（功法）、name、lingQi、intro、bonus、function。不含 grade（品阶由系统根据境界自动分配）。NPC储物袋中的丹药、符箓、阵法等物品同样须含 function，不含 grade。
-5. NPC生成需要包含的信息：displayName（2-4字）、identity、currentStageGoal、longTermGoal、hobby、fear、personality、favorability、gender、age、linggen、realm、equippedSlots（最多4个法宝，须含武器，每个含 bonus 和 function）、gongfaSlots（长度8，须含攻击类功法，每个含 lingQi、bonus 和 function）、inventorySlots（最多12格）、hpPercent/mpPercent（血量/法力百分比，0-100整数，100为满状态）。
+4. NPC的法宝和功法结构与主角完全相同：法宝须含 type（法宝）、name、intro、bonus（1个属性名称字符串）、function；功法须含 type（功法）、name、intro、bonus、function。不含 grade（品阶由系统根据境界自动分配）。NPC储物袋中的丹药、符箓、阵法等物品同样须含 function，不含 grade。
+5. NPC生成需要包含的信息：displayName（2-4字）、identity、currentStageGoal、longTermGoal、hobby、fear、personality、favorability、gender、age、linggen、realm、equippedSlots（最多4个法宝，须含武器，每个含 bonus 和 function）、gongfaSlots（长度8，须含攻击类功法，每个含 bonus 和 function）、inventorySlots（最多12格）、hpPercent/mpPercent（血量/法力百分比，0-100整数，100为满状态）。
 6. NPC的法宝和功法的 function 生成规则与主角相同，须严格遵守上方[法宝功法丹药符箓阵法function生成规则]中的 trigger/effect/duration/cost 约束。
 7. NPC示例：
 <NPC_NEARBY_TAG>[
@@ -89,8 +88,8 @@ export const INIT_STATE_SYSTEM_PRESET = `
       {"type": "法宝", "name": "布衣", "intro": "普通布衣，厚实耐磨", "bonus": "物防", "function": {"trigger": "on_hit_taken", "effect": "boostMdef", "duration": 3, "cost": "none"}}
     ],
     "gongfaSlots": [
-      {"type": "功法", "name": "长春功", "lingQi": "水", "intro": "入门功法，调和气机", "bonus": "灵力", "function": {"trigger": "on_attack", "effect": "dealMagicDmg", "duration": 0, "cost": "mp"}},
-      {"type": "功法", "name": "眨眼剑法", "lingQi": "", "intro": "入门剑法，以快制慢", "bonus": "身法", "function": {"trigger": "on_default", "effect": "boostDodgeRate", "duration": 10, "cost": "none"}},
+      {"type": "功法", "name": "长春功", "intro": "入门功法，调和气机", "bonus": "灵力", "function": {"trigger": "on_attack", "effect": "dealMagicDmg", "duration": 0, "cost": "mp"}},
+      {"type": "功法", "name": "眨眼剑法", "intro": "入门剑法，以快制慢", "bonus": "身法", "function": {"trigger": "on_default", "effect": "boostDodgeRate", "duration": 10, "cost": "none"}},
       null, null, null, null, null, null
     ],
     "inventorySlots": [

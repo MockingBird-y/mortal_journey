@@ -1,5 +1,4 @@
 import {
-  LINGQI_AFFINITY_BONUS,
   TREASURE_BONUS_COUNT_BY_GRADE,
   rollGradeAttriValue,
   TREASURE_GRADE_ATTRI_TABLE,
@@ -19,7 +18,6 @@ import type {
   MiscItemDefinition,
   CategorizedItemDefinition,
   GradeDropRate,
-  LingQi,
 } from "../role_core/types/itemInfo";
 import { GRADE_DROP_TABLE } from "../role_core/types/itemInfo";
 import {
@@ -55,14 +53,6 @@ export const VALID_BONUS_NAMES: ReadonlySet<string> = new Set(Object.keys(GONGFA
 
 export const VALID_DERIVED_BONUS_NAMES = Object.keys(TREASURE_GRADE_ATTRI_TABLE);
 export const VALID_DERIVED_BONUS_NAMES_ARR: readonly string[] = VALID_DERIVED_BONUS_NAMES;
-
-export const VALID_LING_QI: ReadonlySet<string> = new Set(["无", "金", "木", "水", "火", "土"]);
-
-export function parseLingQi(raw: unknown): LingQi {
-  if (typeof raw !== "string") return "无";
-  const v = raw.trim();
-  return (VALID_LING_QI.has(v) ? v : "无") as LingQi;
-}
 
 export function parseBonusField(raw: unknown, grade: string): Record<string, number> {
   if (typeof raw !== "string") return {};
@@ -207,7 +197,7 @@ export function triggerKeysForType(itemType: string): readonly string[] {
   }
 }
 
-export function validateAiFunction(raw: unknown, grade: string, itemType: string, affinityBonus?: number): SpecialEffect | null {
+export function validateAiFunction(raw: unknown, grade: string, itemType: string): SpecialEffect | null {
   if (!raw || typeof raw !== "object") return null;
   const obj = raw as Record<string, unknown>;
 
@@ -268,7 +258,7 @@ export function validateAiFunction(raw: unknown, grade: string, itemType: string
   }
 
   const finalCategory = effectKeyToCategoryForType(effectLabel, itemType);
-  const effectValue = computeEffectValue(finalCategory, grade, trigger as string, Math.max(0, Math.floor(dur)), costResource, affinityBonus);
+  const effectValue = computeEffectValue(finalCategory, grade, trigger as string, Math.max(0, Math.floor(dur)), costResource);
   const costValue = computeCostValue(costResource, grade);
 
   return {
@@ -303,25 +293,21 @@ export function parseEquipObject(e: unknown, realmMajor: string, realmMinor: str
   };
 }
 
-export function parseGongfaObject(e: unknown, realmMajor: string, realmMinor: string, playerLinggen?: readonly string[] | null): GongfaItemDefinition {
+export function parseGongfaObject(e: unknown, realmMajor: string, realmMinor: string, _playerLinggen?: readonly string[] | null): GongfaItemDefinition {
   const obj = e as Record<string, unknown>;
   const grade = rollGrade(realmMajor, realmMinor);
-  const lingQi = parseLingQi(obj.lingQi);
-  const affinity = playerLinggen && lingQi && lingQi !== "无" && playerLinggen.includes(lingQi)
-    ? LINGQI_AFFINITY_BONUS : undefined;
   return {
     itemType: "功法",
     name: safeStr(obj.name, "未命名功法"),
-    lingQi,
     desc: safeStr(obj.intro, ""),
     grade,
     count: 1,
     bonus: parseBonusField(obj.bonus, grade),
-    function: applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "功法", affinity) ?? undefined, "功法"),
+    function: applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "功法") ?? undefined, "功法"),
   };
 }
 
-export function parseStorageObject(e: unknown, realmMajor: string, realmMinor: string, playerLinggen?: readonly string[] | null): InventoryStackItem | null {
+export function parseStorageObject(e: unknown, realmMajor: string, realmMinor: string, _playerLinggen?: readonly string[] | null): InventoryStackItem | null {
   const obj = e as Record<string, unknown>;
   const typeStr = safeStr(obj.type, "杂物");
 
@@ -336,14 +322,9 @@ export function parseStorageObject(e: unknown, realmMajor: string, realmMinor: s
   const grade = rollGrade(realmMajor, realmMinor);
   const count = safeCount(obj.count);
   const itemType = TYPE_TO_ITEM_TYPE[typeStr] ?? "杂物";
-  let affinity: number | undefined;
   if (itemType === "功法") {
-    const lingQi = parseLingQi(obj.lingQi);
-    if (playerLinggen && lingQi && lingQi !== "无" && playerLinggen.includes(lingQi)) {
-      affinity = LINGQI_AFFINITY_BONUS;
-    }
-    const fn = applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, itemType, affinity) ?? undefined, "功法");
-    return { itemType: "功法", name, lingQi, desc, grade, count, bonus: parseBonusField(obj.bonus, grade), function: fn } as GongfaItemDefinition;
+    const fn = applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, itemType) ?? undefined, "功法");
+    return { itemType: "功法", name, desc, grade, count, bonus: parseBonusField(obj.bonus, grade), function: fn } as GongfaItemDefinition;
   }
 
   switch (itemType) {
