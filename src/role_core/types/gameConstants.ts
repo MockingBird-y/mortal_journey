@@ -18,7 +18,6 @@
 
 import type { PrimaryStatKey, DerivedStatKey } from "./playInfo";
 import type { GradeDropRate } from "./itemInfo";
-import type { EffectValueCategory } from "./special_effects";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. 境界基础属性表（按阶段索引：练气初期~化神后期，共 15 行）
@@ -271,6 +270,8 @@ export const GRADE_INDEX: Readonly<Record<string, number>> = {
   "仙品": 4,
   "神品": 5,
 };
+
+type EffectValueCategory = "recover" | "boost" | "reduce" | "damage";
 
 export const EFFECT_BASE_VALUES: Readonly<Record<EffectValueCategory, readonly (readonly [number, number])[]>> = {
   recover: [[20, 40], [40, 80], [80, 160], [140, 260], [250, 460], [420, 780]],

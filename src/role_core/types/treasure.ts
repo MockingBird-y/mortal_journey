@@ -1,135 +1,93 @@
 /**
- * 法宝：物品定义 + 特殊效果。
+ * 法宝：物品定义 + 特殊效果（名称 + 描述）。
+ * 法宝的 function 由系统根据品阶从效果目录中随机分配，不由 AI 生成。
  */
 
-import type { ItemBonusMap } from "./itemInfo";
-import type { EffectCategory, EffectValueCategory } from "./special_effects";
-import {
-  normalizeGeneric,
-  categoryToValueCategory,
-  computeEffectValue,
-  computeCostValue,
-} from "./special_effects";
+import type { ItemBonusMap, ItemGrade } from "./itemInfo";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 触发时机
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const TREASURE_TRIGGER_KEYS = [
-  "on_hit_taken",
-  "on_turn_start",
-  "on_low_hp",
-  "on_low_mana",
-  "on_full_mana",
-  "on_crit",
-  "on_dodge",
-  "on_kill",
-] as const;
-export type TreasureTriggerTiming = (typeof TREASURE_TRIGGER_KEYS)[number];
-
-export const TREASURE_TRIGGER_TO_ZH: Readonly<Record<TreasureTriggerTiming, string>> = {
-  on_hit_taken: "受到攻击时",
-  on_turn_start: "回合开始",
-  on_low_hp: "低生命值",
-  on_low_mana: "灵力不足",
-  on_full_mana: "灵气满时",
-  on_crit: "暴击时",
-  on_dodge: "闪避时",
-  on_kill: "击杀敌人",
-};
-
-export const TREASURE_TRIGGER_CATEGORY: Readonly<Record<TreasureTriggerTiming, "主动" | "被动" | "默认">> = {
-  on_hit_taken: "被动",
-  on_turn_start: "被动",
-  on_low_hp: "被动",
-  on_low_mana: "被动",
-  on_full_mana: "被动",
-  on_crit: "被动",
-  on_dodge: "被动",
-  on_kill: "被动",
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 效果键
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const TREASURE_EFFECT_KEYS = [
-  "recoverHp", "recoverMp", "boostPatk", "boostMatk", "boostPdef", "boostMdef",
-  "boostPenetration", "boostMagicPenetration", "boostHitRate", "boostDodgeRate",
-  "boostCritRate", "boostCritDmg", "boostHpRecovery", "boostMpRecovery",
-] as const;
-export type TreasureEffectKey = (typeof TREASURE_EFFECT_KEYS)[number];
-
-export const TREASURE_EFFECT_TO_ZH: Readonly<Record<TreasureEffectKey, string>> = {
-  recoverHp: "恢复血量",
-  recoverMp: "恢复法力",
-  boostPatk: "增加物攻",
-  boostMatk: "增加法攻",
-  boostPdef: "增加物防",
-  boostMdef: "增加法防",
-  boostPenetration: "增加物伤穿透",
-  boostMagicPenetration: "增加法伤穿透",
-  boostHitRate: "增加命中率",
-  boostDodgeRate: "增加闪避率",
-  boostCritRate: "增加暴击率",
-  boostCritDmg: "增加暴击伤害",
-  boostHpRecovery: "增加生命回复",
-  boostMpRecovery: "增加法力回复",
-};
-
-export const TREASURE_EFFECT_CATEGORY: Readonly<Record<TreasureEffectKey, EffectCategory>> = {
-  recoverHp: "恢复", recoverMp: "恢复", boostPatk: "增益", boostMatk: "增益",
-  boostPdef: "增益", boostMdef: "增益", boostPenetration: "增益",
-  boostMagicPenetration: "增益", boostHitRate: "增益", boostDodgeRate: "增益",
-  boostCritRate: "增益", boostCritDmg: "增益", boostHpRecovery: "增益",
-  boostMpRecovery: "增益",
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 消耗资源
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const TREASURE_COST_KEYS = ["none", "mp", "hp"] as const;
-export type TreasureCostKey = (typeof TREASURE_COST_KEYS)[number];
-export const TREASURE_COST_TO_ZH: Readonly<Record<TreasureCostKey, string>> = {
-  none: "无消耗",
-  mp: "消耗法力",
-  hp: "消耗血量",
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 特效接口与白名单
+// 特殊效果
 // ═══════════════════════════════════════════════════════════════════════════
 
 export interface TreasureSpecialEffect {
-  trigger: TreasureTriggerTiming;
-  effect: { label: TreasureEffectKey; value: number };
-  duration: number;
-  cost: { resource: TreasureCostKey; value: number };
+  name: string;
+  desc: string;
 }
 
-export const TREASURE_ALLOWED_TRIGGERS: ReadonlySet<string> = new Set<string>(TREASURE_TRIGGER_KEYS);
-export const TREASURE_ALLOWED_EFFECT_CATEGORIES: ReadonlySet<EffectValueCategory> = new Set(["recover", "boost"] as const);
-
 // ═══════════════════════════════════════════════════════════════════════════
-// 效果辅助函数
+// 效果目录（按品阶）
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function treasureEffectKeyToCategory(label: TreasureEffectKey): EffectValueCategory {
-  return categoryToValueCategory(TREASURE_EFFECT_CATEGORY[label]);
-}
+export const TREASURE_EFFECT_CATALOG: Readonly<Record<ItemGrade, readonly TreasureSpecialEffect[]>> = {
+  "下品": [
+    { name: "碎甲", desc: "攻击时降低敌人物防" },
+    { name: "追击", desc: "击杀敌人后立刻追加一次攻击" },
+    { name: "韧骨", desc: "减少受到的暴击伤害" },
+    { name: "灼血", desc: "普通攻击附带少量持续伤害" },
+    { name: "残兵", desc: "生命低于50%的敌人，受到伤害提高" },
+    { name: "凝神", desc: "连续使用相同技能时，法力消耗降低" },
+    { name: "破势", desc: "攻击满血敌人时伤害提高" },
+    { name: "敛息", desc: "第一回合不会被选为首要攻击对象" },
+  ],
+  "中品": [
+    { name: "养剑", desc: "每回合增加物攻，直到战斗结束" },
+    { name: "回春", desc: "每损失一定生命，恢复少量生命" },
+    { name: "逆脉", desc: "法力不足时，将透支生命释放技能" },
+    { name: "灵爆", desc: "法力满时，技能伤害提升" },
+    { name: "聚灵", desc: "周围敌人越多，法力恢复越高" },
+    { name: "识破", desc: "对重复攻击自己的敌人伤害提高" },
+    { name: "夺势", desc: "击杀敌人后，获得其部分物攻法攻直到战斗结束" },
+    { name: "封喉", desc: "对低生命敌人必定暴击" },
+  ],
+  "上品": [
+    { name: "剑心", desc: "未受到伤害时，攻击不断提升" },
+    { name: "道种", desc: "战斗开始随机获得一种临时增益" },
+    { name: "借命", desc: "受到致命伤时不死，并保留1点生命（每场一次）" },
+    { name: "空蝉", desc: "闪避攻击后，下一次攻击必定暴击" },
+    { name: "共鸣", desc: "拥有相同灵根的队友会互相强化" },
+    { name: "众生因果", desc: "敌人受到的治疗，会同步治疗你" },
+    { name: "灵壳", desc: "获得护盾时，额外增加少量防御" },
+    { name: "反伤", desc: "受到伤害反弹" },
+  ],
+  "极品": [
+    { name: "杀意", desc: "攻击次数越多，伤害越高" },
+    { name: "生命之种", desc: "击杀敌人，恢复自身和队友血量" },
+    { name: "一击必杀", desc: "对于境界低于自身的敌人，有一定概率秒杀敌人" },
+    { name: "魔心", desc: "生命越低，暴击率越高" },
+    { name: "业火", desc: "敌人每次行动都会受到已损生命值比例伤害" },
+    { name: "献祭", desc: "永久降低部分生命上限，大幅提高攻击" },
+    { name: "黄泉", desc: "敌人生命越低，对其伤害越高" },
+    { name: "万法归一", desc: "连续使用不同技能时，最终伤害逐渐提高" },
+    { name: "瞬杀号", desc: "连续攻击同一目标时提高暴击率" },
+  ],
+  "仙品": [
+    { name: "噬灵", desc: "攻击附带吸血" },
+    { name: "夺萃", desc: "造成伤害时恢复造成伤害%的法力" },
+    { name: "通灵", desc: "主角境界提升，会增加属性加成" },
+    { name: "链接", desc: "自身受到伤害会均摊到队友身上" },
+    { name: "城墙", desc: "分摊队友的部分伤害" },
+    { name: "天演", desc: "每回合随机强化一种属性" },
+    { name: "香火", desc: "存活队友越多，自身恢复越强" },
+  ],
+  "神品": [
+    { name: "血怒", desc: "血量越低，造成伤害越高" },
+    { name: "天道无情", desc: "敌方生命越高，受到伤害越高" },
+    { name: "众生愿", desc: "队友越少，自身越强" },
+    { name: "虚实逆转", desc: "受到的治疗会转化为攻击力" },
+    { name: "红尘劫", desc: "年龄占比寿元越少，造成伤害越高" },
+    { name: "羽化", desc: "每经历一场战斗，永久获得少量随机属性" },
+    { name: "无畏", desc: "敌人境界高于自身时，大幅减伤并增伤" },
+  ],
+};
 
-export function normalizeTreasureAiFunction(raw: unknown, grade?: string): TreasureSpecialEffect | undefined {
-  return normalizeGeneric({
-    raw,
-    triggerKeys: TREASURE_TRIGGER_KEYS,
-    defaultTrigger: "on_hit_taken",
-    effectKeys: TREASURE_EFFECT_KEYS,
-    effectKeyToCategory: treasureEffectKeyToCategory,
-    costKeys: TREASURE_COST_KEYS,
-    defaultCost: "none",
-    grade,
-  }) as TreasureSpecialEffect | undefined;
+// ═══════════════════════════════════════════════════════════════════════════
+// 随机分配
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function rollTreasureFunction(grade: ItemGrade): TreasureSpecialEffect {
+  const pool = TREASURE_EFFECT_CATALOG[grade] ?? TREASURE_EFFECT_CATALOG["下品"];
+  const idx = Math.floor(Math.random() * pool.length);
+  return { ...pool[idx] };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -140,7 +98,7 @@ export interface TreasureItemDefinition {
   itemType: "法宝";
   name: string;
   desc: string;
-  grade: import("./itemInfo").ItemGrade;
+  grade: ItemGrade;
   count: number;
   bonus: ItemBonusMap;
   function?: TreasureSpecialEffect;

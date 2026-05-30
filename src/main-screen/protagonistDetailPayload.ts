@@ -15,9 +15,11 @@ import type {
 } from "../role_core/types/itemInfo";
 import type { CultivationRealm, EquipSlotKey, TraitEntry } from "../role_core/types/playInfo";
 import { BASE_STAT_KEYS, DERIVED_STAT_KEY_TO_ZH, getEquipBonusRealmRatio, type PlayerBaseStats } from "../role_core/types/playInfo";
-import type { ItemSpecialEffect } from "../role_core/types/special_effects";
-import { lookupCostZh, lookupEffectZh, lookupTriggerZh } from "../role_core/types/special_effects";
+import type { TreasureSpecialEffect } from "../role_core/types/treasure";
+import type { GongfaSpecialEffect } from "../role_core/types/gongfa";
 import { gradeToTraitRarity } from "./protagonistPanelDisplay";
+
+type ItemSpecialEffect = TreasureSpecialEffect | GongfaSpecialEffect;
 
 /**
  * 详情弹窗底部按钮所触发的动作；由 `protagonistManager.applyProtagonistDetailAction` 执行。
@@ -178,42 +180,20 @@ function formatMagnification(m: Record<string, number> | undefined): string | un
  * 消耗：消耗法力 20
  * ```
  */
-function formatSpecialEffect(fn: ItemSpecialEffect | undefined): string | undefined {
+function formatSpecialEffect(fn: ItemSpecialEffect | undefined, showName: boolean = true): string | undefined {
   if (!fn) return undefined;
-  const lines: string[] = [];
-
-  const triggerZh = lookupTriggerZh(fn.trigger as string);
-  if (triggerZh) lines.push(`触发条件：${triggerZh}`);
-
-  const effLabel = lookupEffectZh(fn.effect.label as string);
-  if (effLabel) {
-    const sign = fn.effect.value >= 0 ? "+" : "";
-    lines.push(`效果：${effLabel} ${sign}${fn.effect.value}`);
+  if ("name" in fn && "desc" in fn) {
+    if (showName) {
+      return `${(fn as { name: string }).name}：${(fn as { desc: string }).desc}`;
+    }
+    return `${(fn as { desc: string }).desc}`;
   }
-
-  if (typeof fn.duration === "number") {
-    lines.push(fn.duration > 0 ? `持续回合：${fn.duration}` : "持续回合：即时生效");
-  }
-
-  const costZh = lookupCostZh(fn.cost.resource as string);
-  if (costZh && fn.cost.resource !== "none") {
-    lines.push(`消耗：${costZh} ${fn.cost.value}`);
-  } else if (costZh) {
-    lines.push(`消耗：${costZh}`);
-  }
-
-  return lines.length ? lines.join("\n") : undefined;
+  return undefined;
 }
 
-/**
- * 若物品携带 `function` 字段，则将其格式化后追加到详情段落数组中。
- *
- * @param out - 目标段落数组。
- * @param fn - 物品的特殊效果（可为 `undefined`）。
- */
-function pushFunctionSection(out: ProtagonistDetailSection[], fn: ItemSpecialEffect | undefined): void {
-  const text = formatSpecialEffect(fn);
-  if (text) pushSec(out, "功能", text);
+function pushSpecialEffectSection(out: ProtagonistDetailSection[], fn: ItemSpecialEffect | undefined, showName: boolean = true): void {
+  const text = formatSpecialEffect(fn, showName);
+  if (text) pushSec(out, "特殊效果", text);
 }
 
 /**
@@ -273,7 +253,7 @@ export function buildWearableDetailPayload(
       ? formatZhBonusWithRealmEquip(it.bonus as Record<string, number>, realm)
       : formatZhBonus(it.bonus as Record<string, number>);
   if (bonus) pushSec(sections, "属性加成", bonus);
-  pushFunctionSection(sections, it.function);
+  pushSpecialEffectSection(sections, it.function, false);
 
   const actions: ProtagonistDetailActionButton[] = [];
   if (source?.type === "equipped") {
@@ -330,7 +310,7 @@ export function buildGongfaDetailPayload(
       ? formatZhBonusWithRealmEquip(gf.bonus as Record<string, number>, realm)
       : formatZhBonus(gf.bonus as Record<string, number>);
   if (bonus) pushSec(sections, "修炼加成", bonus);
-  pushFunctionSection(sections, gf.function);
+  pushSpecialEffectSection(sections, gf.function, false);
 
   const actions: ProtagonistDetailActionButton[] = [];
   if (source?.type === "bar") {

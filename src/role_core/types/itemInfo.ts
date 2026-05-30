@@ -11,15 +11,9 @@ import type { ElixirItemDefinition, ElixirEffectType, ElixirEffects } from "./el
 
 // re-export per-type item definitions（保持旧 import 路径兼容）
 export type { TreasureItemDefinition } from "./treasure";
-export type {
-  TreasureSpecialEffect,
-  TreasureTriggerTiming, TreasureEffectKey, TreasureCostKey,
-} from "./treasure";
+export type { TreasureSpecialEffect } from "./treasure";
 export type { GongfaItemDefinition } from "./gongfa";
-export type {
-  GongfaSpecialEffect,
-  GongfaTriggerTiming, GongfaEffectKey, GongfaCostKey,
-} from "./gongfa";
+export type { GongfaSpecialEffect, GongfaSystem, GongfaRole } from "./gongfa";
 export type { ElixirItemDefinition, ElixirEffectType, ElixirEffects } from "./elixir";
 
 // ---------------------------------------------------------------------------

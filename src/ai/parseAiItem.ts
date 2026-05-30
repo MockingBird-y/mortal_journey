@@ -18,25 +18,8 @@ import type {
   GradeDropRate,
 } from "../role_core/types/itemInfo";
 import { GRADE_DROP_TABLE } from "../role_core/types/itemInfo";
-import {
-  TREASURE_TRIGGER_KEYS,
-  GONGFA_TRIGGER_KEYS,
-  TREASURE_EFFECT_KEYS,
-  GONGFA_EFFECT_KEYS,
-  TREASURE_COST_KEYS,
-  GONGFA_COST_KEYS,
-  type SpecialEffect,
-  type EffectValueCategory,
-  type SpecialEffectTarget,
-  applyTypedFunctionOverrides,
-  computeEffectValue,
-  computeCostValue,
-  lookupEffectCategory,
-  firstEffectKeyOfCategoryAcrossTypes,
-  ITEM_TYPE_ALLOWED_EFFECTS,
-  treasureEffectKeyToCategory,
-  gongfaEffectKeyToCategory,
-} from "../role_core/types/special_effects";
+import { rollTreasureFunction } from "../role_core/types/treasure";
+import { rollGongfaFunction, normalizeGongfaSystem, normalizeGongfaRole, type GongfaRole } from "../role_core/types/gongfa";
 import {
   parseElixirEffectType,
   rollElixirValue,
@@ -148,112 +131,6 @@ export function safeCount(val: unknown): number {
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 1;
 }
 
-export const TREASURE_TRIGGER_FALLBACK = "on_hit_taken";
-export const GONGFA_TRIGGER_FALLBACK = "on_attack";
-
-export function effectKeysForType(itemType: string): readonly string[] {
-  switch (itemType) {
-    case "法宝": return TREASURE_EFFECT_KEYS;
-    case "功法": return GONGFA_EFFECT_KEYS;
-    default: return [];
-  }
-}
-
-export function costKeysForType(itemType: string): readonly string[] {
-  switch (itemType) {
-    case "法宝": return TREASURE_COST_KEYS;
-    case "功法": return GONGFA_COST_KEYS;
-    default: return [];
-  }
-}
-
-export function effectKeyToCategoryForType(effectLabel: string, itemType: string): EffectValueCategory {
-  switch (itemType) {
-    case "法宝": return treasureEffectKeyToCategory(effectLabel as typeof TREASURE_EFFECT_KEYS[number]);
-    case "功法": return gongfaEffectKeyToCategory(effectLabel as typeof GONGFA_EFFECT_KEYS[number]);
-    default: return lookupEffectCategory(effectLabel);
-  }
-}
-
-export function triggerKeysForType(itemType: string): readonly string[] {
-  switch (itemType) {
-    case "法宝": return TREASURE_TRIGGER_KEYS;
-    case "功法": return GONGFA_TRIGGER_KEYS;
-    default: return [];
-  }
-}
-
-export function validateAiFunction(raw: unknown, grade: string, itemType: string): SpecialEffect | null {
-  if (!raw || typeof raw !== "object") return null;
-  const obj = raw as Record<string, unknown>;
-
-  const allTriggers = [
-    ...TREASURE_TRIGGER_KEYS, ...GONGFA_TRIGGER_KEYS,
-  ];
-  let trigger = obj.trigger;
-  if (typeof trigger !== "string") return null;
-
-  const validTriggers = triggerKeysForType(itemType);
-  if (validTriggers.length > 0 && !validTriggers.includes(trigger)) {
-    if (itemType === "法宝") trigger = TREASURE_TRIGGER_FALLBACK;
-    else if (itemType === "功法") trigger = GONGFA_TRIGGER_FALLBACK;
-    else return null;
-  } else if (validTriggers.length === 0 && !(allTriggers as readonly string[]).includes(trigger)) {
-    trigger = "on_attack";
-  }
-
-  const allowedEffectKeys = effectKeysForType(itemType);
-  let effectLabel: string | null = null;
-  const eff = obj.effect;
-  if (typeof eff === "string") {
-    if (!allowedEffectKeys.includes(eff)) return null;
-    effectLabel = eff;
-  } else if (eff && typeof eff === "object") {
-    const effObj = eff as Record<string, unknown>;
-    const label = effObj.label;
-    if (typeof label !== "string" || !allowedEffectKeys.includes(label)) return null;
-    effectLabel = label;
-  } else {
-    return null;
-  }
-
-  const category = effectKeyToCategoryForType(effectLabel, itemType);
-  const allowedEffects = ITEM_TYPE_ALLOWED_EFFECTS[itemType as SpecialEffectTarget];
-  if (allowedEffects && !allowedEffects.has(category)) {
-    const fallbackCat = Array.from(allowedEffects)[0];
-    effectLabel = firstEffectKeyOfCategoryAcrossTypes(fallbackCat);
-  }
-
-  const dur = obj.duration;
-  if (typeof dur !== "number" || !Number.isFinite(dur) || dur < 0) return null;
-
-  const allowedCostKeys = costKeysForType(itemType);
-  let costResource: string | null = null;
-  const cst = obj.cost;
-  if (typeof cst === "string") {
-    if (!allowedCostKeys.includes(cst)) return null;
-    costResource = cst;
-  } else if (cst && typeof cst === "object") {
-    const cstObj = cst as Record<string, unknown>;
-    const resource = cstObj.resource;
-    if (typeof resource !== "string" || !allowedCostKeys.includes(resource)) return null;
-    costResource = resource;
-  } else {
-    return null;
-  }
-
-  const finalCategory = effectKeyToCategoryForType(effectLabel, itemType);
-  const effectValue = computeEffectValue(finalCategory, grade, trigger as string, Math.max(0, Math.floor(dur)), costResource);
-  const costValue = computeCostValue(costResource, grade);
-
-  return {
-    trigger: trigger as never,
-    effect: { label: effectLabel as never, value: effectValue },
-    duration: Math.max(0, Math.floor(dur)),
-    cost: { resource: costResource as never, value: costValue },
-  };
-}
-
 export const TYPE_TO_ITEM_TYPE: Record<string, CategorizedItemDefinition["itemType"]> = {
   "法宝": "法宝",
   "功法": "功法",
@@ -272,13 +149,15 @@ export function parseEquipObject(e: unknown, realmMajor: string, realmMinor: str
     grade,
     count: 1,
     bonus: parseTreasureBonusField(obj.bonus, grade),
-    function: applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "法宝") ?? undefined, "法宝"),
+    function: rollTreasureFunction(grade),
   };
 }
 
 export function parseGongfaObject(e: unknown, realmMajor: string, realmMinor: string, _playerLinggen?: readonly string[] | null): GongfaItemDefinition {
   const obj = e as Record<string, unknown>;
   const grade = rollGrade(realmMajor, realmMinor);
+  const system = normalizeGongfaSystem(obj.system);
+  const role = normalizeGongfaRole(obj.role);
   return {
     itemType: "功法",
     name: safeStr(obj.name, "未命名功法"),
@@ -286,7 +165,9 @@ export function parseGongfaObject(e: unknown, realmMajor: string, realmMinor: st
     grade,
     count: 1,
     bonus: parseBonusField(obj.bonus, grade),
-    function: applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "功法") ?? undefined, "功法"),
+    system,
+    role,
+    function: rollGongfaFunction(system, grade, role),
   };
 }
 
@@ -306,14 +187,14 @@ export function parseStorageObject(e: unknown, realmMajor: string, realmMinor: s
   const count = safeCount(obj.count);
   const itemType = TYPE_TO_ITEM_TYPE[typeStr] ?? "杂物";
   if (itemType === "功法") {
-    const fn = applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, itemType) ?? undefined, "功法");
-    return { itemType: "功法", name, desc, grade, count, bonus: parseBonusField(obj.bonus, grade), function: fn } as GongfaItemDefinition;
+    const system = normalizeGongfaSystem(obj.system);
+    const role = normalizeGongfaRole(obj.role);
+    return { itemType: "功法", name, desc, grade, count, system, role, bonus: parseBonusField(obj.bonus, grade), function: rollGongfaFunction(system, grade, role) } as GongfaItemDefinition;
   }
 
   switch (itemType) {
     case "法宝": {
-      const fn = applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "法宝") ?? undefined, "法宝");
-      return { itemType: "法宝", name, desc, grade, count, bonus: parseTreasureBonusField(obj.bonus, grade), function: fn } as TreasureItemDefinition;
+      return { itemType: "法宝", name, desc, grade, count, bonus: parseTreasureBonusField(obj.bonus, grade), function: rollTreasureFunction(grade) } as TreasureItemDefinition;
     }
     case "丹药": {
       const effectType = parseElixirEffectType(obj.effectType);

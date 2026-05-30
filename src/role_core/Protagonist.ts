@@ -13,8 +13,12 @@ import type {
   InventoryStackItem,
   TreasureItemDefinition,
 } from "./types/itemInfo";
-import type { SpecialEffect } from "./types/special_effects";
-import { normalizeTypedAiFunction, applyFunctionOverrides } from "./types/special_effects";
+import type { TreasureSpecialEffect } from "./types/treasure";
+import { rollTreasureFunction } from "./types/treasure";
+import type { GongfaSpecialEffect, GongfaSystem } from "./types/gongfa";
+import { rollGongfaFunction, normalizeGongfaSystem, normalizeGongfaRole } from "./types/gongfa";
+
+type SpecialEffect = TreasureSpecialEffect | GongfaSpecialEffect;
 import type {
   EquippedSlotsState,
   GongfaSlotsState,
@@ -391,11 +395,31 @@ export class Protagonist extends Character {
     for (const item of state.itemAdds) {
       if (item.type === "灵石") continue;
       const itemType = VALID_ITEM_TYPES.has(item.type) ? item.type as CategorizedItemDefinition["itemType"] : "杂物";
-      const fn: SpecialEffect | undefined = applyFunctionOverrides(normalizeTypedAiFunction(item.function, itemType as import("./types/special_effects").SpecialEffectTarget, item.grade), itemType);
+      let fn: SpecialEffect | undefined;
+      const grade = item.grade as import("./types/itemInfo").ItemGrade;
+      if (itemType === "法宝") {
+        fn = rollTreasureFunction(grade);
+      } else if (itemType === "功法") {
+        const itemRec = item as unknown as Record<string, unknown>;
+        const system = normalizeGongfaSystem(itemRec.system);
+        const role = normalizeGongfaRole(itemRec.role);
+        fn = rollGongfaFunction(system, grade, role);
+        this.addToInventory({
+          name: item.name,
+          desc: item.intro,
+          grade,
+          count: item.count,
+          itemType,
+          system,
+          role,
+          function: fn,
+        } as InventoryStackItem);
+        continue;
+      }
       this.addToInventory({
         name: item.name,
         desc: item.intro,
-        grade: item.grade as "下品" | "中品" | "上品" | "极品" | "仙品" | "神品",
+        grade,
         count: item.count,
         itemType,
         ...(fn ? { function: fn } : {}),

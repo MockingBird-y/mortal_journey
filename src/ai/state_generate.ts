@@ -46,6 +46,8 @@ export interface ItemAddEntry {
   grade: string;
   bonus?: string[] | Record<string, number>;
   count: number;
+  system?: unknown;
+  role?: unknown;
   function?: unknown;
 }
 
@@ -222,6 +224,8 @@ export function parseStateAiResponse(raw: string): StateParsed {
         : undefined;
       return {
         type, name, intro, grade, bonus, count,
+        ...(o.system != null ? { system: o.system } : {}),
+        ...(o.role != null ? { role: o.role } : {}),
         ...(o.function != null ? { function: o.function } : {}),
       } as ItemAddEntry;
     })

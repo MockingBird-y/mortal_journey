@@ -1,115 +1,695 @@
 /**
- * 功法：物品定义 + 特殊效果。
+ * 功法：物品定义 + 特殊效果（名称 + 描述 + 类型）。
+ * 功法的 function 由系统根据体系（system）和品阶从效果目录中随机分配，不由 AI 生成。
+ * 体系由 AI 输出，代码校验后用于效果池选取。
  */
 
-import type { ItemBonusMap } from "./itemInfo";
-import type { EffectCategory, EffectValueCategory } from "./special_effects";
-import {
-  normalizeGeneric,
-  categoryToValueCategory,
-} from "./special_effects";
+import type { ItemBonusMap, ItemGrade } from "./itemInfo";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 触发时机
+// 功法体系
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const GONGFA_TRIGGER_KEYS = [
-  "on_attack",
-  "on_skill_cast",
-  "on_default",
+export const GONGFA_SYSTEM_KEYS = [
+  "剑系",
+  "体修",
+  "法修",
+  "刺客系",
+  "毒系",
+  "魔修",
+  "火系",
+  "雷系",
+  "冰系",
+  "暗系",
+  "风系",
+  "木系",
 ] as const;
-export type GongfaTriggerTiming = (typeof GONGFA_TRIGGER_KEYS)[number];
+export type GongfaSystem = (typeof GONGFA_SYSTEM_KEYS)[number];
 
-export const GONGFA_TRIGGER_TO_ZH: Readonly<Record<GongfaTriggerTiming, string>> = {
-  on_attack: "主动触发",
-  on_skill_cast: "释放技能时",
-  on_default: "默认触发",
-};
-
-export const GONGFA_TRIGGER_CATEGORY: Readonly<Record<GongfaTriggerTiming, "主动" | "被动" | "默认">> = {
-  on_attack: "主动",
-  on_skill_cast: "主动",
-  on_default: "默认",
-};
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 效果键
+// 特殊效果
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const GONGFA_EFFECT_KEYS = [
-  "boostPenetration", "boostHitRate", "boostDodgeRate", "boostCritRate",
-  "boostCritDmg",
-  "dealPhysicalDmg", "dealMagicDmg",
-  "dealFireDmg", "dealIceDmg", "dealPoisonDmg", "dealLightningDmg",
-] as const;
-export type GongfaEffectKey = (typeof GONGFA_EFFECT_KEYS)[number];
+export type GongfaEffectType = "主动" | "被动";
 
-export const GONGFA_EFFECT_TO_ZH: Readonly<Record<GongfaEffectKey, string>> = {
-  boostPenetration: "增加穿透",
-  boostHitRate: "增加命中率",
-  boostDodgeRate: "增加闪避率",
-  boostCritRate: "增加暴击率",
-  boostCritDmg: "增加暴击伤害",
-  dealPhysicalDmg: "造成物伤",
-  dealMagicDmg: "造成法伤",
-  dealFireDmg: "造成火伤",
-  dealIceDmg: "造成冰伤",
-  dealPoisonDmg: "造成毒伤",
-  dealLightningDmg: "造成雷伤",
-};
-
-export const GONGFA_EFFECT_CATEGORY: Readonly<Record<GongfaEffectKey, EffectCategory>> = {
-  boostPenetration: "增益", boostHitRate: "增益", boostDodgeRate: "增益",
-  boostCritRate: "增益", boostCritDmg: "增益",
-  dealPhysicalDmg: "伤害", dealMagicDmg: "伤害",
-  dealFireDmg: "伤害", dealIceDmg: "伤害", dealPoisonDmg: "伤害", dealLightningDmg: "伤害",
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 消耗资源
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const GONGFA_COST_KEYS = ["none", "mp", "hp"] as const;
-export type GongfaCostKey = (typeof GONGFA_COST_KEYS)[number];
-export const GONGFA_COST_TO_ZH: Readonly<Record<GongfaCostKey, string>> = {
-  none: "无消耗",
-  mp: "消耗法力",
-  hp: "消耗血量",
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 特效接口与白名单
-// ═══════════════════════════════════════════════════════════════════════════
+export type GongfaRole = "攻击" | "辅助";
 
 export interface GongfaSpecialEffect {
-  trigger: GongfaTriggerTiming;
-  effect: { label: GongfaEffectKey; value: number };
-  duration: number;
-  cost: { resource: GongfaCostKey; value: number };
+  name: string;
+  desc: string;
+  type: GongfaEffectType;
 }
 
-export const GONGFA_ALLOWED_TRIGGERS: ReadonlySet<string> = new Set<string>(GONGFA_TRIGGER_KEYS);
-export const GONGFA_ALLOWED_EFFECT_CATEGORIES: ReadonlySet<EffectValueCategory> = new Set(["boost", "damage"] as const);
-
 // ═══════════════════════════════════════════════════════════════════════════
-// 效果辅助函数
+// 效果目录（按体系 × 品阶，每品阶5个效果：3主动 + 2被动）
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function gongfaEffectKeyToCategory(label: GongfaEffectKey): EffectValueCategory {
-  return categoryToValueCategory(GONGFA_EFFECT_CATEGORY[label]);
+const GRADE_ORDER: readonly ItemGrade[] = ["下品", "中品", "上品", "极品", "仙品", "神品"];
+
+export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Record<ItemGrade, readonly GongfaSpecialEffect[]>>>> = {
+
+  // ── 剑系 ──────────────────────────────────────────────────────────────
+  // 核心：召唤飞剑自动攻击，物攻/暴击/暴击伤害
+  "剑系": {
+    "下品": [
+      { name: "飞剑召唤", desc: "召唤1把飞剑，每回合自动攻击敌人造成物伤", type: "主动" },
+      { name: "剑气斩", desc: "释放剑气造成物伤，无视部分防御", type: "主动" },
+      { name: "御剑突刺", desc: "驾驭飞剑突刺敌人造成物伤，提高暴击率", type: "主动" },
+      { name: "剑心初悟", desc: "每次攻击叠加剑意，提升暴击伤害", type: "被动" },
+      { name: "飞剑共鸣", desc: "飞剑数量越多，暴击率越高", type: "被动" },
+    ],
+    "中品": [
+      { name: "追魂剑", desc: "飞剑优先攻击低血量敌人，造成高额物伤", type: "主动" },
+      { name: "剑阵", desc: "展开剑阵，召唤3柄飞剑每回合随机攻击敌人", type: "主动" },
+      { name: "连环剑", desc: "连续攻击两次，每次造成物伤", type: "主动" },
+      { name: "剑意凝聚", desc: "暴击获得剑意，每10层剑意获得1柄飞剑", type: "被动" },
+      { name: "锋芒", desc: "飞剑攻击的暴击伤害提高", type: "被动" },
+    ],
+    "上品": [
+      { name: "万剑诀", desc: "发射所有飞剑攻击目标，每柄飞剑造成物伤", type: "主动" },
+      { name: "回旋剑", desc: "飞剑攻击后概率返回再攻击一次", type: "主动" },
+      { name: "剑意斩", desc: "消耗全部剑意造成物伤，剑意越多伤害越高", type: "主动" },
+      { name: "百步飞剑", desc: "飞剑伤害提升，且飞剑攻击附带穿透", type: "被动" },
+      { name: "剑意如虹", desc: "剑意叠满时下一次飞剑攻击造成双倍伤害", type: "被动" },
+    ],
+    "极品": [
+      { name: "斩天拔剑术", desc: "蓄力一回合，下回合造成超高单体物伤", type: "主动" },
+      { name: "万剑归宗", desc: "所有飞剑同时对全体敌人发动攻击", type: "主动" },
+      { name: "天地剑气", desc: "无视防御造成剑气伤害，每把飞剑追加一道剑气", type: "主动" },
+      { name: "千机剑匣", desc: "战斗开始自动召唤数把飞剑", type: "被动" },
+      { name: "剑域", desc: "展开剑域，领域内每把飞剑每回合额外攻击一次", type: "被动" },
+    ],
+    "仙品": [
+      { name: "诛仙剑", desc: "所有飞剑集中攻击一个目标，有概率斩杀低血量敌人", type: "主动" },
+      { name: "剑道化身", desc: "释放剑气穿透一列敌人，每把飞剑额外追加一次穿透", type: "主动" },
+      { name: "天剑", desc: "对单体造成毁灭性物伤，暴击必定命中", type: "主动" },
+      { name: "剑意通明", desc: "飞剑攻击暴击不会被闪避", type: "被动" },
+      { name: "无剑之境", desc: "无需飞剑也能造成等量剑气伤害", type: "被动" },
+    ],
+    "神品": [
+      { name: "诛仙剑阵", desc: "全体飞剑连续攻击，每柄飞剑额外攻击一次", type: "主动" },
+      { name: "天人合一", desc: "消耗全部剑意对单体造成毁灭性物伤，无视防御", type: "主动" },
+      { name: "万剑朝宗", desc: "飞剑数量越多伤害越高，对全体敌人造成物伤", type: "主动" },
+      { name: "剑心", desc: "修炼剑系功法，永久提高暴击伤害", type: "被动" },
+      { name: "剑道真解", desc: "所有剑系技能强化，飞剑数量上限提高", type: "被动" },
+    ],
+  },
+
+  // ── 体修 ──────────────────────────────────────────────────────────────
+  // 核心：高额血量/防御，被动反伤，替队友承伤，攻击获取护盾/防御
+  "体修": {
+    "下品": [
+      { name: "震脉击", desc: "造成物伤，攻击后提高物防", type: "主动" },
+      { name: "铁膝撞", desc: "造成物伤，获取护盾", type: "主动" },
+      { name: "崩山拳", desc: "造成物伤，概率吸引敌人攻击自己", type: "主动" },
+      { name: "铁骨", desc: "永久提高物防和法防", type: "被动" },
+      { name: "护脉", desc: "每回合自动获得少量护盾", type: "被动" },
+    ],
+    "中品": [
+      { name: "霸体冲撞", desc: "造成物伤并击退目标，自身获得大量护盾", type: "主动" },
+      { name: "血燃拳", desc: "消耗生命造成物伤，攻击后获取物防法防", type: "主动" },
+      { name: "裂地击", desc: "造成物伤，吸引全体敌人攻击自己一回合", type: "主动" },
+      { name: "铁壁", desc: "受到致命伤时获得护盾", type: "被动" },
+      { name: "反震体", desc: "受到近身攻击时反弹伤害", type: "被动" },
+    ],
+    "上品": [
+      { name: "山岳投", desc: "造成物伤，根据自身护盾值附加额外伤害", type: "主动" },
+      { name: "不动明王拳", desc: "造成物伤，数回合内替队友承受伤害", type: "主动" },
+      { name: "金刚怒目", desc: "造成物伤，将造成伤害的一半转化为护盾", type: "主动" },
+      { name: "金刚不坏", desc: "数回合内受到伤害降低", type: "被动" },
+      { name: "涅槃之气", desc: "每损失一定比例生命获得护盾", type: "被动" },
+    ],
+    "极品": [
+      { name: "不灭金身", desc: "造成物伤，将全部造成伤害转化为护盾", type: "主动" },
+      { name: "天地崩", desc: "对全体敌人造成物伤，吸引全体攻击自己", type: "主动" },
+      { name: "涅槃击", desc: "消耗全部护盾造成物伤，护盾越多伤害越高", type: "主动" },
+      { name: "血战", desc: "生命低于一定比例时物攻和物防大幅提高", type: "被动" },
+      { name: "铁山靠", desc: "受到攻击时概率眩晕攻击者", type: "被动" },
+    ],
+    "仙品": [
+      { name: "九转天拳", desc: "造成超高物伤，无视全部防御，获得巨额护盾", type: "主动" },
+      { name: "法相天地", desc: "替全体队友承受伤害，同时恢复自身生命", type: "主动" },
+      { name: "金身怒目", desc: "造成物伤，命中后恢复大量生命并获取物防", type: "主动" },
+      { name: "九转金身", desc: "数回合内受到伤害不会低于1点生命", type: "被动" },
+      { name: "肉身成圣", desc: "所有防御属性翻倍", type: "被动" },
+    ],
+    "神品": [
+      { name: "天地法相拳", desc: "对全体造成毁灭性物伤，造成伤害全部转化为自身护盾", type: "主动" },
+      { name: "涅槃重生击", desc: "造成物伤，若击杀目标恢复全部生命", type: "主动" },
+      { name: "万法不侵身", desc: "造成物伤，数回合内替全体队友承受伤害且免疫特殊效果", type: "主动" },
+      { name: "不朽", desc: "受到任何伤害不超过最大生命一定比例", type: "被动" },
+      { name: "天地同寿", desc: "受到致命伤时免疫并恢复生命，每场战斗限一次", type: "被动" },
+    ],
+  },
+
+  // ── 法修 ──────────────────────────────────────────────────────────────
+  // 核心：法攻/法力，打AOE法伤，频繁施法，施法链
+  "法修": {
+    "下品": [
+      { name: "法弹术", desc: "造成法伤", type: "主动" },
+      { name: "灵光弹", desc: "造成法伤，减少随机技能冷却", type: "主动" },
+      { name: "灵压冲击", desc: "造成法伤，额外附加法力值一定比例伤害", type: "主动" },
+      { name: "聚灵术", desc: "每回合恢复法力", type: "被动" },
+      { name: "法力流转", desc: "法力消耗降低", type: "被动" },
+    ],
+    "中品": [
+      { name: "灵海冲击", desc: "造成法伤，法力越高伤害越高", type: "主动" },
+      { name: "法力潮汐", desc: "对全体敌人造成法伤，命中后恢复部分法力", type: "主动" },
+      { name: "灵能爆破", desc: "造成法伤，连续释放同类技能增伤", type: "主动" },
+      { name: "灵台清明", desc: "释放技能时概率不消耗法力", type: "被动" },
+      { name: "法盾", desc: "消耗法力获得护盾", type: "被动" },
+    ],
+    "上品": [
+      { name: "法相显化", desc: "对全体敌人造成法伤，提高法术暴击率", type: "主动" },
+      { name: "灵元爆发", desc: "消耗大量法力造成高额法伤", type: "主动" },
+      { name: "法力洪流", desc: "造成法伤，额外附加法力消耗比例的伤害", type: "主动" },
+      { name: "元神共振", desc: "法力高于80%时法伤提升", type: "被动" },
+      { name: "聚灵阵", desc: "每回合恢复法力，法力越高恢复越多", type: "被动" },
+    ],
+    "极品": [
+      { name: "太虚法印", desc: "造成法伤，释放时概率不进入冷却", type: "主动" },
+      { name: "万法归一", desc: "造成法伤，命中后强化下一次技能伤害", type: "主动" },
+      { name: "法则之雷", desc: "对全体敌人造成法伤，无视部分法防", type: "主动" },
+      { name: "天道法则", desc: "每种不同体系功法提供额外法攻", type: "被动" },
+      { name: "法力暴走", desc: "法力低于20%时技能伤害翻倍", type: "被动" },
+    ],
+    "仙品": [
+      { name: "天衍术", desc: "复制敌方最近释放的技能进行攻击", type: "主动" },
+      { name: "一念三千", desc: "造成法伤，下一次技能额外释放两次", type: "主动" },
+      { name: "神机法", desc: "造成法伤，必定触发附加效果", type: "主动" },
+      { name: "法则篡改", desc: "随机重置所有技能冷却", type: "被动" },
+      { name: "须弥芥子", desc: "储存一次技能，下次释放时双重施法", type: "被动" },
+    ],
+    "神品": [
+      { name: "万法寂灭", desc: "封锁全场不能使用功法，造成全体法伤", type: "主动" },
+      { name: "言出法随", desc: "造成超高法伤，下一回合所有技能无冷却无消耗", type: "主动" },
+      { name: "万法之源", desc: "造成法伤，概率触发所有已学功法效果", type: "主动" },
+      { name: "道法自然", desc: "法力永不低于一定值", type: "被动" },
+      { name: "天道推演", desc: "所有法系技能效果提升", type: "被动" },
+    ],
+  },
+
+  // ── 刺客系 ────────────────────────────────────────────────────────────
+  // 核心：物攻/闪避/穿透，隐匿规避攻击，破防专克防御流，闪避反击
+  "刺客系": {
+    "下品": [
+      { name: "暗器投掷", desc: "造成物伤，降低被攻击概率", type: "主动" },
+      { name: "要害突刺", desc: "造成物伤，附加穿透伤害", type: "主动" },
+      { name: "疾风刃", desc: "造成物伤，提升自身闪避率", type: "主动" },
+      { name: "潜影", desc: "永久降低被敌人攻击概率", type: "被动" },
+      { name: "敏锐", desc: "暴击率永久提高", type: "被动" },
+    ],
+    "中品": [
+      { name: "背刺", desc: "造成物伤，无视部分防御", type: "主动" },
+      { name: "破甲突袭", desc: "造成物伤，大幅降低目标防御", type: "主动" },
+      { name: "闪避反击", desc: "造成物伤，闪避后自动追加一次攻击", type: "主动" },
+      { name: "影分身", desc: "自动召唤分身吸引攻击", type: "被动" },
+      { name: "破盾", desc: "对护盾敌人造成额外伤害", type: "被动" },
+    ],
+    "上品": [
+      { name: "致命暗杀", desc: "隐匿状态下造成超高物伤，必定暴击", type: "主动" },
+      { name: "幻影连刺", desc: "造成多段物伤，每段附带穿透", type: "主动" },
+      { name: "处刑斩", desc: "造成物伤，对护盾目标伤害翻倍", type: "主动" },
+      { name: "夜行", desc: "战斗开始自动进入隐匿状态", type: "被动" },
+      { name: "影遁", desc: "受到攻击时概率进入隐匿", type: "被动" },
+    ],
+    "极品": [
+      { name: "一击必杀", desc: "隐匿状态下造成超高物伤，无视全部防御和护盾", type: "主动" },
+      { name: "千面杀", desc: "造成物伤，命中后重置技能冷却并进入隐匿", type: "主动" },
+      { name: "封脉刺", desc: "造成物伤，大幅降低目标防御和法防", type: "主动" },
+      { name: "影杀", desc: "击杀目标后立即再次进入隐匿", type: "被动" },
+      { name: "灭口", desc: "击杀目标时恢复全部法力", type: "被动" },
+    ],
+    "仙品": [
+      { name: "鬼神刺", desc: "造成物伤，无视全部防御，对护盾目标额外增伤", type: "主动" },
+      { name: "无声杀", desc: "造成物伤，概率使目标无法行动一回合", type: "主动" },
+      { name: "十步杀", desc: "造成物伤，击杀后本次战斗永久提高物攻和穿透", type: "主动" },
+      { name: "绝影", desc: "隐匿状态下无法被任何手段侦测", type: "被动" },
+      { name: "影武者", desc: "受到致命伤时与影分身互换位置", type: "被动" },
+    ],
+    "神品": [
+      { name: "斩因果", desc: "造成物伤，无视防御和所有减伤效果", type: "主动" },
+      { name: "一刃断魂", desc: "造成物伤，附带即死效果，对强敌改为超高伤害", type: "主动" },
+      { name: "影界暗杀", desc: "进入影界连续行动三次，每次造成穿透物伤", type: "主动" },
+      { name: "暗影主宰", desc: "永久处于隐匿状态，攻击后短暂暴露", type: "被动" },
+      { name: "诛杀令", desc: "标记一名敌人，对其所有伤害翻倍", type: "被动" },
+    ],
+  },
+
+  // ── 毒系 ──────────────────────────────────────────────────────────────
+  // 核心：中毒扣百分比生命，拖时间回血耗死敌人，持续伤害
+  "毒系": {
+    "下品": [
+      { name: "毒手", desc: "造成法伤，附加中毒（每回合扣除目标最大生命百分比）", type: "主动" },
+      { name: "蚀骨掌", desc: "造成法伤，附加中毒并降低目标防御", type: "主动" },
+      { name: "毒雾弥漫", desc: "造成法伤，概率附加中毒", type: "主动" },
+      { name: "毒灵转生", desc: "中毒敌人死亡时恢复自身生命", type: "被动" },
+      { name: "腐蚀之触", desc: "攻击自动降低敌方恢复效果", type: "被动" },
+    ],
+    "中品": [
+      { name: "蛊毒针", desc: "造成法伤，附加中毒，层数越高扣血越多", type: "主动" },
+      { name: "腐血术", desc: "造成法伤，附加中毒并降低目标恢复效果", type: "主动" },
+      { name: "毒刃斩", desc: "造成法伤，对已中毒目标额外增伤", type: "主动" },
+      { name: "蛊毒", desc: "中毒效果叠加速度加快", type: "被动" },
+      { name: "毒愈", desc: "敌人因中毒受到伤害时恢复自身少量生命", type: "被动" },
+    ],
+    "上品": [
+      { name: "毒丹爆", desc: "引爆目标所有中毒层数，造成一次性高额毒伤", type: "主动" },
+      { name: "蛊虫噬心", desc: "造成法伤，附加中毒，击杀后扩散至其他敌人", type: "主动" },
+      { name: "猛毒注入", desc: "造成法伤，附加强力中毒，持续时间延长", type: "被动" },
+      { name: "剧毒之躯", desc: "受到近身攻击时自动施加中毒", type: "被动" },
+      { name: "毒蚀", desc: "中毒目标每回合自动降低攻击力", type: "被动" },
+    ],
+    "极品": [
+      { name: "天毒降", desc: "对全体敌人造成法伤，附加中毒", type: "主动" },
+      { name: "万蛊噬心", desc: "造成法伤，中毒目标受到的所有伤害提高", type: "主动" },
+      { name: "毒灵引爆", desc: "引爆全场中毒造成法伤，层数越高伤害越高", type: "主动" },
+      { name: "腐天", desc: "中毒伤害可暴击", type: "被动" },
+      { name: "万毒化身", desc: "自身免疫中毒，根据敌方中毒人数增伤", type: "被动" },
+    ],
+    "仙品": [
+      { name: "百毒灭世", desc: "对全体造成法伤，中毒效果翻倍", type: "主动" },
+      { name: "不死蛊", desc: "造成法伤，击杀目标恢复大量生命法力", type: "主动" },
+      { name: "化毒攻击", desc: "造成法伤，将自身所受伤害转化为中毒施加", type: "主动" },
+      { name: "毒域", desc: "全体敌人每回合自动叠加中毒且无法净化", type: "被动" },
+      { name: "毒尊", desc: "中毒层数无上限", type: "被动" },
+    ],
+    "神品": [
+      { name: "万毒归宗", desc: "引爆全场中毒造成毁灭性法伤", type: "主动" },
+      { name: "死寂", desc: "造成法伤，中毒层数满的敌人直接被击杀", type: "主动" },
+      { name: "天地毒牢", desc: "对全体造成法伤，敌人无法清除中毒且每回合叠加", type: "主动" },
+      { name: "毒仙之体", desc: "免疫所有负面效果，敌人中毒时自身恢复生命", type: "被动" },
+      { name: "毒愈天成", desc: "敌人中毒伤害的百分比永久恢复自身生命", type: "被动" },
+    ],
+  },
+
+  // ── 魔修 ──────────────────────────────────────────────────────────────
+  // 核心：消耗血量/法力/寿元换取增强，敌人死亡获得增益，自残流
+  "魔修": {
+    "下品": [
+      { name: "炼血术", desc: "消耗生命造成高额暗属性法伤", type: "主动" },
+      { name: "噬魂爪", desc: "造成暗属性法伤，恢复造成伤害一定比例的生命", type: "主动" },
+      { name: "魔气弹", desc: "造成暗属性法伤，降低敌方法攻", type: "主动" },
+      { name: "魔体", desc: "受到伤害时概率反弹", type: "被动" },
+      { name: "吞噬", desc: "击杀敌人恢复生命和法力", type: "被动" },
+    ],
+    "中品": [
+      { name: "献祭术", desc: "消耗大量生命造成超高暗属性法伤", type: "主动" },
+      { name: "魔影突击", desc: "消耗法力召唤魔影攻击，造成暗属性法伤", type: "主动" },
+      { name: "噬魂术", desc: "造成暗属性法伤，命中后恢复法力", type: "主动" },
+      { name: "血契", desc: "队友死亡时继承其部分属性", type: "被动" },
+      { name: "魔血沸腾", desc: "生命越低法攻越高", type: "被动" },
+    ],
+    "上品": [
+      { name: "天魔爪", desc: "消耗生命造成高额暗属性法伤，概率附加恐惧", type: "主动" },
+      { name: "血魔突袭", desc: "消耗生命和法力造成暗属性法伤，生命越低伤害越高", type: "主动" },
+      { name: "魔威震慑", desc: "造成暗属性法伤，降低全体敌人攻击力", type: "主动" },
+      { name: "血魔之躯", desc: "消耗生命自动提高防御和攻击", type: "被动" },
+      { name: "魔道轮回", desc: "敌人死亡时恢复大量生命", type: "被动" },
+    ],
+    "极品": [
+      { name: "血祭", desc: "消耗大量生命对全体敌人造成暗属性法伤", type: "主动" },
+      { name: "天魔附体", desc: "消耗生命大幅提高属性，造成超高暗属性法伤", type: "主动" },
+      { name: "万魂噬", desc: "造成暗属性法伤，敌人死亡时恢复大量法力", type: "主动" },
+      { name: "轮回印", desc: "队友死亡后化为魂体继续战斗数回合", type: "被动" },
+      { name: "天怒", desc: "敌人越多伤害越高", type: "被动" },
+    ],
+    "仙品": [
+      { name: "焚寿天魔", desc: "消耗寿元造成超高暗属性法伤，无视防御", type: "主动" },
+      { name: "幽冥之门", desc: "消耗法力召唤幽冥使者攻击，造成暗属性法伤", type: "主动" },
+      { name: "生死逆轮", desc: "交换生命与法力后造成暗属性法伤", type: "主动" },
+      { name: "魔道至尊", desc: "所有魔修技能伤害提升", type: "被动" },
+      { name: "血海无量", desc: "每次击杀永久提高生命上限", type: "被动" },
+    ],
+    "神品": [
+      { name: "灭世", desc: "消耗全部法力对全场造成毁灭性暗属性法伤", type: "主动" },
+      { name: "天魔解体", desc: "消耗大量生命大幅提高属性，造成超高伤害", type: "主动" },
+      { name: "魔界降临", desc: "消耗生命将战场化为魔域，持续造成暗属性法伤", type: "主动" },
+      { name: "不死魔躯", desc: "受到致命伤时消耗法力抵消并恢复部分生命", type: "被动" },
+      { name: "噬魂", desc: "击杀一名敌方永久增加法攻", type: "被动" },
+    ],
+  },
+
+  // ── 火系 ──────────────────────────────────────────────────────────────
+  // 核心：纯爆发流，灼烧真实伤害，短时高伤，和毒系相反
+  "火系": {
+    "下品": [
+      { name: "火球术", desc: "造成高额火伤", type: "主动" },
+      { name: "点燃", desc: "造成火伤，附加灼烧（真实伤害，持续短时间）", type: "主动" },
+      { name: "炽焰斩", desc: "造成火伤，提高自身火系伤害", type: "主动" },
+      { name: "火灵感知", desc: "火系功法造成额外伤害", type: "被动" },
+      { name: "灼烧体质", desc: "攻击时概率点燃目标", type: "被动" },
+    ],
+    "中品": [
+      { name: "烈火术", desc: "造成高额火伤，攻击随机目标两次", type: "主动" },
+      { name: "爆炎弹", desc: "造成火伤，对灼烧目标额外增伤", type: "主动" },
+      { name: "烈焰风暴", desc: "对目标及周围敌人造成高额火伤", type: "主动" },
+      { name: "火种", desc: "攻击有概率叠加火种", type: "被动" },
+      { name: "炎爆", desc: "击杀燃烧中的敌人时对周围造成火伤", type: "被动" },
+    ],
+    "上品": [
+      { name: "赤炎领域", desc: "对全体敌人造成高额火伤，附加灼烧", type: "主动" },
+      { name: "焚身焰", desc: "造成超高火伤，敌人灼烧层数越高伤害越高", type: "主动" },
+      { name: "火灵附体", desc: "造成火伤，命中后大幅提高自身法攻", type: "主动" },
+      { name: "烈焰印记", desc: "攻击附加火焰印记，印记叠满爆炸造成真实伤害", type: "被动" },
+      { name: "炎魔之体", desc: "受到火系伤害时恢复生命", type: "被动" },
+    ],
+    "极品": [
+      { name: "天火降世", desc: "对全体造成毁灭性火伤", type: "主动" },
+      { name: "九阳真火", desc: "造成超高火伤，无视部分法防", type: "主动" },
+      { name: "炎爆术", desc: "引爆所有灼烧和火种造成高额火伤", type: "主动" },
+      { name: "不灭之焰", desc: "灼烧效果不会自然消退", type: "被动" },
+      { name: "焚天之怒", desc: "火伤暴击时造成额外爆炸", type: "被动" },
+    ],
+    "仙品": [
+      { name: "三昧真火", desc: "造成超高火伤，灼烧为真实伤害且无法驱散", type: "主动" },
+      { name: "凤凰焚天", desc: "造成毁灭性火伤，受到致命伤时化为火焰重生", type: "主动" },
+      { name: "炼狱之焰", desc: "对全体造成火伤，灼烧目标每回合受到的火伤递增", type: "主动" },
+      { name: "火神降临", desc: "火伤暴击率大幅提高", type: "被动" },
+      { name: "火眼金睛", desc: "攻击必定命中且无视火抗", type: "被动" },
+    ],
+    "神品": [
+      { name: "焚天煮海", desc: "对全体造成毁灭性真实火伤", type: "主动" },
+      { name: "创世之焰", desc: "造成超高火伤，有概率直接焚毁低血量敌人", type: "主动" },
+      { name: "不死鸟", desc: "造成火伤，死亡时爆炸对全体造成火伤后复活", type: "主动" },
+      { name: "不灭火种", desc: "敌方死亡时火种自动转移至其他敌人", type: "被动" },
+      { name: "炎帝降临", desc: "所有火系效果范围扩大至全体，灼烧伤害翻倍", type: "被动" },
+    ],
+  },
+
+  // ── 雷系 ──────────────────────────────────────────────────────────────
+  // 核心：感电流，伤害溅射到其他敌人，法攻/法力/防御
+  "雷系": {
+    "下品": [
+      { name: "落雷术", desc: "造成雷伤，伤害溅射到1个附近敌人", type: "主动" },
+      { name: "电弧击", desc: "造成雷伤，有概率连锁弹射多个目标", type: "主动" },
+      { name: "麻痹雷", desc: "造成雷伤，降低目标速度", type: "主动" },
+      { name: "雷光", desc: "攻击时概率附加感电", type: "被动" },
+      { name: "引雷", desc: "对感电目标造成额外雷伤", type: "被动" },
+    ],
+    "中品": [
+      { name: "雷链", desc: "造成雷伤，伤害弹射多个目标", type: "主动" },
+      { name: "惊雷斩", desc: "造成雷伤，暴击时额外造成溅射雷伤", type: "主动" },
+      { name: "奔雷击", desc: "造成雷伤，溅射到周围所有敌人", type: "主动" },
+      { name: "雷印", desc: "攻击自动附加雷印", type: "被动" },
+      { name: "雷光护盾", desc: "获得护盾，受击时自动释放电弧溅射", type: "被动" },
+    ],
+    "上品": [
+      { name: "雷暴", desc: "引爆全部雷印造成雷伤，溅射到周围敌人", type: "主动" },
+      { name: "天雷护体", desc: "造成雷伤，受到攻击时反击溅射雷伤", type: "主动" },
+      { name: "雷帝之怒", desc: "造成雷伤，感电目标受到的溅射伤害提高", type: "主动" },
+      { name: "紫霄神雷", desc: "暴击率大幅提高，暴击时溅射范围扩大", type: "被动" },
+      { name: "连环雷印", desc: "引爆雷印时对周围敌人也附加雷印", type: "被动" },
+    ],
+    "极品": [
+      { name: "雷霆万钧", desc: "造成雷伤，对全体敌人造成溅射伤害", type: "主动" },
+      { name: "雷狱", desc: "对全体敌人造成雷伤，持续叠加感电", type: "主动" },
+      { name: "雷帝法相", desc: "引爆雷印造成雷伤，额外召唤落雷溅射", type: "主动" },
+      { name: "雷劫", desc: "周期性随机劈落雷霆，溅射附近敌人", type: "被动" },
+      { name: "雷神怒", desc: "暴击伤害大幅提升，溅射伤害也享受暴击加成", type: "被动" },
+    ],
+    "仙品": [
+      { name: "九霄神雷", desc: "造成超高雷伤，无视部分法防，溅射全体", type: "主动" },
+      { name: "天雷化身", desc: "造成雷伤，免疫感电且受击自动反击溅射落雷", type: "主动" },
+      { name: "紫霄领域", desc: "对全体造成雷伤，领域内敌人无法闪避且持续受雷伤", type: "主动" },
+      { name: "雷神之眼", desc: "暴击时额外叠加雷印", type: "被动" },
+      { name: "雷道真意", desc: "暴击时恢复法力", type: "被动" },
+    ],
+    "神品": [
+      { name: "天罚", desc: "对生命最高目标降下神雷，溅射全体敌人", type: "主动" },
+      { name: "灭世雷霆", desc: "对全体敌人造成毁灭性雷伤，全部附加感电", type: "主动" },
+      { name: "雷道至高", desc: "引爆全场雷印造成雷伤，引爆后重新叠加", type: "主动" },
+      { name: "雷帝降世", desc: "所有雷系技能暴击率翻倍", type: "被动" },
+      { name: "万雷归宗", desc: "释放雷系技能后自动追加一次溅射雷击", type: "被动" },
+    ],
+  },
+
+  // ── 冰系 ──────────────────────────────────────────────────────────────
+  // 核心：控制流，冻结敌人使其不能行动，对冻结目标增伤减防
+  "冰系": {
+    "下品": [
+      { name: "冰锥术", desc: "造成冰伤，概率冻结目标", type: "主动" },
+      { name: "寒气冲击", desc: "造成冰伤，降低目标速度", type: "主动" },
+      { name: "冰凌刺", desc: "造成冰伤，概率附加寒霜", type: "主动" },
+      { name: "冰甲", desc: "每回合自动提高自身防御", type: "被动" },
+      { name: "凝冰", desc: "对冻结目标造成额外冰伤", type: "被动" },
+    ],
+    "中品": [
+      { name: "冰封术", desc: "造成冰伤，高概率冻结目标", type: "主动" },
+      { name: "寒冰箭", desc: "造成冰伤并叠加寒霜，冻结目标降低防御", type: "主动" },
+      { name: "冰刺突", desc: "造成冰伤，对冻结目标造成双倍伤害", type: "主动" },
+      { name: "冰棱护甲", desc: "获得护盾，护盾存在时减速攻击者", type: "被动" },
+      { name: "寒霜", desc: "寒霜目标每回合自动降低攻击", type: "被动" },
+    ],
+    "上品": [
+      { name: "霜寒领域", desc: "对全体造成冰伤，持续减速和叠加寒霜", type: "主动" },
+      { name: "极寒冰棺", desc: "造成冰伤，必定冻结目标且冻结时间延长", type: "主动" },
+      { name: "凛冬之息", desc: "造成冰伤，命中冻结目标恢复法力", type: "主动" },
+      { name: "冰晶护体", desc: "受到攻击自动获得护盾", type: "被动" },
+      { name: "冰魄", desc: "寒霜叠加速度翻倍", type: "被动" },
+    ],
+    "极品": [
+      { name: "冰河时代", desc: "对全体造成冰伤，高概率冻结", type: "主动" },
+      { name: "冰爆术", desc: "引爆所有寒霜层数造成冰伤，冻结目标额外增伤", type: "主动" },
+      { name: "绝对零度", desc: "造成超高冰伤，冻结目标受到的伤害大幅提高", type: "主动" },
+      { name: "永冻之息", desc: "冻结目标无法被任何效果解除", type: "被动" },
+      { name: "冰魄真元", desc: "每次冻结敌人时恢复生命", type: "被动" },
+    ],
+    "仙品": [
+      { name: "冰皇降世", desc: "造成冰伤，高概率直接冻结全体敌人", type: "主动" },
+      { name: "万古寒气", desc: "对全体造成冰伤，敌人寒霜不会消退", type: "主动" },
+      { name: "冰心诀", desc: "造成冰伤，法力越高冰系伤害越高", type: "主动" },
+      { name: "太阴寒气", desc: "冻结无法被驱散", type: "被动" },
+      { name: "玄冰真体", desc: "免疫冻结效果", type: "被动" },
+    ],
+    "神品": [
+      { name: "冰封天地", desc: "对全体造成冰伤并冻结数回合", type: "主动" },
+      { name: "绝对冰域", desc: "造成冰伤，领域内敌人速度降为零", type: "主动" },
+      { name: "冰道至尊", desc: "造成超高冰伤，冻结目标受到的所有伤害翻倍", type: "主动" },
+      { name: "永冻之域", desc: "冻结敌人时追加伤害", type: "被动" },
+      { name: "万古寒狱", desc: "全场敌人持续叠加寒霜", type: "被动" },
+    ],
+  },
+
+  // ── 暗系 ──────────────────────────────────────────────────────────────
+  // 核心：减益敌人，降低恢复/法力/防御，削弱型
+  "暗系": {
+    "下品": [
+      { name: "暗影箭", desc: "造成物伤，降低目标防御", type: "主动" },
+      { name: "腐蚀弹", desc: "造成物伤，降低目标法防", type: "主动" },
+      { name: "暗影缠身", desc: "造成物伤，概率附加暗蚀（降低恢复效果）", type: "主动" },
+      { name: "夜幕", desc: "自动降低敌方命中", type: "被动" },
+      { name: "窥命", desc: "对暗蚀目标造成额外伤害", type: "被动" },
+    ],
+    "中品": [
+      { name: "暗蚀弹", desc: "造成物伤，降低目标恢复效果和法力", type: "主动" },
+      { name: "噬影击", desc: "造成物伤，恢复造成伤害一定比例的生命", type: "主动" },
+      { name: "吞灵术", desc: "造成物伤，吸取目标法力", type: "主动" },
+      { name: "灵魂侵蚀", desc: "攻击自动降低敌方恢复效果", type: "被动" },
+      { name: "暗影缠缚", desc: "暗蚀效果可叠加", type: "被动" },
+    ],
+    "上品": [
+      { name: "影缚术", desc: "造成物伤，概率禁锢目标并降低全属性", type: "主动" },
+      { name: "暗影洪流", desc: "造成物伤，暗蚀层数越高伤害越高", type: "主动" },
+      { name: "暗杀术", desc: "暗蚀层数满时造成一次巨额物伤", type: "主动" },
+      { name: "暗域", desc: "敌方命中持续降低", type: "被动" },
+      { name: "幽魂", desc: "死亡单位化为幽魂攻击敌人", type: "被动" },
+    ],
+    "极品": [
+      { name: "死亡宣告", desc: "造成物伤，低血量敌人受到伤害提高", type: "主动" },
+      { name: "暗月降临", desc: "对全体造成物伤，附加暗蚀并降低法力", type: "主动" },
+      { name: "灵魂收割", desc: "造成物伤，击杀目标恢复大量生命法力", type: "主动" },
+      { name: "暗影吞噬", desc: "吸收敌方增益转化为自身属性", type: "被动" },
+      { name: "永夜之幕", desc: "全体敌人命中大幅降低", type: "被动" },
+    ],
+    "仙品": [
+      { name: "暗影之主", desc: "造成物伤，附带高额生命偷取和法力吸取", type: "主动" },
+      { name: "冥界之门", desc: "召唤暗影生物攻击，造成物伤", type: "主动" },
+      { name: "暗道真意", desc: "造成物伤，敌方每有一个负面效果额外增伤", type: "主动" },
+      { name: "永夜", desc: "敌方无法获得增益", type: "被动" },
+      { name: "虚无化身", desc: "受到攻击概率闪避", type: "被动" },
+    ],
+    "神品": [
+      { name: "万影噬天", desc: "引爆全场暗蚀造成毁灭性物伤", type: "主动" },
+      { name: "灭世暗影", desc: "造成物伤，降低全体敌人最大生命值和法力", type: "主动" },
+      { name: "寂灭", desc: "造成超高物伤，目标生命越低伤害越高", type: "主动" },
+      { name: "归墟", desc: "死亡敌人无法复活", type: "被动" },
+      { name: "虚无之主", desc: "概率完全免疫任何伤害", type: "被动" },
+    ],
+  },
+
+  // ── 风系 ──────────────────────────────────────────────────────────────
+  // 核心：攻击附带伤害，可配合中毒灼烧感电，物攻/闪避/暴击
+  "风系": {
+    "下品": [
+      { name: "风刃", desc: "造成物伤，附带额外伤害", type: "主动" },
+      { name: "轻身击", desc: "造成物伤，提升自身闪避率", type: "主动" },
+      { name: "微风斩", desc: "造成物伤，附带目标已有负面效果的额外伤害", type: "主动" },
+      { name: "风之感知", desc: "永久提高命中", type: "被动" },
+      { name: "微风", desc: "闪避后提高速度", type: "被动" },
+    ],
+    "中品": [
+      { name: "疾风连斩", desc: "连续攻击两次，每次造成物伤并附带额外伤害", type: "主动" },
+      { name: "风刃乱舞", desc: "对随机目标发射多道风刃，触发敌方所有负面效果", type: "主动" },
+      { name: "风缚术", desc: "造成物伤，降低敌方速度", type: "主动" },
+      { name: "风灵", desc: "闪避后自动恢复法力", type: "被动" },
+      { name: "旋风", desc: "攻击时概率附带额外风属性伤害", type: "被动" },
+    ],
+    "上品": [
+      { name: "飓风", desc: "对全体敌人造成物伤，附带额外伤害触发敌方灼烧中毒感电", type: "主动" },
+      { name: "风神之翼", desc: "造成物伤，闪避后追加一次附带伤害的攻击", type: "主动" },
+      { name: "风压斩", desc: "造成物伤，速度高于敌方时伤害提高", type: "主动" },
+      { name: "风暴之眼", desc: "暴击率大幅提高", type: "被动" },
+      { name: "御风诀", desc: "额外行动概率提高", type: "被动" },
+    ],
+    "极品": [
+      { name: "龙卷", desc: "持续对全体敌人造成物伤，附带伤害递增", type: "主动" },
+      { name: "天风斩", desc: "造成物伤，每次攻击概率追加附带伤害的额外攻击", type: "主动" },
+      { name: "暴风领域", desc: "造成物伤，领域内敌方速度持续降低", type: "主动" },
+      { name: "风神祝福", desc: "速度大幅永久提高", type: "被动" },
+      { name: "风怒", desc: "攻击次数越多伤害越高", type: "被动" },
+    ],
+    "仙品": [
+      { name: "青冥罡风", desc: "造成物伤，无视部分防御，附带伤害触发所有敌方负面效果", type: "主动" },
+      { name: "天人乘风", desc: "造成物伤，行动后概率获得额外行动", type: "主动" },
+      { name: "罡风护体", desc: "造成物伤，受击时自动释放风刃反击", type: "主动" },
+      { name: "风遁", desc: "无法被选中数回合", type: "被动" },
+      { name: "风神之体", desc: "闪避率大幅提高且闪避时恢复生命", type: "被动" },
+    ],
+    "神品": [
+      { name: "九天风灾", desc: "对全场造成毁灭性物伤，触发所有敌方灼烧中毒感电", type: "主动" },
+      { name: "风之极意", desc: "造成物伤，速度差越大伤害越高，无上限", type: "主动" },
+      { name: "万物随风", desc: "造成物伤，每回合额外行动一次", type: "主动" },
+      { name: "天道罡风", desc: "所有风系技能范围扩大至全体", type: "被动" },
+      { name: "风神领域", desc: "行动后概率再次行动", type: "被动" },
+    ],
+  },
+
+  // ── 木系 ──────────────────────────────────────────────────────────────
+  // 核心：恢复血量和法力，给队友回血回蓝，奶妈
+  "木系": {
+    "下品": [
+      { name: "回春术", desc: "恢复自身生命", type: "主动" },
+      { name: "木刺术", desc: "造成法伤", type: "主动" },
+      { name: "藤蔓术", desc: "造成法伤，概率控制目标", type: "主动" },
+      { name: "生机", desc: "所有恢复效果提高", type: "被动" },
+      { name: "藤甲", desc: "每回合自动获得少量护盾", type: "被动" },
+    ],
+    "中品": [
+      { name: "治愈术", desc: "恢复自身或队友生命", type: "主动" },
+      { name: "荆棘术", desc: "造成法伤，受到攻击时反伤", type: "主动" },
+      { name: "花毒弹", desc: "造成法伤，附带中毒效果", type: "主动" },
+      { name: "木灵", desc: "回合结束自动恢复生命", type: "被动" },
+      { name: "古木之力", desc: "最大生命值提高", type: "被动" },
+    ],
+    "上品": [
+      { name: "万木生长", desc: "恢复全队生命", type: "主动" },
+      { name: "树界降诞", desc: "造成法伤，全队获得护盾", type: "主动" },
+      { name: "生命汲取", desc: "造成法伤，恢复造成伤害一定比例的生命", type: "主动" },
+      { name: "木遁", desc: "受到致命伤时概率闪避", type: "被动" },
+      { name: "生命之种", desc: "回合开始自动恢复生命最低的队友", type: "被动" },
+    ],
+    "极品": [
+      { name: "古树降临", desc: "召唤古树攻击造成法伤，同时恢复全队生命", type: "主动" },
+      { name: "枯荣轮转", desc: "造成法伤，损失生命越多伤害越高", type: "主动" },
+      { name: "天地生根", desc: "恢复全队生命且恢复量每回合递增", type: "主动" },
+      { name: "万木之灵", desc: "每有一名存活队友提高自身恢复效果", type: "被动" },
+      { name: "生命共享", desc: "队友恢复时自身同步恢复", type: "被动" },
+    ],
+    "仙品": [
+      { name: "青帝长生诀", desc: "恢复全队大量生命，恢复效果翻倍", type: "主动" },
+      { name: "万木归春", desc: "造成法伤，回合结束时净化全队负面效果", type: "主动" },
+      { name: "枯木逢春", desc: "恢复生命，自身生命越低恢复效果越高", type: "主动" },
+      { name: "不死青木", desc: "受到致命伤保留1点生命", type: "被动" },
+      { name: "生命之泉", desc: "恢复技能同时对全队生效", type: "被动" },
+    ],
+    "神品": [
+      { name: "万物复苏", desc: "恢复全队全部生命，复活已死亡队友", type: "主动" },
+      { name: "世界树", desc: "恢复全队生命并永久提高全队属性", type: "主动" },
+      { name: "天地同春", desc: "恢复全队生命，全队受到致命伤时保留1点生命", type: "主动" },
+      { name: "长生道体", desc: "全队每回合恢复最大生命一定比例", type: "被动" },
+      { name: "万木之主", desc: "全队所有恢复效果翻倍且不可被抑制", type: "被动" },
+    ],
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 体系校验
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function normalizeGongfaSystem(raw: unknown): GongfaSystem {
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if ((GONGFA_SYSTEM_KEYS as readonly string[]).includes(trimmed)) {
+      return trimmed as GongfaSystem;
+    }
+  }
+  return GONGFA_SYSTEM_KEYS[Math.floor(Math.random() * GONGFA_SYSTEM_KEYS.length)];
 }
 
-export function normalizeGongfaAiFunction(raw: unknown, grade?: string): GongfaSpecialEffect | undefined {
-  return normalizeGeneric({
-    raw,
-    triggerKeys: GONGFA_TRIGGER_KEYS,
-    defaultTrigger: "on_attack",
-    effectKeys: GONGFA_EFFECT_KEYS,
-    effectKeyToCategory: gongfaEffectKeyToCategory,
-    costKeys: GONGFA_COST_KEYS,
-    defaultCost: "none",
-    grade,
-  }) as GongfaSpecialEffect | undefined;
+// ═══════════════════════════════════════════════════════════════════════════
+// 角色定位校验
+// ═══════════════════════════════════════════════════════════════════════════
+
+const ROLE_TO_EFFECT_TYPE: Record<GongfaRole, GongfaEffectType> = {
+  "攻击": "主动",
+  "辅助": "被动",
+};
+
+export function normalizeGongfaRole(raw: unknown): GongfaRole | undefined {
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (trimmed === "攻击" || trimmed === "辅助") return trimmed;
+  }
+  return undefined;
+}
+
+function pickFromPool(pool: readonly GongfaSpecialEffect[]): GongfaSpecialEffect {
+  return { ...pool[Math.floor(Math.random() * pool.length)] };
+}
+
+function filterPool(pool: readonly GongfaSpecialEffect[], effectType?: GongfaEffectType): readonly GongfaSpecialEffect[] {
+  if (!effectType) return pool;
+  const filtered = pool.filter(e => e.type === effectType);
+  return filtered.length > 0 ? filtered : pool;
+}
+
+export function rollGongfaFunction(system: GongfaSystem, grade: ItemGrade, role?: GongfaRole): GongfaSpecialEffect {
+  const systemCatalog = GONGFA_EFFECT_CATALOG[system];
+  const gradeIdx = GRADE_ORDER.indexOf(grade);
+  const effectType = role ? ROLE_TO_EFFECT_TYPE[role] : undefined;
+
+  const pool = filterPool(systemCatalog[grade], effectType);
+  if (pool.length > 0) return pickFromPool(pool);
+
+  for (let offset = 1; offset < GRADE_ORDER.length; offset++) {
+    const downIdx = gradeIdx - offset;
+    if (downIdx >= 0) {
+      const downPool = filterPool(systemCatalog[GRADE_ORDER[downIdx]], effectType);
+      if (downPool.length > 0) return pickFromPool(downPool);
+    }
+    const upIdx = gradeIdx + offset;
+    if (upIdx < GRADE_ORDER.length) {
+      const upPool = filterPool(systemCatalog[GRADE_ORDER[upIdx]], effectType);
+      if (upPool.length > 0) return pickFromPool(upPool);
+    }
+  }
+
+  for (const sys of Object.values(GONGFA_EFFECT_CATALOG)) {
+    for (const g of GRADE_ORDER) {
+      const fallbackPool = filterPool(sys[g], effectType);
+      if (fallbackPool.length > 0) return pickFromPool(fallbackPool);
+    }
+  }
+
+  for (const sys of Object.values(GONGFA_EFFECT_CATALOG)) {
+    for (const g of GRADE_ORDER) {
+      if (sys[g].length > 0) return pickFromPool(sys[g]);
+    }
+  }
+
+  return { name: "默认", desc: "造成伤害", type: "主动" };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -120,8 +700,10 @@ export interface GongfaItemDefinition {
   itemType: "功法";
   name: string;
   desc: string;
-  grade: import("./itemInfo").ItemGrade;
+  grade: ItemGrade;
   count: number;
   bonus: ItemBonusMap;
+  system?: GongfaSystem;
+  role?: GongfaRole;
   function?: GongfaSpecialEffect;
 }
