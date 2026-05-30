@@ -9,8 +9,6 @@ import type {
   TreasureSpecialEffect,
   GongfaSpecialEffect,
   ElixirSpecialEffect,
-  TalismanSpecialEffect,
-  FormationSpecialEffect,
 } from "./special_effects";
 
 // ---------------------------------------------------------------------------
@@ -75,20 +73,6 @@ export interface ElixirItemDefinition extends ItemDefinitionBase {
 }
 
 // ---------------------------------------------------------------------------
-// 符箓与阵法
-// ---------------------------------------------------------------------------
-
-export interface TalismanItemDefinition extends ItemDefinitionBase {
-  itemType: "符箓";
-  function?: TalismanSpecialEffect;
-}
-
-export interface FormationItemDefinition extends ItemDefinitionBase {
-  itemType: "阵法";
-  function?: FormationSpecialEffect;
-}
-
-// ---------------------------------------------------------------------------
 // 材料与杂物
 // ---------------------------------------------------------------------------
 
@@ -108,8 +92,6 @@ export type CategorizedItemDefinition =
   | TreasureItemDefinition
   | GongfaItemDefinition
   | ElixirItemDefinition
-  | TalismanItemDefinition
-  | FormationItemDefinition
   | MaterialItemDefinition
   | MiscItemDefinition;
 
@@ -127,8 +109,6 @@ export type { SpiritStoneInventoryStack };
 export type TreasureBagStack = TreasureItemDefinition;
 export type GongfaBagStack = GongfaItemDefinition;
 export type ElixirBagStack = ElixirItemDefinition;
-export type TalismanBagStack = TalismanItemDefinition;
-export type FormationBagStack = FormationItemDefinition;
 export type MaterialBagStack = MaterialItemDefinition;
 export type MiscBagStack = MiscItemDefinition;
 

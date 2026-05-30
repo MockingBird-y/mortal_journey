@@ -1,5 +1,5 @@
 /**
- * 按物品类型（法宝、功法、丹药、符箓、阵法）完全独立的效果定义。
+ * 按物品类型（法宝、功法、丹药）完全独立的效果定义。
  * 每种物品类型拥有自己的触发时机、效果键、消耗资源、持续回合与中文映射，
  * 不依赖共享总表，便于后续各类型独立扩展。
  */
@@ -8,9 +8,7 @@
 export type SpecialEffectTarget =
   | "法宝"
   | "功法"
-  | "丹药"
-  | "符箓"
-  | "阵法";
+  | "丹药";
 
 /** 效果分类（中文） */
 export type EffectCategory = "恢复" | "增益" | "减益" | "伤害";
@@ -420,210 +418,6 @@ export function normalizeElixirAiFunction(raw: unknown, grade?: string): ElixirS
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 符箓
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const TALISMAN_TRIGGER_KEYS = ["on_attack"] as const;
-export type TalismanTriggerTiming = (typeof TALISMAN_TRIGGER_KEYS)[number];
-
-export const TALISMAN_TRIGGER_TO_ZH: Readonly<Record<TalismanTriggerTiming, string>> = {
-  on_attack: "主动触发",
-};
-
-export const TALISMAN_TRIGGER_CATEGORY: Readonly<Record<TalismanTriggerTiming, "主动" | "被动" | "默认">> = {
-  on_attack: "主动",
-};
-
-export const TALISMAN_EFFECT_KEYS = [
-  "dealPhysicalDmg", "dealMagicDmg",
-  "dealFireDmg", "dealIceDmg", "dealPoisonDmg", "dealLightningDmg",
-] as const;
-export type TalismanEffectKey = (typeof TALISMAN_EFFECT_KEYS)[number];
-
-export const TALISMAN_EFFECT_TO_ZH: Readonly<Record<TalismanEffectKey, string>> = {
-  dealPhysicalDmg: "造成物伤",
-  dealMagicDmg: "造成法伤",
-  dealFireDmg: "造成火伤",
-  dealIceDmg: "造成冰伤",
-  dealPoisonDmg: "造成毒伤",
-  dealLightningDmg: "造成雷伤",
-};
-
-export const TALISMAN_EFFECT_CATEGORY: Readonly<Record<TalismanEffectKey, EffectCategory>> = {
-  dealPhysicalDmg: "伤害", dealMagicDmg: "伤害",
-  dealFireDmg: "伤害", dealIceDmg: "伤害", dealPoisonDmg: "伤害", dealLightningDmg: "伤害",
-};
-
-export const TALISMAN_COST_KEYS = ["mp", "hp"] as const;
-export type TalismanCostKey = (typeof TALISMAN_COST_KEYS)[number];
-export const TALISMAN_COST_TO_ZH: Readonly<Record<TalismanCostKey, string>> = {
-  mp: "消耗法力",
-  hp: "消耗血量",
-};
-
-export interface TalismanSpecialEffect {
-  trigger: TalismanTriggerTiming;
-  effect: { label: TalismanEffectKey; value: number };
-  duration: number;
-  cost: { resource: TalismanCostKey; value: number };
-}
-
-export const TALISMAN_ALLOWED_EFFECT_CATEGORIES: ReadonlySet<EffectValueCategory> = new Set(["damage"] as const);
-
-export function matchTalismanEffectKeyLoose(s: string): TalismanEffectKey | undefined {
-  return matchKeyLoose(TALISMAN_EFFECT_KEYS, s);
-}
-
-export function talismanEffectKeyToCategory(label: TalismanEffectKey): EffectValueCategory {
-  return categoryToValueCategory(TALISMAN_EFFECT_CATEGORY[label]);
-}
-
-export function firstTalismanEffectKeyOfCategory(vc: EffectValueCategory): TalismanEffectKey {
-  return firstKeyOfValueCategory(TALISMAN_EFFECT_KEYS, TALISMAN_EFFECT_CATEGORY, vc);
-}
-
-export function normalizeTalismanAiFunction(raw: unknown, grade?: string): TalismanSpecialEffect | undefined {
-  const result = normalizeGeneric({
-    raw,
-    triggerKeys: TALISMAN_TRIGGER_KEYS,
-    defaultTrigger: "on_attack",
-    effectKeys: TALISMAN_EFFECT_KEYS,
-    effectKeyToCategory: talismanEffectKeyToCategory,
-    costKeys: TALISMAN_COST_KEYS,
-    defaultCost: "mp",
-    grade,
-  });
-  if (!result) return undefined;
-  return {
-    trigger: "on_attack",
-    effect: result.effect,
-    duration: result.duration,
-    cost: result.cost,
-  };
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 阵法
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const FORMATION_TRIGGER_KEYS = ["on_attack"] as const;
-export type FormationTriggerTiming = (typeof FORMATION_TRIGGER_KEYS)[number];
-
-export const FORMATION_TRIGGER_TO_ZH: Readonly<Record<FormationTriggerTiming, string>> = {
-  on_attack: "主动触发",
-};
-
-export const FORMATION_TRIGGER_CATEGORY: Readonly<Record<FormationTriggerTiming, "主动" | "被动" | "默认">> = {
-  on_attack: "主动",
-};
-
-export const FORMATION_EFFECT_KEYS = [
-  "recoverHp", "recoverMp", "boostPatk", "boostMatk", "boostPdef", "boostMdef",
-  "boostPenetration", "boostHitRate", "boostDodgeRate", "boostCritRate",
-  "boostCritDmg", "boostRecovery", "boostCastSpeed", "boostActionSpeed",
-  "boostEffectChance", "boostControlResist",
-  "reducePatk", "reduceMatk", "reducePdef", "reduceMdef",
-  "reducePenetration", "reduceHitRate", "reduceDodgeRate", "reduceCritRate",
-  "reduceCritDmg", "reduceRecovery", "reduceCastSpeed", "reduceActionSpeed",
-  "reduceEffectChance", "reduceControlResist",
-] as const;
-export type FormationEffectKey = (typeof FORMATION_EFFECT_KEYS)[number];
-
-export const FORMATION_EFFECT_TO_ZH: Readonly<Record<FormationEffectKey, string>> = {
-  recoverHp: "恢复血量",
-  recoverMp: "恢复法力",
-  boostPatk: "增加物攻",
-  boostMatk: "增加法攻",
-  boostPdef: "增加物防",
-  boostMdef: "增加法防",
-  boostPenetration: "增加穿透",
-  boostHitRate: "增加命中率",
-  boostDodgeRate: "增加闪避率",
-  boostCritRate: "增加暴击率",
-  boostCritDmg: "增加暴击伤害",
-  boostRecovery: "增加恢复效果",
-  boostCastSpeed: "增加施法速度",
-  boostActionSpeed: "增加行动速度",
-  boostEffectChance: "增加特效几率",
-  boostControlResist: "增加控制抗性",
-  reducePatk: "减少物攻",
-  reduceMatk: "减少法攻",
-  reducePdef: "减少物防",
-  reduceMdef: "减少法防",
-  reducePenetration: "减少穿透",
-  reduceHitRate: "减少命中率",
-  reduceDodgeRate: "减少闪避率",
-  reduceCritRate: "减少暴击率",
-  reduceCritDmg: "减少暴击伤害",
-  reduceRecovery: "减少恢复效果",
-  reduceCastSpeed: "减少施法速度",
-  reduceActionSpeed: "减少行动速度",
-  reduceEffectChance: "减少特效几率",
-  reduceControlResist: "减少控制抗性",
-};
-
-export const FORMATION_EFFECT_CATEGORY: Readonly<Record<FormationEffectKey, EffectCategory>> = {
-  recoverHp: "恢复", recoverMp: "恢复", boostPatk: "增益", boostMatk: "增益",
-  boostPdef: "增益", boostMdef: "增益", boostPenetration: "增益",
-  boostHitRate: "增益", boostDodgeRate: "增益", boostCritRate: "增益",
-  boostCritDmg: "增益", boostRecovery: "增益", boostCastSpeed: "增益",
-  boostActionSpeed: "增益", boostEffectChance: "增益", boostControlResist: "增益",
-  reducePatk: "减益", reduceMatk: "减益",
-  reducePdef: "减益", reduceMdef: "减益", reducePenetration: "减益",
-  reduceHitRate: "减益", reduceDodgeRate: "减益", reduceCritRate: "减益",
-  reduceCritDmg: "减益", reduceRecovery: "减益", reduceCastSpeed: "减益",
-  reduceActionSpeed: "减益", reduceEffectChance: "减益", reduceControlResist: "减益",
-};
-
-export const FORMATION_COST_KEYS = ["mp", "hp"] as const;
-export type FormationCostKey = (typeof FORMATION_COST_KEYS)[number];
-export const FORMATION_COST_TO_ZH: Readonly<Record<FormationCostKey, string>> = {
-  mp: "消耗法力",
-  hp: "消耗血量",
-};
-
-export interface FormationSpecialEffect {
-  trigger: FormationTriggerTiming;
-  effect: { label: FormationEffectKey; value: number };
-  duration: number;
-  cost: { resource: FormationCostKey; value: number };
-}
-
-export const FORMATION_ALLOWED_EFFECT_CATEGORIES: ReadonlySet<EffectValueCategory> = new Set(["recover", "boost", "reduce"] as const);
-
-export function matchFormationEffectKeyLoose(s: string): FormationEffectKey | undefined {
-  return matchKeyLoose(FORMATION_EFFECT_KEYS, s);
-}
-
-export function formationEffectKeyToCategory(label: FormationEffectKey): EffectValueCategory {
-  return categoryToValueCategory(FORMATION_EFFECT_CATEGORY[label]);
-}
-
-export function firstFormationEffectKeyOfCategory(vc: EffectValueCategory): FormationEffectKey {
-  return firstKeyOfValueCategory(FORMATION_EFFECT_KEYS, FORMATION_EFFECT_CATEGORY, vc);
-}
-
-export function normalizeFormationAiFunction(raw: unknown, grade?: string): FormationSpecialEffect | undefined {
-  const result = normalizeGeneric({
-    raw,
-    triggerKeys: FORMATION_TRIGGER_KEYS,
-    defaultTrigger: "on_attack",
-    effectKeys: FORMATION_EFFECT_KEYS,
-    effectKeyToCategory: formationEffectKeyToCategory,
-    costKeys: FORMATION_COST_KEYS,
-    defaultCost: "mp",
-    grade,
-  });
-  if (!result) return undefined;
-  return {
-    trigger: "on_attack",
-    effect: result.effect,
-    duration: result.duration,
-    cost: result.cost,
-  };
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
 // 跨类型工具
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -631,9 +425,7 @@ export function normalizeFormationAiFunction(raw: unknown, grade?: string): Form
 export type ItemSpecialEffect =
   | TreasureSpecialEffect
   | GongfaSpecialEffect
-  | ElixirSpecialEffect
-  | TalismanSpecialEffect
-  | FormationSpecialEffect;
+  | ElixirSpecialEffect;
 
 /** 通用类型别名，供不关心具体类型的消费者使用 */
 export type SpecialEffect = ItemSpecialEffect;
@@ -643,8 +435,6 @@ export interface TypedEffectMap {
   法宝: TreasureSpecialEffect;
   功法: GongfaSpecialEffect;
   丹药: ElixirSpecialEffect;
-  符箓: TalismanSpecialEffect;
-  阵法: FormationSpecialEffect;
 }
 
 // ── 跨类型中文查找（合并所有类型的映射） ──
@@ -653,32 +443,24 @@ const ALL_TRIGGER_TO_ZH: Readonly<Record<string, string>> = {
   ...TREASURE_TRIGGER_TO_ZH,
   ...GONGFA_TRIGGER_TO_ZH,
   ...ELIXIR_TRIGGER_TO_ZH,
-  ...TALISMAN_TRIGGER_TO_ZH,
-  ...FORMATION_TRIGGER_TO_ZH,
 };
 
 const ALL_EFFECT_TO_ZH: Readonly<Record<string, string>> = {
   ...TREASURE_EFFECT_TO_ZH,
   ...GONGFA_EFFECT_TO_ZH,
   ...ELIXIR_EFFECT_TO_ZH,
-  ...TALISMAN_EFFECT_TO_ZH,
-  ...FORMATION_EFFECT_TO_ZH,
 };
 
 const ALL_COST_TO_ZH: Readonly<Record<string, string>> = {
   ...TREASURE_COST_TO_ZH,
   ...GONGFA_COST_TO_ZH,
   ...ELIXIR_COST_TO_ZH,
-  ...TALISMAN_COST_TO_ZH,
-  ...FORMATION_COST_TO_ZH,
 };
 
 const ALL_EFFECT_CATEGORY: Readonly<Record<string, EffectCategory>> = {
   ...TREASURE_EFFECT_CATEGORY,
   ...GONGFA_EFFECT_CATEGORY,
   ...ELIXIR_EFFECT_CATEGORY,
-  ...TALISMAN_EFFECT_CATEGORY,
-  ...FORMATION_EFFECT_CATEGORY,
 };
 
 export function lookupTriggerZh(trigger: string): string {
@@ -710,8 +492,6 @@ export const ITEM_TYPE_ALLOWED_EFFECTS: Readonly<Record<SpecialEffectTarget, Rea
   法宝: TREASURE_ALLOWED_EFFECT_CATEGORIES,
   功法: GONGFA_ALLOWED_EFFECT_CATEGORIES,
   丹药: ELIXIR_ALLOWED_EFFECT_CATEGORIES,
-  符箓: TALISMAN_ALLOWED_EFFECT_CATEGORIES,
-  阵法: FORMATION_ALLOWED_EFFECT_CATEGORIES,
 };
 
 // ── 按物品类型分发 AI 归一化 ──
@@ -725,8 +505,6 @@ export function normalizeTypedAiFunction(
     case "法宝": return normalizeTreasureAiFunction(raw, grade);
     case "功法": return normalizeGongfaAiFunction(raw, grade);
     case "丹药": return normalizeElixirAiFunction(raw, grade);
-    case "符箓": return normalizeTalismanAiFunction(raw, grade);
-    case "阵法": return normalizeFormationAiFunction(raw, grade);
     default: return undefined;
   }
 }
@@ -745,8 +523,6 @@ export const ITEM_TYPE_FUNCTION_OVERRIDES: Readonly<
   法宝: {},
   功法: {},
   丹药: { trigger: "on_attack", cost: "none" },
-  符箓: { trigger: "on_attack" },
-  阵法: { trigger: "on_attack" },
 };
 
 export function applyFunctionOverrides(

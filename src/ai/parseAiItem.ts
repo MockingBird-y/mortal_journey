@@ -12,8 +12,6 @@ import type {
   GongfaItemDefinition,
   ItemGrade,
   TreasureItemDefinition,
-  TalismanItemDefinition,
-  FormationItemDefinition,
   MaterialItemDefinition,
   MiscItemDefinition,
   CategorizedItemDefinition,
@@ -26,13 +24,9 @@ import {
   TREASURE_EFFECT_KEYS,
   GONGFA_EFFECT_KEYS,
   ELIXIR_EFFECT_KEYS,
-  TALISMAN_EFFECT_KEYS,
-  FORMATION_EFFECT_KEYS,
   TREASURE_COST_KEYS,
   GONGFA_COST_KEYS,
   ELIXIR_COST_KEYS,
-  TALISMAN_COST_KEYS,
-  FORMATION_COST_KEYS,
   type SpecialEffect,
   type EffectValueCategory,
   type SpecialEffectTarget,
@@ -45,8 +39,6 @@ import {
   treasureEffectKeyToCategory,
   gongfaEffectKeyToCategory,
   elixirEffectKeyToCategory,
-  talismanEffectKeyToCategory,
-  formationEffectKeyToCategory,
 } from "../role_core/types/special_effects";
 
 export const VALID_BONUS_NAMES: ReadonlySet<string> = new Set(Object.keys(GONGFA_GRADE_ATTRI_TABLE));
@@ -161,8 +153,6 @@ export function effectKeysForType(itemType: string): readonly string[] {
     case "法宝": return TREASURE_EFFECT_KEYS;
     case "功法": return GONGFA_EFFECT_KEYS;
     case "丹药": return ELIXIR_EFFECT_KEYS;
-    case "符箓": return TALISMAN_EFFECT_KEYS;
-    case "阵法": return FORMATION_EFFECT_KEYS;
     default: return [];
   }
 }
@@ -172,8 +162,6 @@ export function costKeysForType(itemType: string): readonly string[] {
     case "法宝": return TREASURE_COST_KEYS;
     case "功法": return GONGFA_COST_KEYS;
     case "丹药": return ELIXIR_COST_KEYS;
-    case "符箓": return TALISMAN_COST_KEYS;
-    case "阵法": return FORMATION_COST_KEYS;
     default: return [];
   }
 }
@@ -183,8 +171,6 @@ export function effectKeyToCategoryForType(effectLabel: string, itemType: string
     case "法宝": return treasureEffectKeyToCategory(effectLabel as typeof TREASURE_EFFECT_KEYS[number]);
     case "功法": return gongfaEffectKeyToCategory(effectLabel as typeof GONGFA_EFFECT_KEYS[number]);
     case "丹药": return elixirEffectKeyToCategory(effectLabel as typeof ELIXIR_EFFECT_KEYS[number]);
-    case "符箓": return talismanEffectKeyToCategory(effectLabel as typeof TALISMAN_EFFECT_KEYS[number]);
-    case "阵法": return formationEffectKeyToCategory(effectLabel as typeof FORMATION_EFFECT_KEYS[number]);
     default: return lookupEffectCategory(effectLabel);
   }
 }
@@ -273,8 +259,6 @@ export const TYPE_TO_ITEM_TYPE: Record<string, CategorizedItemDefinition["itemTy
   "法宝": "法宝",
   "功法": "功法",
   "丹药": "丹药",
-  "符箓": "符箓",
-  "阵法": "阵法",
   "材料": "材料",
   "杂物": "杂物",
 };
@@ -331,14 +315,6 @@ export function parseStorageObject(e: unknown, realmMajor: string, realmMinor: s
     case "法宝": {
       const fn = applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "法宝") ?? undefined, "法宝");
       return { itemType: "法宝", name, desc, grade, count, bonus: parseTreasureBonusField(obj.bonus, grade), function: fn } as TreasureItemDefinition;
-    }
-    case "符箓": {
-      const fn = applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "符箓") ?? undefined, "符箓");
-      return { itemType: "符箓", name, desc, grade, count, function: fn } as TalismanItemDefinition;
-    }
-    case "阵法": {
-      const fn = applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "阵法") ?? undefined, "阵法");
-      return { itemType: "阵法", name, desc, grade, count, function: fn } as FormationItemDefinition;
     }
     case "丹药": {
       const fn = applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "丹药") ?? undefined, "丹药");

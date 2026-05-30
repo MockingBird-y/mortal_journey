@@ -54,7 +54,7 @@ import {
 import { getCultivationRequired } from "./realmUtils";
 
 const VALID_ITEM_TYPES: ReadonlySet<string> = new Set([
-  "法宝", "功法", "丹药", "符箓", "阵法", "材料", "杂物",
+  "法宝", "功法", "丹药", "材料", "杂物",
 ]);
 
 /** 主角玩家类：继承 Character，增加修为、叙事人称、出身、天赋等主角特有状态。 */

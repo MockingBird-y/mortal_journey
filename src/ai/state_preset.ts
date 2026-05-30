@@ -39,38 +39,30 @@ export const STATE_SYSTEM_PRESET = `
 4. 储物袋灵石堆叠输出格式：<SPIRIT_STONE_TAG> … </SPIRIT_STONE_TAG>，内为 JSON 数组（无灵石变更时写 []）。
 5. 示例：<SPIRIT_STONE_TAG> [{"op":"add","count":100}] </SPIRIT_STONE_TAG>。
 
-[法宝功法丹药符箓阵法function生成规则]
- 1. 法宝、功法、丹药、符箓、阵法携带一个 function 字典，每个 function 为一条特殊功能条目，必须有。
+[法宝功法丹药function生成规则]
+ 1. 法宝、功法、丹药携带一个 function 字典，每个 function 为一条特殊功能条目，必须有。
  2. 每个 function 对象包含四个字段：trigger（触发时机）、effect（效果）、duration（持续回合）、cost（消耗）。
  3. 按物品类型的 trigger 与 effect 约束（必须严格遵守）：
     · 法宝：trigger 只能是被动触发（on_hit_taken、on_turn_start、on_low_hp、on_low_mana、on_full_mana、on_crit、on_dodge、on_kill），effect 只能是恢复类（recoverHp、recoverMp）或增益类（boost*）。法宝是被动装备，自动触发属性增益或恢复。
     · 功法：trigger 只能是 on_attack、on_skill_cast、on_default，effect 只能是穿透/命中/闪避/暴击/暴伤增益类（boostPenetration、boostHitRate、boostDodgeRate、boostCritRate、boostCritDmg）或伤害类（deal*）。功法是主动技能，由玩家主动施展。
     · 丹药：trigger 固定为 on_attack，effect 只能是恢复类（recoverHp、recoverMp）或攻防增益类（boostPatk、boostMatk、boostPdef、boostMdef），cost 固定为 none。丹药是消耗品，用于回血回蓝或临战强化。
-    · 符箓：trigger 固定为 on_attack，effect 只能是伤害类（deal*），cost 只能是 mp 或 hp（没有 none）。符箓是消耗品，纯伤害输出手段。
-    · 阵法：trigger 固定为 on_attack，effect 可以是恢复类（recoverHp、recoverMp）、增益类（boost*）或减益类（reduce*），cost 只能是 mp 或 hp（没有 none）。阵法是战术型物品，强化己方或削弱敌方。
- 4. 阵法的持续回合需要是多个回合，不能是即时触发或者1回合。
- 5. effect 效果如果是增益或者减益效果，不能是即时触发或者1回合。
- 6. trigger 触发时机可选值（与游戏逻辑一致的英文键）：
+ 4. effect 效果如果是增益或者减益效果，不能是即时触发或者1回合。
+ 5. trigger 触发时机可选值（与游戏逻辑一致的英文键）：
     on_attack（主动行为触发）、on_skill_cast（释放技能时）、on_crit（暴击时）、on_dodge（闪避时）、
     on_hit_taken（受到攻击时）、on_turn_start（回合开始）、on_low_hp（低生命值）、on_low_mana（灵力不足）、
     on_full_mana（灵气满时）、on_kill（击杀敌人）、on_default（默认触发）。
- 7. effect 效果键可选值（与游戏逻辑一致的英文键）：
+ 6. effect 效果键可选值（与游戏逻辑一致的英文键）：
     · 恢复类：recoverHp（恢复血量）、recoverMp（恢复法力）。
     · 增益类：boostPatk（增加物攻）、boostMatk（增加法攻）、boostPdef（增加物防）、boostMdef（增加法防）、
       boostPenetration（增加穿透）、boostHitRate（增加命中率）、boostDodgeRate（增加闪避率）、
       boostCritRate（增加暴击率）、boostCritDmg（增加暴击伤害）、boostRecovery（增加恢复效果）、
       boostCastSpeed（增加施法速度）、boostActionSpeed（增加行动速度）、boostEffectChance（增加特效几率）、
       boostControlResist（增加控制抗性）。
-    · 减益类：reducePatk（减少物攻）、reduceMatk（减少法攻）、reducePdef（减少物防）、reduceMdef（减少法防）、
-      reducePenetration（减少穿透）、reduceHitRate（减少命中率）、reduceDodgeRate（减少闪避率）、
-      reduceCritRate（减少暴击率）、reduceCritDmg（减少暴击伤害）、reduceRecovery（减少恢复效果）、
-      reduceCastSpeed（减少施法速度）、reduceActionSpeed（减少行动速度）、reduceEffectChance（减少特效几率）、
-      reduceControlResist（减少控制抗性）。
     · 伤害类：dealPhysicalDmg（造成物伤）、dealMagicDmg（造成法伤）、dealFireDmg（造成火伤）、
       dealIceDmg（造成冰伤）、dealPoisonDmg（造成毒伤）、dealLightningDmg（造成雷伤）。
- 8. duration 为持续回合数：0 表示即时生效不持续，正数表示持续该回合数。
- 9. cost 消耗资源可选值：none（无消耗）、mp（消耗法力）、hp（消耗血量）。注意：符箓和阵法没有 none 选项。
- 10. function 功能必须与物品的名称和介绍描述契合，不能凭空生成与物品功能无关的功能。
+ 7. duration 为持续回合数：0 表示即时生效不持续，正数表示持续该回合数。
+ 8. cost 消耗资源可选值：none（无消耗）、mp（消耗法力）、hp（消耗血量）。
+ 9. function 功能必须与物品的名称和介绍描述契合，不能凭空生成与物品功能无关的功能。
 
 [储物袋物品添加规则]
 1. 根据剧情描述，给储物袋添加新物品，比如购买、拾取、获得等。
@@ -102,9 +94,9 @@ export const STATE_SYSTEM_PRESET = `
 3. 好感度分段（按 -99~99 逐步推进，不可无因跳阶）：女 NPC 在 0~99 为 0-19 普通同门、20-39 朋友、40-59 亲密、60-79 爱慕/情侣、80-99 至死不渝；在 -99~0 为 -1~-19 轻度反感、-20~-39 疏离敌视、-40~-59 明显厌恶、-60~-79 强烈仇视、-80~-99 不死不休。男 NPC 在 0~99 为 0-19 普通同门、20-39 朋友、40-59 亲密无间、60-79 手足兄弟、80-99 生死之交；在 -99~0 同上。
 4. 好感度跃迁约束：较大涨跌必须有重大事件支撑。
 5. NPC等级逻辑（powerTier）：小怪有武器和防具即可，功法为 1 门攻击 + 1 门辅助；精英怪四槽装备齐全，功法为 2 门攻击 + 2 门辅助；小boss/大boss 装备和功法品阶更高。
-6. NPC的法宝和功法结构与主角完全相同：法宝须含 type（法宝）、name、intro、bonus（1个属性名称字符串）、function；功法须含 type（功法）、name、intro、bonus、function。不含 grade（品阶由系统根据境界自动分配）。NPC储物袋中的丹药、符箓、阵法等物品同样须含 function，不含 grade。
+6. NPC的法宝和功法结构与主角完全相同：法宝须含 type（法宝）、name、intro、bonus（1个属性名称字符串）、function；功法须含 type（功法）、name、intro、bonus、function。不含 grade（品阶由系统根据境界自动分配）。NPC储物袋中的丹药等物品同样须含 function，不含 grade。
 7. NPC生成需要包含的信息：displayName（名字2-4字）、identity、currentStageGoal、longTermGoal、hobby、fear、personality、favorability（-99~99）、gender、realm、age、linggen（从金木水火土中选择1-4个）、equippedSlots（最多4个法宝，须含武器，每个含 bonus 和 function）、gongfaSlots（长度8，须含攻击类功法，每个含 bonus 和 function）、inventorySlots（最多12格）、hpPercent/mpPercent（血量/法力百分比，0-100整数，100为满状态）。
-8. NPC的法宝和功法的 function 生成规则与主角相同，须严格遵守上方[法宝功法丹药符箓阵法function生成规则]中的 trigger/effect/duration/cost 约束。
+8. NPC的法宝和功法的 function 生成规则与主角相同，须严格遵守上方[法宝功法丹药function生成规则]中的 trigger/effect/duration/cost 约束。
 9. NPC补充约束：
 9.1 输出时数组须列出本回合仍应在面板中可见者的完整名单。
 9.2 已存在 NPC 做最小必要改动，禁止单回合整体重写装备与功法。

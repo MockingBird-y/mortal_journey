@@ -6,13 +6,11 @@
 import type {
   CategorizedItemDefinition,
   ElixirItemDefinition,
-  FormationItemDefinition,
   GongfaItemDefinition,
   InventoryStackItem,
   MaterialItemDefinition,
   MiscItemDefinition,
   SpiritStoneInventoryStack,
-  TalismanItemDefinition,
   TreasureItemDefinition,
 } from "../role_core/types/itemInfo";
 import type { CultivationRealm, EquipSlotKey, TraitEntry } from "../role_core/types/playInfo";
@@ -451,34 +449,6 @@ export function buildInventoryStackDetailPayload(
         subtitle: `杂物`,
         sections,
         dataRarity: gradeToTraitRarity(misc.grade),
-      };
-    }
-    case "符箓": {
-      const tal = it as TalismanItemDefinition;
-      const sections: ProtagonistDetailSection[] = [];
-      pushSec(sections, "简介", tal.desc);
-      pushSec(sections, "品级", tal.grade);
-      pushFunctionSection(sections, tal.function);
-      pushSec(sections, "数量", tal.count);
-      return {
-        title: tal.name,
-        subtitle: "符箓",
-        sections,
-        dataRarity: gradeToTraitRarity(tal.grade),
-      };
-    }
-    case "阵法": {
-      const fm = it as FormationItemDefinition;
-      const sections: ProtagonistDetailSection[] = [];
-      pushSec(sections, "简介", fm.desc);
-      pushSec(sections, "品级", fm.grade);
-      pushFunctionSection(sections, fm.function);
-      pushSec(sections, "数量", fm.count);
-      return {
-        title: fm.name,
-        subtitle: "阵法",
-        sections,
-        dataRarity: gradeToTraitRarity(fm.grade),
       };
     }
     default: {
