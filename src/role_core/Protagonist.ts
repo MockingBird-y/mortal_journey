@@ -33,6 +33,8 @@ import {
 import {
   type SpiritStoneName,
 } from "./types/spiritStone";
+import type { ElixirItemDefinition } from "./types/elixir";
+import { elixirEffectToStatKey } from "./types/elixir";
 import type { InitStateParsed } from "../ai/init_state_generate";
 import type { StateParsed } from "../ai/state_generate";
 import {
@@ -289,9 +291,50 @@ export class Protagonist extends Character {
   }
 
   override applyDetailAction(a: import("./types/playInfo").ProtagonistDetailAction): boolean {
+    if (a.id === "consumeElixir") {
+      const result = this.consumeElixir(a.inventoryIndex);
+      Protagonist.notifyChanged();
+      return result;
+    }
     const result = super.applyDetailAction(a);
     Protagonist.notifyChanged();
     return result;
+  }
+
+  // ===================================================================
+  // 丹药服用
+  // ===================================================================
+
+  consumeElixir(cellIndex: number): boolean {
+    const cell = this.inventorySlots[cellIndex];
+    if (!cell || !("itemType" in cell) || cell.itemType !== "丹药") return false;
+    const pill = cell as ElixirItemDefinition;
+    const { effectType, effects } = pill;
+    const { value, isPercent } = effects;
+
+    const statKey = elixirEffectToStatKey(effectType);
+    if (statKey) {
+      this.elixirBonuses[statKey] = (this.elixirBonuses[statKey] ?? 0) + value;
+    } else if (effectType === "恢复血量") {
+      const amount = isPercent ? Math.round(this.maxHp * value / 100) : value;
+      this.currentHp = Math.min(this.currentHp + amount, this.maxHp);
+    } else if (effectType === "恢复法力") {
+      const amount = isPercent ? Math.round(this.maxMp * value / 100) : value;
+      this.currentMp = Math.min(this.currentMp + amount, this.maxMp);
+    } else if (effectType === "提升修为") {
+      this.addXiuwei(isPercent ? Math.round(this.maxHp * value / 100) : value);
+    } else if (effectType === "提升寿元") {
+      this.shouyuan += value;
+    } else {
+      return false;
+    }
+
+    pill.count -= 1;
+    if (pill.count <= 0) {
+      this.inventorySlots[cellIndex] = null;
+    }
+    Protagonist.notifyChanged();
+    return true;
   }
 
   // ===================================================================

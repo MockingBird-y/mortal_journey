@@ -15,10 +15,8 @@ import type {
 } from "./itemInfo";
 
 import {
-  BASE_VALUES,
-  EXPONENT,
-  CULTIVATION_BASE,
-  CULTIVATION_EXPONENT,
+  REALM_BASE_STATS_TABLE,
+  CULTIVATION_VALUES_TABLE,
   SHOUYUAN_VALUES,
   EQUIP_BONUS_RATIOS,
   DERIVED_STAT_DEFAULTS,
@@ -34,10 +32,8 @@ import {
 } from "./gameConstants";
 
 export {
-  BASE_VALUES,
-  EXPONENT,
-  CULTIVATION_BASE,
-  CULTIVATION_EXPONENT,
+  REALM_BASE_STATS_TABLE,
+  CULTIVATION_VALUES_TABLE,
   SHOUYUAN_VALUES,
   EQUIP_BONUS_RATIOS,
   DERIVED_STAT_DEFAULTS,
@@ -59,10 +55,10 @@ export {
 export const PRIMARY_STAT_KEYS = [
   "physique",
   "spirit",
-  "guard",
+  "strength",
   "perception",
+  "guard",
   "agility",
-  "crit",
   "insight",
   "fortune",
 ] as const;
@@ -72,42 +68,40 @@ export type PrimaryStatKey = (typeof PRIMARY_STAT_KEYS)[number];
 export const PRIMARY_STAT_KEY_TO_ZH: Readonly<Record<PrimaryStatKey, string>> = {
   physique: "体魄",
   spirit: "灵力",
-  guard: "护体",
+  strength: "劲力",
   perception: "神识",
+  guard: "护体",
   agility: "身法",
-  crit: "会心",
   insight: "悟性",
   fortune: "气运",
 };
 
 export const PRIMARY_STAT_KEY_DESC: Readonly<Record<PrimaryStatKey, string>> = {
-  physique: "影响生命值上限与每回合恢复量",
-  spirit: "影响法力值上限与施法速度",
-  guard: "影响物理防御、法术防御与控制抗性",
-  perception: "影响命中率与暴击伤害",
-  agility: "影响闪避率与行动速度",
-  crit: "影响暴击率与特效触发几率",
-  insight: "影响修炼速度与功法领悟效率",
-  fortune: "影响物品掉落品质与随机事件收益",
+  physique: "增加血量",
+  spirit: "增加法力",
+  strength: "增加物攻",
+  perception: "增加法攻",
+  guard: "增加物防法防",
+  agility: "增加闪避率",
+  insight: "增加修炼速度，修炼功法所需灵石更少",
+  fortune: "增加幸运值，更高概率获取高品阶物品",
 };
 
 export const DERIVED_STAT_KEYS = [
   "hp",
   "mp",
+  "hpRecovery",
+  "mpRecovery",
   "patk",
   "matk",
   "pdef",
   "mdef",
   "penetration",
+  "magicPenetration",
   "hitRate",
   "dodgeRate",
   "critRate",
   "critDmg",
-  "recovery",
-  "castSpeed",
-  "actionSpeed",
-  "effectChance",
-  "controlResist",
 ] as const;
 
 export type DerivedStatKey = (typeof DERIVED_STAT_KEYS)[number];
@@ -115,20 +109,18 @@ export type DerivedStatKey = (typeof DERIVED_STAT_KEYS)[number];
 export const DERIVED_STAT_KEY_TO_ZH: Readonly<Record<DerivedStatKey, string>> = {
   hp: "血量",
   mp: "法力",
+  hpRecovery: "生命回复",
+  mpRecovery: "法力回复",
   patk: "物攻",
   matk: "法攻",
   pdef: "物防",
   mdef: "法防",
-  penetration: "穿透",
+  penetration: "物伤穿透",
+  magicPenetration: "法伤穿透",
   hitRate: "命中率",
   dodgeRate: "闪避率",
   critRate: "暴击率",
   critDmg: "暴击伤害",
-  recovery: "恢复效果",
-  castSpeed: "施法速度",
-  actionSpeed: "行动速度",
-  effectChance: "特效几率",
-  controlResist: "控制抗性",
 };
 
 export type ZhStatBonusMap = Partial<Record<string, number>>;
@@ -156,10 +148,6 @@ export interface RealmBaseStatsRow {
   stage: string;
   hp: number;
   mp: number;
-  patk: number;
-  matk: number;
-  pdef: number;
-  mdef: number;
 }
 
 export function realmStageIndex(realm: string, stage: string): number {
@@ -170,39 +158,17 @@ export function realmStageIndex(realm: string, stage: string): number {
   return majorIdx * SUB_STAGES.length + minorIdx + 1;
 }
 
-function computeStats(level: number) {
-  const factor = Math.pow(level, EXPONENT);
-  return {
-    hp: Math.round(BASE_VALUES.hp * factor),
-    mp: Math.round(BASE_VALUES.mp * factor),
-    patk: Math.round(BASE_VALUES.patk * factor),
-    matk: Math.round(BASE_VALUES.matk * factor),
-    pdef: Math.round(BASE_VALUES.pdef * factor),
-    mdef: Math.round(BASE_VALUES.mdef * factor),
-  };
-}
-
 export const TABLE: readonly RealmBaseStatsRow[] = (REALM_ORDER as readonly string[]).flatMap(
   (realm) =>
-    (SUB_STAGES as readonly string[]).map((stage) => {
-      const level = realmStageIndex(realm, stage);
-      const stats = computeStats(level);
-      return { realm, stage, ...stats };
+    (SUB_STAGES as readonly string[]).map((stage, minorIdx) => {
+      const majorIdx = (REALM_ORDER as readonly string[]).indexOf(realm);
+      const idx = majorIdx * SUB_STAGES.length + minorIdx;
+      const row = REALM_BASE_STATS_TABLE[Math.min(idx, REALM_BASE_STATS_TABLE.length - 1)];
+      return { realm, stage, hp: row.hp, mp: row.mp };
     }),
 );
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 一、数据 — 修为需求表（几何增长：base × growth^(level-1)）
-// ═══════════════════════════════════════════════════════════════════════════
-
-function computeCultivation(level: number): number {
-  return Math.round(CULTIVATION_BASE * Math.pow(level, CULTIVATION_EXPONENT));
-}
-
-export const CULTIVATION_VALUES: readonly number[] = Array.from(
-  { length: REALM_ORDER.length * SUB_STAGES.length },
-  (_, i) => computeCultivation(i + 1),
-);
+export const CULTIVATION_VALUES: readonly number[] = CULTIVATION_VALUES_TABLE;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 二、结构 — 类型与接口
@@ -211,21 +177,19 @@ export const CULTIVATION_VALUES: readonly number[] = Array.from(
 export type PlayerBaseStats = {
   hp: number;
   mp: number;
+  hpRecovery: number;
+  mpRecovery: number;
   patk: number;
   matk: number;
   pdef: number;
   mdef: number;
   penetration: number;
+  magicPenetration: number;
   hitRate: number;
   dodgeRate: number;
   critRate: number;
   critDmg: number;
-  recovery: number;
-  castSpeed: number;
-  actionSpeed: number;
-  effectChance: number;
   cultivationSpeed: number;
-  controlResist: number;
 };
 
 export interface CultivationRealm {
@@ -266,6 +230,7 @@ export interface CharacterPlayInfoCommon {
   inventorySlots: Array<InventoryStackItem | null>;
   gongfaSlots: GongfaSlotsState;
   equippedSlots: EquippedSlotsState;
+  elixirBonuses?: Record<string, number>;
 }
 
 export interface ProtagonistPlayInfo extends CharacterPlayInfoCommon {
@@ -301,7 +266,8 @@ export type ProtagonistDetailAction =
   | { id: "unequipWear"; equipSlot: EquipSlotKey }
   | { id: "unequipGongfa"; gongfaIndex: number }
   | { id: "equipWearFromBag"; inventoryIndex: number }
-  | { id: "equipGongfaFromBag"; inventoryIndex: number };
+  | { id: "equipGongfaFromBag"; inventoryIndex: number }
+  | { id: "consumeElixir"; inventoryIndex: number };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 三、导出 — itemInfo 再导出

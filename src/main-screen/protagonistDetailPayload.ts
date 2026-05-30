@@ -26,7 +26,8 @@ export type ProtagonistDetailAction =
   | { id: "unequipWear"; equipSlot: EquipSlotKey }
   | { id: "unequipGongfa"; gongfaIndex: number }
   | { id: "equipWearFromBag"; inventoryIndex: number }
-  | { id: "equipGongfaFromBag"; inventoryIndex: number };
+  | { id: "equipGongfaFromBag"; inventoryIndex: number }
+  | { id: "consumeElixir"; inventoryIndex: number };
 
 /**
  * 详情弹窗底部的一个操作按钮。
@@ -413,11 +414,16 @@ export function buildInventoryStackDetailPayload(
       pushSec(sections, "品级", pill.grade);
       pushSec(sections, "药效", formatElixirEffect(pill));
       pushSec(sections, "数量", pill.count);
+      const actions: ProtagonistDetailActionButton[] = [];
+      if (bagIndex != null && pill.count > 0) {
+        actions.push({ label: "服用", action: { id: "consumeElixir", inventoryIndex: bagIndex }, primary: true });
+      }
       return {
         title: pill.name,
         subtitle: `丹药`,
         sections,
         dataRarity: gradeToTraitRarity(pill.grade),
+        actions: actions.length > 0 ? actions : undefined,
       };
     }
     case "材料": {

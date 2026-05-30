@@ -63,6 +63,7 @@ export class Character {
   equippedSlots: EquippedSlotsState;
   gongfaSlots: GongfaSlotsState;
   inventorySlots: Array<InventoryStackItem | null>;
+  elixirBonuses: Record<string, number>;
 
   constructor(data: CharacterPlayInfoCommon) {
     this.id = data.id;
@@ -81,6 +82,7 @@ export class Character {
     this.equippedSlots = data.equippedSlots;
     this.gongfaSlots = data.gongfaSlots;
     this.inventorySlots = data.inventorySlots;
+    this.elixirBonuses = data.elixirBonuses ? { ...data.elixirBonuses } : {};
   }
 
   // ===================================================================
@@ -144,6 +146,9 @@ export class Character {
     for (const gf of this.gongfaSlots) {
       if (!gf) continue;
       Character.addZhItemBonusInto(primaryStats, gf.bonus, ratio);
+    }
+    for (const [k, v] of Object.entries(this.elixirBonuses)) {
+      if (typeof v === "number" && v !== 0) primaryStats[k] = (primaryStats[k] ?? 0) + v;
     }
     return primaryStats;
   }
@@ -341,6 +346,7 @@ export class Character {
       equippedSlots: this.equippedSlots,
       gongfaSlots: this.gongfaSlots,
       inventorySlots: this.inventorySlots,
+      elixirBonuses: this.elixirBonuses,
     };
   }
 

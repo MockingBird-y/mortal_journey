@@ -20,7 +20,7 @@ export const INIT_STATE_SYSTEM_PRESET = `
 1. 主角的法宝开局配置：法宝的名称需要与剧情描述、主角背景一致。
 2. 输出格式：<mj_equip_body> … </mj_equip_body>，内为 JSON 数组。开局法宝一般给到2-3个。
 3. 法宝信息：包含 type（法宝）、name、intro、bonus（1个属性名称字符串）、function。
-4. bonus 基础属性类型：血量、法力、物攻、法攻、物防、法防、穿透、命中率、闪避率、暴击率、暴击伤害、恢复效果、施法速度、行动速度、特效几率、控制抗性。
+4. bonus 基础属性类型：血量、法力、生命回复、法力回复、物攻、法攻、物防、法防、物伤穿透、法伤穿透、命中率、闪避率、暴击率、暴击伤害。
 5. intro 规则：只描述法宝的外观、材质、来历，不要描述属性加成或功能效果。
 6. 属性加成与功能不可重叠：bonus对应的属性不能与function的effect指向同一属性。
 7. 示例：<mj_equip_body> [{"type":"法宝","name":"青钢剑","intro":"外门制式长剑，刃口锋利","bonus":"物攻","function":{"trigger":"on_turn_start","effect":"boostHitRate","duration":3,"cost":"none"}},{"type":"法宝","name":"粗布劲装","intro":"厚实耐磨的灰色劲装","bonus":"物防","function":{"trigger":"on_hit_taken","effect":"boostMdef","duration":3,"cost":"none"}}] </mj_equip_body>
@@ -29,9 +29,9 @@ export const INIT_STATE_SYSTEM_PRESET = `
 1. 主角的功法开局配置：攻击功法和辅助功法各一个，名称需要与剧情描述、主角背景一致。
 2. 输出格式：<mj_magic_body> … </mj_magic_body>，内为 JSON 数组。
 3. 功法信息：包含 type（功法）、name、intro、bonus、function。
-4. bonus 类型：只能是体魄、灵力、护体、神识、身法、会心其中一个。
+4. bonus 类型：只能是体魄、灵力、劲力、神识、护体、身法、悟性、气运其中一个。
 5. intro 规则：只描述功法的来历、流派、外观特征。
-6. 示例：<mj_magic_body> [{"type":"功法","name":"青云剑诀","intro":"剑意如青云舒卷","bonus":"会心","function":{"trigger":"on_attack","effect":"dealMagicDmg","duration":0,"cost":"mp"}},{"type":"功法","name":"吐纳诀","intro":"调和气机、固本培元","bonus":"灵力","function":{"trigger":"on_default","effect":"boostCritRate","duration":10,"cost":"none"}}] </mj_magic_body>
+6. 示例：<mj_magic_body> [{"type":"功法","name":"青云剑诀","intro":"剑意如青云舒卷","bonus":"劲力","function":{"trigger":"on_attack","effect":"dealPhysicalDmg","duration":0,"cost":"mp"}},{"type":"功法","name":"吐纳诀","intro":"调和气机、固本培元","bonus":"灵力","function":{"trigger":"on_default","effect":"boostCritRate","duration":10,"cost":"none"}}] </mj_magic_body>
 
 [储物袋开局配置规则]
 1. 主角储物袋开局配置：可以生成灵石、丹药、材料、杂物等。
@@ -50,7 +50,7 @@ export const INIT_STATE_SYSTEM_PRESET = `
  5. trigger 可选值：on_attack、on_skill_cast、on_crit、on_dodge、on_hit_taken、on_turn_start、on_low_hp、on_low_mana、on_full_mana、on_kill、on_default。
  6. effect 可选值：
     · 恢复类：recoverHp、recoverMp。
-    · 增益类：boostPatk、boostMatk、boostPdef、boostMdef、boostPenetration、boostHitRate、boostDodgeRate、boostCritRate、boostCritDmg、boostRecovery、boostCastSpeed、boostActionSpeed、boostEffectChance、boostControlResist。
+     · 增益类：boostPatk、boostMatk、boostPdef、boostMdef、boostPenetration、boostMagicPenetration、boostHitRate、boostDodgeRate、boostCritRate、boostCritDmg、boostHpRecovery、boostMpRecovery。
     · 伤害类：dealPhysicalDmg、dealMagicDmg、dealFireDmg、dealIceDmg、dealPoisonDmg、dealLightningDmg。
  7. duration 为持续回合数：0 表示即时，正数表示持续回合数。
  8. cost 可选值：none、mp、hp。
@@ -58,7 +58,7 @@ export const INIT_STATE_SYSTEM_PRESET = `
 
 [丹药effectType规则]
  1. 丹药不携带 function 字段，改为携带 effectType 字段，表示丹药的唯一效果类型。
- 2. effectType 只能是以下之一：恢复血量、恢复法力、提升修为、提升寿元、提升体魄、提升灵力、提升护体、提升神识、提升身法、提升会心、提升悟性、提升福缘。
+  2. effectType 只能是以下之一：恢复血量、恢复法力、提升修为、提升寿元、提升体魄、提升灵力、提升劲力、提升护体、提升神识、提升身法、提升悟性、提升气运。
  3. 丹药不含品阶（品阶由系统根据境界自动分配）。
  4. effectType 须与丹药名称和介绍描述契合。
 

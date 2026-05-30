@@ -52,11 +52,9 @@ export const STATE_SYSTEM_PRESET = `
     on_full_mana（灵气满时）、on_kill（击杀敌人）、on_default（默认触发）。
  6. effect 效果键可选值（与游戏逻辑一致的英文键）：
     · 恢复类：recoverHp（恢复血量）、recoverMp（恢复法力）。
-    · 增益类：boostPatk（增加物攻）、boostMatk（增加法攻）、boostPdef（增加物防）、boostMdef（增加法防）、
-      boostPenetration（增加穿透）、boostHitRate（增加命中率）、boostDodgeRate（增加闪避率）、
-      boostCritRate（增加暴击率）、boostCritDmg（增加暴击伤害）、boostRecovery（增加恢复效果）、
-      boostCastSpeed（增加施法速度）、boostActionSpeed（增加行动速度）、boostEffectChance（增加特效几率）、
-      boostControlResist（增加控制抗性）。
+     · 增益类：boostPatk（增加物攻）、boostMatk（增加法攻）、boostPdef（增加物防）、boostMdef（增加法防）、
+       boostPenetration（增加物伤穿透）、boostMagicPenetration（增加法伤穿透）、boostHitRate（增加命中率）、boostDodgeRate（增加闪避率）、
+       boostCritRate（增加暴击率）、boostCritDmg（增加暴击伤害）、boostHpRecovery（增加生命回复）、boostMpRecovery（增加法力回复）。
     · 伤害类：dealPhysicalDmg（造成物伤）、dealMagicDmg（造成法伤）、dealFireDmg（造成火伤）、
       dealIceDmg（造成冰伤）、dealPoisonDmg（造成毒伤）、dealLightningDmg（造成雷伤）。
  7. duration 为持续回合数：0 表示即时生效不持续，正数表示持续该回合数。
@@ -65,7 +63,7 @@ export const STATE_SYSTEM_PRESET = `
 
 [丹药effectType规则]
  1. 丹药不携带 function 字段，改为携带 effectType 字段，表示丹药的唯一效果类型。
- 2. effectType 只能是以下之一：恢复血量、恢复法力、提升修为、提升寿元、提升体魄、提升灵力、提升护体、提升神识、提升身法、提升会心、提升悟性、提升福缘。
+  2. effectType 只能是以下之一：恢复血量、恢复法力、提升修为、提升寿元、提升体魄、提升灵力、提升劲力、提升护体、提升神识、提升身法、提升悟性、提升气运。
  3. 丹药不含品阶（品阶由系统根据境界自动分配）。
  4. effectType 须与丹药名称和介绍描述契合。
 

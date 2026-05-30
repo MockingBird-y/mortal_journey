@@ -55,9 +55,8 @@ export const TREASURE_TRIGGER_CATEGORY: Readonly<Record<TreasureTriggerTiming, "
 
 export const TREASURE_EFFECT_KEYS = [
   "recoverHp", "recoverMp", "boostPatk", "boostMatk", "boostPdef", "boostMdef",
-  "boostPenetration", "boostHitRate", "boostDodgeRate", "boostCritRate",
-  "boostCritDmg", "boostRecovery", "boostCastSpeed", "boostActionSpeed",
-  "boostEffectChance", "boostControlResist",
+  "boostPenetration", "boostMagicPenetration", "boostHitRate", "boostDodgeRate",
+  "boostCritRate", "boostCritDmg", "boostHpRecovery", "boostMpRecovery",
 ] as const;
 export type TreasureEffectKey = (typeof TREASURE_EFFECT_KEYS)[number];
 
@@ -68,24 +67,22 @@ export const TREASURE_EFFECT_TO_ZH: Readonly<Record<TreasureEffectKey, string>> 
   boostMatk: "增加法攻",
   boostPdef: "增加物防",
   boostMdef: "增加法防",
-  boostPenetration: "增加穿透",
+  boostPenetration: "增加物伤穿透",
+  boostMagicPenetration: "增加法伤穿透",
   boostHitRate: "增加命中率",
   boostDodgeRate: "增加闪避率",
   boostCritRate: "增加暴击率",
   boostCritDmg: "增加暴击伤害",
-  boostRecovery: "增加恢复效果",
-  boostCastSpeed: "增加施法速度",
-  boostActionSpeed: "增加行动速度",
-  boostEffectChance: "增加特效几率",
-  boostControlResist: "增加控制抗性",
+  boostHpRecovery: "增加生命回复",
+  boostMpRecovery: "增加法力回复",
 };
 
 export const TREASURE_EFFECT_CATEGORY: Readonly<Record<TreasureEffectKey, EffectCategory>> = {
   recoverHp: "恢复", recoverMp: "恢复", boostPatk: "增益", boostMatk: "增益",
   boostPdef: "增益", boostMdef: "增益", boostPenetration: "增益",
-  boostHitRate: "增益", boostDodgeRate: "增益", boostCritRate: "增益",
-  boostCritDmg: "增益", boostRecovery: "增益", boostCastSpeed: "增益",
-  boostActionSpeed: "增益", boostEffectChance: "增益", boostControlResist: "增益",
+  boostMagicPenetration: "增益", boostHitRate: "增益", boostDodgeRate: "增益",
+  boostCritRate: "增益", boostCritDmg: "增益", boostHpRecovery: "增益",
+  boostMpRecovery: "增益",
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
