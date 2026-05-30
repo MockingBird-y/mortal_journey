@@ -38,15 +38,14 @@ export const INIT_STATE_SYSTEM_PRESET = `
 2. 灵石生成规则：灵石不区分品阶，统一为"灵石"，数量与主角身份和境界对应。练气弟子通常几十到数百，筑基修士数百到数千。
 3. 其他物品根据主角出身和境界适当生成。
 4. 输出格式：<mj_storage_body> … </mj_storage_body>，内为 JSON 数组。
-5. 示例：<mj_storage_body> [{"type":"灵石","name":"灵石","count":10},{"type":"丹药","name":"辟谷丹","intro":"碧绿丹丸，隐有草木清香","function":{"trigger":"on_attack","effect":"recoverMp","duration":0,"cost":"none"},"count":2},{"type":"杂物","name":"宗门令牌","intro":"外门弟子通行木牌","count":1}] </mj_storage_body>
+5. 示例：<mj_storage_body> [{"type":"灵石","name":"灵石","count":10},{"type":"丹药","name":"辟谷丹","intro":"碧绿丹丸，隐有草木清香","effectType":"恢复法力","count":2},{"type":"杂物","name":"宗门令牌","intro":"外门弟子通行木牌","count":1}] </mj_storage_body>
 
-[法宝功法丹药function生成规则]
- 1. 法宝、功法、丹药携带一个 function 字典，每个 function 为一条特殊功能条目，必须有。
- 2. 每个 function 对象包含四个字段：trigger（触发时机）、effect（效果）、duration（持续回合）、cost（消耗）。
- 3. 按物品类型的 trigger 与 effect 约束（必须严格遵守）：
-    · 法宝：trigger 只能是被动触发（on_hit_taken、on_turn_start、on_low_hp、on_low_mana、on_full_mana、on_crit、on_dodge、on_kill），effect 只能是恢复类（recoverHp、recoverMp）或增益类（boost*）。
-    · 功法：trigger 只能是 on_attack、on_skill_cast、on_default，effect 只能是穿透/命中/闪避/暴击/暴伤增益类（boostPenetration、boostHitRate、boostDodgeRate、boostCritRate、boostCritDmg）或伤害类（deal*）。
-    · 丹药：trigger 固定为 on_attack，effect 只能是恢复类或攻防增益类（boostPatk、boostMatk、boostPdef、boostMdef），cost 固定为 none。
+[法宝功法function生成规则]
+  1. 法宝、功法携带一个 function 字典，每个 function 为一条特殊功能条目，必须有。
+  2. 每个 function 对象包含四个字段：trigger（触发时机）、effect（效果）、duration（持续回合）、cost（消耗）。
+  3. 按物品类型的 trigger 与 effect 约束（必须严格遵守）：
+     · 法宝：trigger 只能是被动触发（on_hit_taken、on_turn_start、on_low_hp、on_low_mana、on_full_mana、on_crit、on_dodge、on_kill），effect 只能是恢复类（recoverHp、recoverMp）或增益类（boost*）。
+     · 功法：trigger 只能是 on_attack、on_skill_cast、on_default，effect 只能是穿透/命中/闪避/暴击/暴伤增益类（boostPenetration、boostHitRate、boostDodgeRate、boostCritRate、boostCritDmg）或伤害类（deal*）。
  4. effect 如果是增益或减益，不能是即时或1回合。
  5. trigger 可选值：on_attack、on_skill_cast、on_crit、on_dodge、on_hit_taken、on_turn_start、on_low_hp、on_low_mana、on_full_mana、on_kill、on_default。
  6. effect 可选值：
@@ -57,13 +56,19 @@ export const INIT_STATE_SYSTEM_PRESET = `
  8. cost 可选值：none、mp、hp。
   9. function 必须与物品名称和介绍描述契合。
 
+[丹药effectType规则]
+ 1. 丹药不携带 function 字段，改为携带 effectType 字段，表示丹药的唯一效果类型。
+ 2. effectType 只能是以下之一：恢复血量、恢复法力、提升修为、提升寿元、提升体魄、提升灵力、提升护体、提升神识、提升身法、提升会心、提升悟性、提升福缘。
+ 3. 丹药不含品阶（品阶由系统根据境界自动分配）。
+ 4. effectType 须与丹药名称和介绍描述契合。
+
 [NPC生成规则]
 1. 开局剧情中出现的周围人物，必须在 <NPC_NEARBY_TAG> 中生成对应角色卡。
 2. NPC境界参考剧情：宗门普通弟子一般在练气期，师叔/执事在筑基期，长者在结丹期。大境界从练气、筑基、结丹、元婴、化神中选择，小境界从初期、中期、后期选择。
 3. 好感度初始化：默认落在 -19~19。
-4. NPC的法宝和功法结构与主角完全相同：法宝须含 type（法宝）、name、intro、bonus（1个属性名称字符串）、function；功法须含 type（功法）、name、intro、bonus、function。不含 grade（品阶由系统根据境界自动分配）。NPC储物袋中的丹药等物品同样须含 function，不含 grade。
+4. NPC的法宝和功法结构与主角完全相同：法宝须含 type（法宝）、name、intro、bonus（1个属性名称字符串）、function；功法须含 type（功法）、name、intro、bonus、function。不含 grade（品阶由系统根据境界自动分配）。NPC储物袋中的丹药须含 effectType，不含 grade。
 5. NPC生成需要包含的信息：displayName（2-4字）、identity、currentStageGoal、longTermGoal、hobby、fear、personality、favorability、gender、age、linggen、realm、equippedSlots（最多4个法宝，须含武器，每个含 bonus 和 function）、gongfaSlots（长度8，须含攻击类功法，每个含 bonus 和 function）、inventorySlots（最多12格）、hpPercent/mpPercent（血量/法力百分比，0-100整数，100为满状态）。
-6. NPC的法宝和功法的 function 生成规则与主角相同，须严格遵守上方[法宝功法丹药function生成规则]中的 trigger/effect/duration/cost 约束。
+6. NPC的法宝和功法的 function 生成规则与主角相同，须严格遵守上方[法宝功法function生成规则]中的 trigger/effect/duration/cost 约束。丹药使用 effectType，不使用 function。
 7. NPC示例：
 <NPC_NEARBY_TAG>[
   {

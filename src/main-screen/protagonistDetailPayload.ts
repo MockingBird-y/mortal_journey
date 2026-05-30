@@ -361,13 +361,10 @@ export function buildGongfaDetailPayload(
  * @param el - 丹药定义，读取 `effects.recover`。
  * @returns 可读药效字符串；无有效恢复效果时返回 `undefined`。
  */
-function formatRecover(el: ElixirItemDefinition): string | undefined {
-  const r = el.effects?.recover;
-  if (!r) return undefined;
-  const hp = typeof r.hp === "number" && r.hp > 0 ? `生命 +${r.hp}` : "";
-  const mp = typeof r.mp === "number" && r.mp > 0 ? `法力 +${r.mp}` : "";
-  const parts = [hp, mp].filter(Boolean);
-  return parts.length ? parts.join("，") : undefined;
+function formatElixirEffect(el: ElixirItemDefinition): string {
+  const { effectType, effects } = el;
+  const suffix = effects.isPercent ? "%" : "";
+  return `${effectType} ${effects.value}${suffix}`;
 }
 
 /**
@@ -414,9 +411,7 @@ export function buildInventoryStackDetailPayload(
       const sections: ProtagonistDetailSection[] = [];
       pushSec(sections, "简介", pill.desc);
       pushSec(sections, "品级", pill.grade);
-      const fx = formatRecover(pill);
-      if (fx) pushSec(sections, "药效", fx);
-      pushFunctionSection(sections, pill.function);
+      pushSec(sections, "药效", formatElixirEffect(pill));
       pushSec(sections, "数量", pill.count);
       return {
         title: pill.name,

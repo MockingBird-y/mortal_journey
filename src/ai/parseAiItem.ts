@@ -23,10 +23,8 @@ import {
   GONGFA_TRIGGER_KEYS,
   TREASURE_EFFECT_KEYS,
   GONGFA_EFFECT_KEYS,
-  ELIXIR_EFFECT_KEYS,
   TREASURE_COST_KEYS,
   GONGFA_COST_KEYS,
-  ELIXIR_COST_KEYS,
   type SpecialEffect,
   type EffectValueCategory,
   type SpecialEffectTarget,
@@ -38,8 +36,13 @@ import {
   ITEM_TYPE_ALLOWED_EFFECTS,
   treasureEffectKeyToCategory,
   gongfaEffectKeyToCategory,
-  elixirEffectKeyToCategory,
 } from "../role_core/types/special_effects";
+import {
+  parseElixirEffectType,
+  rollElixirValue,
+  isElixirPercent,
+  type ElixirEffectType,
+} from "../role_core/types/elixir";
 
 export const VALID_BONUS_NAMES: ReadonlySet<string> = new Set(Object.keys(GONGFA_GRADE_ATTRI_TABLE));
 
@@ -152,7 +155,6 @@ export function effectKeysForType(itemType: string): readonly string[] {
   switch (itemType) {
     case "法宝": return TREASURE_EFFECT_KEYS;
     case "功法": return GONGFA_EFFECT_KEYS;
-    case "丹药": return ELIXIR_EFFECT_KEYS;
     default: return [];
   }
 }
@@ -161,7 +163,6 @@ export function costKeysForType(itemType: string): readonly string[] {
   switch (itemType) {
     case "法宝": return TREASURE_COST_KEYS;
     case "功法": return GONGFA_COST_KEYS;
-    case "丹药": return ELIXIR_COST_KEYS;
     default: return [];
   }
 }
@@ -170,7 +171,6 @@ export function effectKeyToCategoryForType(effectLabel: string, itemType: string
   switch (itemType) {
     case "法宝": return treasureEffectKeyToCategory(effectLabel as typeof TREASURE_EFFECT_KEYS[number]);
     case "功法": return gongfaEffectKeyToCategory(effectLabel as typeof GONGFA_EFFECT_KEYS[number]);
-    case "丹药": return elixirEffectKeyToCategory(effectLabel as typeof ELIXIR_EFFECT_KEYS[number]);
     default: return lookupEffectCategory(effectLabel);
   }
 }
@@ -189,7 +189,6 @@ export function validateAiFunction(raw: unknown, grade: string, itemType: string
 
   const allTriggers = [
     ...TREASURE_TRIGGER_KEYS, ...GONGFA_TRIGGER_KEYS,
-    ...ELIXIR_EFFECT_KEYS.length ? [] : [],
   ];
   let trigger = obj.trigger;
   if (typeof trigger !== "string") return null;
@@ -317,8 +316,9 @@ export function parseStorageObject(e: unknown, realmMajor: string, realmMinor: s
       return { itemType: "法宝", name, desc, grade, count, bonus: parseTreasureBonusField(obj.bonus, grade), function: fn } as TreasureItemDefinition;
     }
     case "丹药": {
-      const fn = applyTypedFunctionOverrides(validateAiFunction(obj.function, grade, "丹药") ?? undefined, "丹药");
-      return { itemType: "丹药", name, desc, grade, count, effects: { recover: { hp: 0, mp: 0 } }, function: fn };
+      const effectType = parseElixirEffectType(obj.effectType);
+      const value = rollElixirValue(effectType, grade);
+      return { itemType: "丹药" as const, name, desc, grade, count, effectType, effects: { value, isPercent: isElixirPercent(effectType, grade) } };
     }
     case "材料":
       return { itemType: "材料", name, desc, grade, count } as MaterialItemDefinition;
