@@ -1,5 +1,5 @@
 import { INIT_STATE_SYSTEM_PRESET } from "./init_state_preset";
-import { extractTagContent, tryParseJsonArray, parseEquipObject, parseGongfaObject, parseStorageObject, spiritStoneAllowedUpTo } from "./parseAiItem";
+import { extractTagContent, tryParseJsonArray, parseEquipObject, parseGongfaObject, parseStorageObject } from "./parseAiItem";
 import { completeChatWithMessagesJson, type JsonChatRequestPayload } from "./openAiChatBridge";
 import {
   EQUIP_SLOT_COUNT,
@@ -12,7 +12,6 @@ import {
   type TreasureItemDefinition,
   type GongfaItemDefinition,
 } from "../role_core/types/playInfo";
-import { SPIRIT_STONE_TABLE_KEYS_ORDERED, type SpiritStoneName } from "../role_core/types/spiritStone";
 import type { NpcNearbyEntry } from "./state_generate";
 
 export interface InitStateApiConfig {
@@ -194,20 +193,8 @@ export function buildGongfaSlotsFromParsed(parsed: InitStateParsed): GongfaSlots
   return slots;
 }
 
-export function buildInventoryFromParsed(parsed: InitStateParsed, realmMajor: string, slotCount: number): Array<InventoryStackItem | null> {
-  const maxStone = spiritStoneAllowedUpTo(realmMajor);
-  const maxIdx = SPIRIT_STONE_TABLE_KEYS_ORDERED.indexOf(maxStone);
-  const items: InventoryStackItem[] = [];
-  for (const item of parsed.storage) {
-    if ("type" in item && item.type === "灵石") {
-      const stoneIdx = SPIRIT_STONE_TABLE_KEYS_ORDERED.indexOf(item.name as SpiritStoneName);
-      if (stoneIdx >= 0 && stoneIdx <= maxIdx) {
-        items.push(item);
-      }
-    } else {
-      items.push(item);
-    }
-  }
+export function buildInventoryFromParsed(parsed: InitStateParsed, _realmMajor: string, slotCount: number): Array<InventoryStackItem | null> {
+  const items: InventoryStackItem[] = [...parsed.storage];
   const rest = Math.max(0, slotCount - items.length);
   return [...items, ...Array.from({ length: rest }, () => null)];
 }

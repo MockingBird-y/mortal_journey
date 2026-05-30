@@ -4,10 +4,7 @@
  */
 
 import type { InventoryStackItem } from "./types/itemInfo";
-import {
-  createSpiritStoneInventoryStack,
-  type SpiritStoneName,
-} from "./types/spiritStone";
+import { createSpiritStoneInventoryStack } from "./types/spiritStone";
 import { gameLog } from "../log/gameLog";
 
 export interface InventoryCarrier {
@@ -67,27 +64,27 @@ export function addToInventory(c: InventoryCarrier, item: InventoryStackItem): n
   return i;
 }
 
-export function addSpiritStone(c: InventoryCarrier, name: SpiritStoneName, count: number): void {
+export function addSpiritStone(c: InventoryCarrier, count: number): void {
   for (let i = 0; i < c.inventorySlots.length; i++) {
     const cell = c.inventorySlots[i];
-    if (!cell || !("type" in cell) || cell.type !== "灵石" || cell.name !== name) continue;
+    if (!cell || !("type" in cell) || cell.type !== "灵石") continue;
     cell.count += count;
     return;
   }
-  addToInventory(c, createSpiritStoneInventoryStack(name, count));
+  addToInventory(c, createSpiritStoneInventoryStack(count));
 }
 
-export function removeSpiritStone(c: InventoryCarrier, name: SpiritStoneName, count: number): void {
+export function removeSpiritStone(c: InventoryCarrier, count: number): void {
   let remaining = count;
   for (let i = 0; i < c.inventorySlots.length && remaining > 0; i++) {
     const cell = c.inventorySlots[i];
-    if (!cell || !("type" in cell) || cell.type !== "灵石" || cell.name !== name) continue;
+    if (!cell || !("type" in cell) || cell.type !== "灵石") continue;
     const take = Math.min(remaining, cell.count);
     cell.count -= take;
     remaining -= take;
     if (cell.count <= 0) setInventorySlot(c, i, null);
   }
   if (remaining > 0) {
-    gameLog.warn(`[Inventory] 灵石不足：还需 ${remaining} 颗「${name}」`);
+    gameLog.warn(`[Inventory] 灵石不足：还需 ${remaining} 颗灵石`);
   }
 }

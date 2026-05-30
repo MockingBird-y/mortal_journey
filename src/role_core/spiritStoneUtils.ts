@@ -4,17 +4,16 @@
  */
 
 import {
-  mjDescribeSpiritStones,
+  SPIRIT_STONE_DESC,
   SPIRIT_STONE_INVENTORY_KIND,
-  type SpiritStoneName,
   type SpiritStoneInventoryStack,
 } from "./types/spiritStone";
 
-export function createSpiritStoneInventoryStack(name: SpiritStoneName, count: number): SpiritStoneInventoryStack {
+export function createSpiritStoneInventoryStack(count: number): SpiritStoneInventoryStack {
   return {
-    name,
+    name: "灵石",
     count,
-    ...mjDescribeSpiritStones[name],
+    desc: SPIRIT_STONE_DESC,
     type: SPIRIT_STONE_INVENTORY_KIND,
   };
 }

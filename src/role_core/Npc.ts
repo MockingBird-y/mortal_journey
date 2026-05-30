@@ -15,8 +15,7 @@ import { DEFAULT_INVENTORY_SLOT_COUNT } from "./CharacterInventory";
 import { getBaseStats, getShouyuanForRealm } from "./realmUtils";
 import type { InventoryStackItem, TreasureItemDefinition, GongfaItemDefinition } from "./types/itemInfo";
 import type { NpcNearbyEntry } from "../ai/state_generate";
-import { parseEquipObject, parseGongfaObject, parseStorageObject, rollGrade, spiritStoneAllowedUpTo } from "../ai/parseAiItem";
-import { SPIRIT_STONE_TABLE_KEYS_ORDERED, type SpiritStoneName } from "./types/spiritStone";
+import { parseEquipObject, parseGongfaObject, parseStorageObject, rollGrade } from "../ai/parseAiItem";
 
 const VALID_POWER_TIERS = new Set<string>(["小怪", "精英怪", "小boss", "大boss", "普通NPC"]);
 
@@ -87,18 +86,9 @@ export class Npc extends Character {
         if (item) inventoryItems.push(item);
       }
     }
-    const maxStone = spiritStoneAllowedUpTo(realmMajor);
-    const maxIdx = SPIRIT_STONE_TABLE_KEYS_ORDERED.indexOf(maxStone);
-    const filteredItems = inventoryItems.filter(item => {
-      if ("type" in item && item.type === "灵石") {
-        const idx = SPIRIT_STONE_TABLE_KEYS_ORDERED.indexOf(item.name as SpiritStoneName);
-        return idx >= 0 && idx <= maxIdx;
-      }
-      return true;
-    });
     const inventorySlots: Array<InventoryStackItem | null> = [
-      ...filteredItems,
-      ...Array.from({ length: Math.max(0, DEFAULT_INVENTORY_SLOT_COUNT - filteredItems.length) }, () => null),
+      ...inventoryItems,
+      ...Array.from({ length: Math.max(0, DEFAULT_INVENTORY_SLOT_COUNT - inventoryItems.length) }, () => null),
     ];
 
     const baseStats = getBaseStats(realmMajor, realmMinor) ?? Character.emptyPlayerBase();

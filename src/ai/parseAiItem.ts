@@ -8,7 +8,6 @@ import {
 import type { InventoryStackItem } from "../role_core/types/playInfo";
 import {
   createSpiritStoneInventoryStack,
-  type SpiritStoneName,
 } from "../role_core/types/spiritStone";
 import type {
   GongfaItemDefinition,
@@ -162,17 +161,6 @@ export function rollGrade(realmMajor: string, realmMinor: string): ItemGrade {
 export function safeCount(val: unknown): number {
   const n = typeof val === "number" ? val : parseInt(String(val), 10);
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 1;
-}
-
-export function spiritStoneAllowedUpTo(realmMajor: string): SpiritStoneName {
-  const mapping: Record<string, SpiritStoneName> = {
-    "练气": "下品灵石",
-    "筑基": "中品灵石",
-    "结丹": "上品灵石",
-    "元婴": "极品灵石",
-    "化神": "仙品灵石",
-  };
-  return mapping[realmMajor] ?? "下品灵石";
 }
 
 export const TREASURE_TRIGGER_FALLBACK = "on_hit_taken";
@@ -338,10 +326,9 @@ export function parseStorageObject(e: unknown, realmMajor: string, realmMinor: s
   const typeStr = safeStr(obj.type, "杂物");
 
   if (typeStr === "灵石") {
-    const name = safeStr(obj.name, "下品灵石") as SpiritStoneName;
     const count = safeCount(obj.count);
     if (count <= 0) return null;
-    return createSpiritStoneInventoryStack(name, count);
+    return createSpiritStoneInventoryStack(count);
   }
 
   const name = safeStr(obj.name, "未命名物品");

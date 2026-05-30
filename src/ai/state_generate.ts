@@ -36,7 +36,6 @@ export interface UserStateChange {
 
 export interface SpiritStoneChange {
   op: "add" | "remove";
-  name: string;
   count: number;
 }
 
@@ -202,10 +201,8 @@ export function parseStateAiResponse(raw: string): StateParsed {
       const o = e as Record<string, unknown>;
       const op = String(o.op || "").trim();
       if (op !== "add" && op !== "remove") return null;
-      const name = String(o.name || "").trim();
       const count = typeof o.count === "number" ? Math.max(1, Math.floor(o.count)) : 1;
-      if (!name) return null;
-      return { op, name, count } as SpiritStoneChange;
+      return { op, count } as SpiritStoneChange;
     })
     .filter((c): c is SpiritStoneChange => c !== null);
 

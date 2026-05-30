@@ -403,13 +403,11 @@ export function buildInventoryStackDetailPayload(
     const st = cell as SpiritStoneInventoryStack;
     const sections: ProtagonistDetailSection[] = [];
     pushSec(sections, "简介", st.desc);
-    pushSec(sections, "品级", st.grade);
     pushSec(sections, "持有数量", st.count);
     return {
       title: st.name,
       subtitle: `灵石`,
       sections: sections.length ? sections : [{ label: "说明", text: "—" }],
-      dataRarity: gradeToTraitRarity(st.grade),
     };
   }
 

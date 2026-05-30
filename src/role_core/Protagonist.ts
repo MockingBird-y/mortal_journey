@@ -31,7 +31,6 @@ import {
   realmStageIndex,
 } from "./types/playInfo";
 import {
-  SPIRIT_STONE_TABLE_KEYS_ORDERED,
   type SpiritStoneName,
 } from "./types/spiritStone";
 import type { InitStateParsed } from "../ai/init_state_generate";
@@ -339,11 +338,10 @@ export class Protagonist extends Character {
     }
 
     for (const change of state.spiritStoneChanges) {
-      if (!SPIRIT_STONE_TABLE_KEYS_ORDERED.includes(change.name as SpiritStoneName)) continue;
       if (change.op === "add") {
-        this.addSpiritStone(change.name as SpiritStoneName, change.count);
+        this.addSpiritStone("灵石", change.count);
       } else if (change.op === "remove") {
-        this.removeSpiritStone(change.name as SpiritStoneName, change.count);
+        this.removeSpiritStone("灵石", change.count);
       }
     }
 

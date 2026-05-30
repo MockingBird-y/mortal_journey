@@ -27,7 +27,6 @@ import {
   getEquipBonusRatioWithAffinity,
 } from "./realmUtils";
 import type { SpiritStoneName } from "./types/spiritStone";
-import { SPIRIT_STONE_TABLE_KEYS_ORDERED } from "./types/spiritStone";
 import {
   DEFAULT_INVENTORY_SLOT_COUNT,
   INVENTORY_SLOT_EXPAND_STEP,
@@ -276,11 +275,11 @@ export class Character {
   // ===================================================================
 
   addSpiritStone(name: SpiritStoneName, count: number): void {
-    invAddStone(this, name, count);
+    invAddStone(this, count);
   }
 
   removeSpiritStone(name: SpiritStoneName, count: number): void {
-    invRemoveStone(this, name, count);
+    invRemoveStone(this, count);
   }
 
   // ===================================================================

@@ -36,10 +36,10 @@ export const INIT_STATE_SYSTEM_PRESET = `
 
 [储物袋开局配置规则]
 1. 主角储物袋开局配置：可以生成灵石、丹药、符箓、阵法、材料、杂物等。
-2. 灵石生成规则：只有下品灵石、中品灵石、上品灵石、极品灵石、仙品灵石、神品灵石，不能出现超过主角境界的灵石，数量和主角身份对应。
+2. 灵石生成规则：灵石不区分品阶，统一为"灵石"，数量与主角身份和境界对应。练气弟子通常几十到数百，筑基修士数百到数千。
 3. 其他物品根据主角出身和境界适当生成。
 4. 输出格式：<mj_storage_body> … </mj_storage_body>，内为 JSON 数组。
-5. 示例：<mj_storage_body> [{"type":"灵石","name":"下品灵石","count":10},{"type":"丹药","name":"辟谷丹","intro":"碧绿丹丸，隐有草木清香","function":{"trigger":"on_attack","effect":"recoverMp","duration":0,"cost":"none"},"count":2},{"type":"杂物","name":"宗门令牌","intro":"外门弟子通行木牌","count":1}] </mj_storage_body>
+5. 示例：<mj_storage_body> [{"type":"灵石","name":"灵石","count":10},{"type":"丹药","name":"辟谷丹","intro":"碧绿丹丸，隐有草木清香","function":{"trigger":"on_attack","effect":"recoverMp","duration":0,"cost":"none"},"count":2},{"type":"杂物","name":"宗门令牌","intro":"外门弟子通行木牌","count":1}] </mj_storage_body>
 
 [法宝功法丹药符箓阵法function生成规则]
  1. 法宝、功法、丹药、符箓、阵法携带一个 function 字典，每个 function 为一条特殊功能条目，必须有。
@@ -94,7 +94,7 @@ export const INIT_STATE_SYSTEM_PRESET = `
       null, null, null, null, null, null
     ],
     "inventorySlots": [
-      {"type": "灵石", "name": "下品灵石", "count": 10}
+      {"type": "灵石", "name": "灵石", "count": 10}
     ],
     "hpPercent": 100,
     "mpPercent": 100
