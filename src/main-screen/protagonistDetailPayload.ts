@@ -18,8 +18,35 @@ import { BASE_STAT_KEYS, DERIVED_STAT_KEY_TO_ZH, getEquipBonusRealmRatio, type P
 import type { TreasureSpecialEffect } from "../role_core/types/treasure";
 import type { GongfaSpecialEffect } from "../role_core/types/gongfa";
 import { gradeToTraitRarity } from "./protagonistPanelDisplay";
+import { resolveEffectDisplay, type DerivedStatValues } from "../role_core/types/combatMechanics";
+import type { ItemGrade } from "../role_core/types/itemInfo";
 
 type ItemSpecialEffect = TreasureSpecialEffect | GongfaSpecialEffect;
+
+function pushSpecialEffectSection(
+  out: ProtagonistDetailSection[],
+  fn: ItemSpecialEffect | undefined,
+  grade: string,
+  primaryStatGetter?: () => number,
+  statNameGetter?: () => string,
+  system?: string,
+  derivedStatsGetter?: () => DerivedStatValues,
+): void {
+  if (!fn) return;
+  out.push({
+    label: "特殊效果",
+    get text() {
+      const stat = primaryStatGetter ? primaryStatGetter() : undefined;
+      const name = statNameGetter ? statNameGetter() : undefined;
+      const ds = derivedStatsGetter ? derivedStatsGetter() : undefined;
+      const display = resolveEffectDisplay(fn, grade as ItemGrade, stat, name, system, ds);
+      if ("mpCost" in fn && typeof fn.mpCost === "number" && fn.mpCost > 0) {
+        return display + `\n法力消耗：${fn.mpCost}`;
+      }
+      return display;
+    },
+  });
+}
 
 /**
  * 详情弹窗底部按钮所触发的动作；由 `protagonistManager.applyProtagonistDetailAction` 执行。
@@ -180,22 +207,6 @@ function formatMagnification(m: Record<string, number> | undefined): string | un
  * 消耗：消耗法力 20
  * ```
  */
-function formatSpecialEffect(fn: ItemSpecialEffect | undefined, showName: boolean = true): string | undefined {
-  if (!fn) return undefined;
-  if ("name" in fn && "desc" in fn) {
-    if (showName) {
-      return `${(fn as { name: string }).name}：${(fn as { desc: string }).desc}`;
-    }
-    return `${(fn as { desc: string }).desc}`;
-  }
-  return undefined;
-}
-
-function pushSpecialEffectSection(out: ProtagonistDetailSection[], fn: ItemSpecialEffect | undefined, showName: boolean = true): void {
-  const text = formatSpecialEffect(fn, showName);
-  if (text) pushSec(out, "特殊效果", text);
-}
-
 /**
  * 根据天赋条目构建详情弹窗数据。
  *
@@ -253,7 +264,7 @@ export function buildWearableDetailPayload(
       ? formatZhBonusWithRealmEquip(it.bonus as Record<string, number>, realm)
       : formatZhBonus(it.bonus as Record<string, number>);
   if (bonus) pushSec(sections, "属性加成", bonus);
-  pushSpecialEffectSection(sections, it.function, false);
+  pushSpecialEffectSection(sections, it.function, it.grade);
 
   const actions: ProtagonistDetailActionButton[] = [];
   if (source?.type === "equipped") {
@@ -301,6 +312,9 @@ export function buildGongfaDetailPayload(
   source?: GongfaDetailSource,
   realm?: CultivationRealm | null,
   _playerLinggen?: readonly string[] | null,
+  primaryStatGetter?: () => number,
+  statNameGetter?: () => string,
+  derivedStatsGetter?: () => DerivedStatValues,
 ): ProtagonistDetailPayload {
   const sections: ProtagonistDetailSection[] = [];
   pushSec(sections, "简介", gf.desc);
@@ -310,7 +324,7 @@ export function buildGongfaDetailPayload(
       ? formatZhBonusWithRealmEquip(gf.bonus as Record<string, number>, realm)
       : formatZhBonus(gf.bonus as Record<string, number>);
   if (bonus) pushSec(sections, "修炼加成", bonus);
-  pushSpecialEffectSection(sections, gf.function, false);
+  pushSpecialEffectSection(sections, gf.function, gf.grade, primaryStatGetter, statNameGetter, gf.system, derivedStatsGetter);
 
   const actions: ProtagonistDetailActionButton[] = [];
   if (source?.type === "bar") {
@@ -360,6 +374,9 @@ export function buildInventoryStackDetailPayload(
   cell: InventoryStackItem,
   bagIndex?: number,
   linggen?: string[],
+  primaryStatGetterForGongfa?: (gf: GongfaItemDefinition) => number,
+  statNameGetterForGongfa?: (gf: GongfaItemDefinition) => string,
+  derivedStatsGetterForGongfa?: (gf: GongfaItemDefinition) => DerivedStatValues,
 ): ProtagonistDetailPayload {
   if (!("itemType" in cell)) {
     const st = cell as SpiritStoneInventoryStack;
@@ -380,13 +397,27 @@ export function buildInventoryStackDetailPayload(
         it,
         bagIndex != null ? { type: "bag", inventoryIndex: bagIndex } : undefined,
       );
-    case "功法":
+    case "功法": {
+      const gf = it as GongfaItemDefinition;
+      const gfg = primaryStatGetterForGongfa
+        ? () => primaryStatGetterForGongfa(gf)
+        : undefined;
+      const sng = statNameGetterForGongfa
+        ? () => statNameGetterForGongfa(gf)
+        : undefined;
+      const dsg = derivedStatsGetterForGongfa
+        ? () => derivedStatsGetterForGongfa(gf)
+        : undefined;
       return buildGongfaDetailPayload(
         it,
         bagIndex != null ? { type: "bag", inventoryIndex: bagIndex } : undefined,
         undefined,
         linggen,
+        gfg,
+        sng,
+        dsg,
       );
+    }
     case "丹药": {
       const pill = it as ElixirItemDefinition;
       const sections: ProtagonistDetailSection[] = [];

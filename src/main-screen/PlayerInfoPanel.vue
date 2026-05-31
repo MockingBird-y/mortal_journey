@@ -5,7 +5,9 @@
  */
 import { computed, ref } from "vue";
 import { Protagonist } from "../role_core/Protagonist";
-import { PRIMARY_STAT_KEY_TO_ZH, PRIMARY_STAT_KEYS, PRIMARY_STAT_KEY_DESC, type EquipSlotKey } from "../role_core/types/playInfo";
+import { PRIMARY_STAT_KEY_TO_ZH, PRIMARY_STAT_KEYS, PRIMARY_STAT_KEY_DESC, type EquipSlotKey, type PrimaryStatKey } from "../role_core/types/playInfo";
+import type { GongfaItemDefinition } from "../role_core/types/itemInfo";
+import type { DerivedStatValues } from "../role_core/types/combatMechanics";
 import {
   buildBaseStatsPayload,
   buildGongfaDetailPayload,
@@ -78,6 +80,33 @@ function openDetail(p: ProtagonistDetailPayload | null) {
   detailOpen.value = true;
 }
 
+const ZH_STAT_TO_KEY: Readonly<Record<string, PrimaryStatKey>> = (() => {
+  const o: Record<string, PrimaryStatKey> = {};
+  for (const en of Object.keys(PRIMARY_STAT_KEY_TO_ZH) as PrimaryStatKey[]) {
+    o[PRIMARY_STAT_KEY_TO_ZH[en]] = en;
+  }
+  return o;
+})();
+
+function getGongfaScalingStat(p: Protagonist, gf: GongfaItemDefinition): number {
+  const bonus = gf.bonus as Record<string, number>;
+  const firstKey = Object.keys(bonus)[0];
+  if (!firstKey) return 0;
+  const statKey = ZH_STAT_TO_KEY[firstKey];
+  if (!statKey) return 0;
+  return p.getPrimaryStats()[statKey] ?? 0;
+}
+
+function getGongfaScalingStatName(gf: GongfaItemDefinition): string {
+  const bonus = gf.bonus as Record<string, number>;
+  return Object.keys(bonus)[0] ?? "";
+}
+
+function getGongfaDerivedStats(p: Protagonist): DerivedStatValues {
+  const ds = p.getDerivedStats();
+  return { patk: ds.patk, matk: ds.matk, pdef: ds.pdef, mdef: ds.mdef };
+}
+
 function onTraitSlotClick(index: number) {
   const p = props.protagonist;
   if (!p) return;
@@ -99,7 +128,10 @@ function onGongfaSlotClick(index: number) {
   if (!p) return;
   const cell = p.gongfaSlots[index];
   if (!cell) return;
-  openDetail(buildGongfaDetailPayload(cell, { type: "bar", gongfaIndex: index }, p.realm, p.linggen));
+  const statGetter = () => getGongfaScalingStat(p, cell);
+  const nameGetter = () => getGongfaScalingStatName(cell);
+  const dsGetter = () => getGongfaDerivedStats(p);
+  openDetail(buildGongfaDetailPayload(cell, { type: "bar", gongfaIndex: index }, p.realm, p.linggen, statGetter, nameGetter, dsGetter));
 }
 
 function onBagSlotClick(index: number) {
@@ -107,7 +139,10 @@ function onBagSlotClick(index: number) {
   if (!p) return;
   const cell = p.inventorySlots[index];
   if (!cell) return;
-  openDetail(buildInventoryStackDetailPayload(cell, index, p.linggen));
+  const gfg = (gf: GongfaItemDefinition) => getGongfaScalingStat(p, gf);
+  const sng = (gf: GongfaItemDefinition) => getGongfaScalingStatName(gf);
+  const dsg = (gf: GongfaItemDefinition) => getGongfaDerivedStats(p);
+  openDetail(buildInventoryStackDetailPayload(cell, index, p.linggen, gfg, sng, dsg));
 }
 
 function onBaseStatsClick() {

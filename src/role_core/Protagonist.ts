@@ -19,6 +19,23 @@ import type { GongfaSpecialEffect, GongfaSystem } from "./types/gongfa";
 import { rollGongfaFunction, normalizeGongfaSystem, normalizeGongfaRole } from "./types/gongfa";
 
 type SpecialEffect = TreasureSpecialEffect | GongfaSpecialEffect;
+
+function migrateSpecialEffect(fn: any): any {
+  if (fn && typeof fn === "object" && "mechanic" in fn && "desc" in fn && !("components" in fn)) {
+    const migrated: any = {
+      name: fn.name,
+      components: [{ mechanic: fn.mechanic, trigger: fn.type === "主动" ? "active" : "passive", desc: fn.desc }],
+    };
+    if ("type" in fn) migrated.type = fn.type;
+    if (typeof fn.mpCost === "number") migrated.mpCost = fn.mpCost;
+    else migrated.mpCost = 0;
+    return migrated;
+  }
+  if (fn && typeof fn === "object" && typeof fn.mpCost !== "number") {
+    fn.mpCost = 0;
+  }
+  return fn;
+}
 import type {
   EquippedSlotsState,
   GongfaSlotsState,
@@ -543,6 +560,9 @@ export class Protagonist extends Character {
     if (Array.isArray(eq)) {
       for (let i = 0; i < EQUIP_SLOT_COUNT; i++) {
         const raw = eq[i];
+        if (raw && typeof raw === "object" && "function" in (raw as any)) {
+          (raw as any).function = migrateSpecialEffect((raw as any).function);
+        }
         equippedSlots[i] = isTreasureItem(raw) ? raw as TreasureItemDefinition : null;
       }
     } else if (eq && typeof eq === "object") {
@@ -553,7 +573,11 @@ export class Protagonist extends Character {
         e.armor,
       ];
       for (let i = 0; i < Math.min(legacy.length, EQUIP_SLOT_COUNT); i++) {
-        equippedSlots[i] = isTreasureItem(legacy[i]) ? legacy[i] as TreasureItemDefinition : null;
+        const raw = legacy[i];
+        if (raw && typeof raw === "object" && "function" in (raw as any)) {
+          (raw as any).function = migrateSpecialEffect((raw as any).function);
+        }
+        equippedSlots[i] = isTreasureItem(raw) ? raw as TreasureItemDefinition : null;
       }
     }
 
@@ -671,7 +695,12 @@ export class Protagonist extends Character {
     const base: GongfaSlotsState = [null, null, null, null, null, null, null, null];
     if (!Array.isArray(raw)) return base;
     for (let i = 0; i < GONGFA_SLOT_COUNT; i++) {
-      base[i] = (raw[i] ?? null) as GongfaItemDefinition | null;
+      const item = raw[i] ?? null;
+      if (item && typeof item === "object" && "function" in (item as any)) {
+        const o = item as any;
+        o.function = migrateSpecialEffect(o.function);
+      }
+      base[i] = item as GongfaItemDefinition | null;
     }
     return base;
   }
@@ -686,7 +715,14 @@ export class Protagonist extends Character {
     if (!Array.isArray(raw)) {
       return Array.from({ length: DEFAULT_INVENTORY_SLOT_COUNT }, () => null);
     }
-    return raw.map((x) => (x == null ? null : (x as InventoryStackItem)));
+    return raw.map((x) => {
+      if (x == null) return null;
+      const item = x as any;
+      if (item && typeof item === "object" && "function" in item) {
+        item.function = migrateSpecialEffect(item.function);
+      }
+      return item as InventoryStackItem;
+    });
   }
 
   // ===================================================================

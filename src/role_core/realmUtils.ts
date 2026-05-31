@@ -94,7 +94,7 @@ export function getBaseStats(realm: string, stage?: string | null): PlayerBaseSt
 }
 
 /**
- * 查询境界表的原始行对象（仅含 realm/stage/hp/mp）。
+ * 查询境界表的原始行对象（含 realm/stage/hp/mp/patk/matk）。
  *
  * @param realm 大境界。
  * @param stage 小境界，可省略。
@@ -104,7 +104,7 @@ export function getRow(realm: string, stage?: string | null): RealmBaseStatsRow 
   if (realm == null || realm === "" || stage == null || stage === "") return null;
   const r = getByKey()[realm + "\u0001" + stage];
   return r
-    ? { realm: r.realm, stage: r.stage, hp: r.hp, mp: r.mp }
+    ? { realm: r.realm, stage: r.stage, hp: r.hp, mp: r.mp, patk: r.patk, matk: r.matk }
     : null;
 }
 

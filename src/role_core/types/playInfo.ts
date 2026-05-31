@@ -148,6 +148,8 @@ export interface RealmBaseStatsRow {
   stage: string;
   hp: number;
   mp: number;
+  patk: number;
+  matk: number;
 }
 
 export function realmStageIndex(realm: string, stage: string): number {
@@ -164,7 +166,7 @@ export const TABLE: readonly RealmBaseStatsRow[] = (REALM_ORDER as readonly stri
       const majorIdx = (REALM_ORDER as readonly string[]).indexOf(realm);
       const idx = majorIdx * SUB_STAGES.length + minorIdx;
       const row = REALM_BASE_STATS_TABLE[Math.min(idx, REALM_BASE_STATS_TABLE.length - 1)];
-      return { realm, stage, hp: row.hp, mp: row.mp };
+      return { realm, stage, hp: row.hp, mp: row.mp, patk: row.patk, matk: row.matk };
     }),
 );
 
