@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import DebugLogPanel from "./log/DebugLogPanel.vue";
 import StartFrame from "./start_frame/StartFrame.vue";
 import FateChoiceScreen from "./fate_choice/FateChoiceScreen.vue";
 import MainScreen from "./main-screen/MainScreen.vue";
+import BattleScreen from "./battle_core/BattleScreen.vue";
 import { gameLog } from "./log/gameLog";
 import type { FateChoiceResult } from "./fate_choice/types";
+import type { BattleTriggerEntry } from "./ai/state_generate";
 
 const fateChoiceVisible = ref(false);
 const mainScreenVisible = ref(false);
@@ -29,6 +31,26 @@ function onFateChoiceComplete(payload: FateChoiceResult) {
 function onMainScreenBack() {
   mainScreenVisible.value = false;
 }
+
+const pendingBattleTrigger = ref<BattleTriggerEntry | null>(null);
+
+function onBattleTrigger(entry: BattleTriggerEntry) {
+  gameLog.info("[App] 战斗触发: " + JSON.stringify(entry, null, 2));
+  pendingBattleTrigger.value = entry;
+}
+
+const battleVisible = ref(false);
+
+function onBattleEnd() {
+  battleVisible.value = false;
+  pendingBattleTrigger.value = null;
+}
+
+watch(pendingBattleTrigger, (entry) => {
+  if (entry) {
+    battleVisible.value = true;
+  }
+});
 </script>
 
 <template>
@@ -57,6 +79,13 @@ function onMainScreenBack() {
       :visible="mainScreenVisible"
       :fate-choice="lastFateChoice"
       @back="onMainScreenBack"
+      @battle-trigger="onBattleTrigger"
     />
   </Transition>
+
+  <BattleScreen
+    v-if="battleVisible"
+    :trigger="pendingBattleTrigger"
+    @battle-end="onBattleEnd"
+  />
 </template>

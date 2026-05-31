@@ -137,7 +137,7 @@ export const STATE_SYSTEM_PRESET = `
 7. NPC生成需要包含的信息：displayName（名字2-4字）、identity、currentStageGoal、longTermGoal、hobby、fear、personality、favorability（-99~99）、gender、realm、age、linggen（从金木水火土中选择1-4个）、equippedSlots（最多4个法宝，须含武器，每个含 bonus）、gongfaSlots（长度8，须含攻击类功法，每个含 bonus 和 system）、inventorySlots（最多12格）、hpPercent/mpPercent（血量/法力百分比，0-100整数，100为满状态）。
 8. NPC的功法不需要 function，需要 system 和 role。法宝不需要 function。丹药使用 effectType，不使用 function。
 9. NPC补充约束：
-9.1 输出时数组须列出本回合仍应在面板中可见者的完整名单。
+  9.1 输出时数组须列出本回合仍应在面板中可见者的完整名单。若本回合触发战斗，所有参战者（含新出现的敌人、妖兽）也必须在此数组中输出完整角色卡——这是战斗系统的硬性前置条件，不可省略。
 9.2 已存在 NPC 做最小必要改动，禁止单回合整体重写装备与功法。
 9.3 isDead:true 的 NPC 禁止改写复活。
 9.4 每个 NPC 必须满足：equippedSlots 至少有 1 个武器，gongfaSlots 至少有 1 门攻击类功法。
@@ -174,13 +174,27 @@ export const STATE_SYSTEM_PRESET = `
   }
 ]</NPC_NEARBY_TAG>
 
+[战斗触发规则]
+1. 战斗触发输出格式：<BATTLE_TRIGGER_TAG> … </BATTLE_TRIGGER_TAG>，内为 JSON 对象；字段包含 shouldEnterBattle（布尔值）、triggerKind（"active"或"passive"）、triggerReason（字符串，简述触发原因）、allies（我方参战名单）、enemies（敌方参战名单）。
+2. 何时可触发（shouldEnterBattle=true）：须同时满足——（A）所有 allies/enemies 必须在本回合 <NPC_NEARBY_TAG> 中输出完整角色卡（含本回合新出现的敌人/妖兽，无论之前是否在快照中存在）；（B）动手已发生或不可避免（如已碰招、已命中、已见血，或 user 明确决战且叙事已到战备段）。两个条件缺一不可。
+3. 何时禁止触发：仅对峙/拦路/喊话/亮兵器未交手、冲刺在途未接触、仍可交涉退让、或 user 未表态开战且剧情未写到战备段时，不得输出 <BATTLE_TRIGGER_TAG>。
+4. 名单一致性：allies/enemies 的 displayName 必须与主角信息及周围人物快照（或本回合新写入的 NPC）逐字一致；若同名多人须补 id 以避免程序错配。
+5. 规模与约束：shouldEnterBattle=true 时双方通常各 1~3 人；allies 必须包含主角，enemies 至少 1 人；不得使用空名称或泛称。
+6. triggerKind 含义："active"表示主角主动开战（user 明确下令攻击/除敌），"passive"表示被迫应战（对方先动手、遭伏击、无可退避）。
+7. 输出边界：战斗触发标签只用于程序进入战斗结算，不在标签外撰写战果；若未满足触发条件，不得输出 <BATTLE_TRIGGER_TAG>。
+8. 无战斗时不得输出第七对标签。触发战斗时，enemies 中的每个 displayName 必须在本回合 <NPC_NEARBY_TAG> 中有对应条目（含完整角色卡），若该敌人之前不存在于快照中，须在本回合 <NPC_NEARBY_TAG> 中新生成其角色卡。程序通过 displayName 匹配参战者，若 NPC 列表中找不到对应名称，战斗将无法初始化。
+9. 对峙不等于开战：敌对单位已在周围人物中，但未满足"动手已发生或不可避免"时（尤其突发遭遇首段），不输出第七对标签；待玩家下回合表态或叙事推进到战备段与动手条件齐备后再输出。
+10. 示例（剧情已开战；displayName 须与快照或本回合 NPC 列表一致）：
+<BATTLE_TRIGGER_TAG>{"shouldEnterBattle":true,"triggerKind":"passive","triggerReason":"墨牙狼突袭，不得不接战","allies":[{"displayName":"韩立","roleHint":"主角"}],"enemies":[{"displayName":"墨牙狼","roleHint":"敌方"}]}</BATTLE_TRIGGER_TAG>
+
 [输出契约·必须遵守]
-你将收到一段剧情正文和主角当前状态。你需要根据剧情内容，输出以下六段标签（顺序固定）：
+你将收到一段剧情正文和主角当前状态。你需要根据剧情内容，输出以下七段标签（顺序固定）：
 1. <mj_world_body>根据剧情判断是否发生地点变化</mj_world_body>
 2. <USER_STATE_TAG>主角血量法力修为状态</USER_STATE_TAG>
 3. <SPIRIT_STONE_TAG>灵石变动</SPIRIT_STONE_TAG>
 4. <ITEM_ADD_TAG>物品添加</ITEM_ADD_TAG>
 5. <ITEM_REMOVE_TAG>物品减少</ITEM_REMOVE_TAG>
 6. <NPC_NEARBY_TAG>周围人物列表</NPC_NEARBY_TAG>
-禁止缺少任何一段；禁止改写标签名的大小写或字符；禁止用 Markdown 代码围栏包裹标签。
+7. <BATTLE_TRIGGER_TAG>战斗触发（未满足触发条件时不输出此标签）</BATTLE_TRIGGER_TAG>
+禁止缺少前六段标签；第七段仅在满足战斗触发条件时输出。禁止改写标签名的大小写或字符；禁止用 Markdown 代码围栏包裹标签。
 `;

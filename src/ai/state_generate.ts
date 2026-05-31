@@ -88,6 +88,19 @@ export interface NpcNearbyEntry {
   [key: string]: unknown;
 }
 
+export interface BattleCombatant {
+  displayName: string;
+  roleHint: string;
+}
+
+export interface BattleTriggerEntry {
+  shouldEnterBattle: boolean;
+  triggerKind: "active" | "passive";
+  triggerReason: string;
+  allies: BattleCombatant[];
+  enemies: BattleCombatant[];
+}
+
 export interface StateParsed {
   worldLocation: string;
   userState: UserStateChange | null;
@@ -95,6 +108,7 @@ export interface StateParsed {
   itemAdds: ItemAddEntry[];
   itemRemoves: ItemRemoveEntry[];
   nearbyNpcs: NpcNearbyEntry[];
+  battleTrigger: BattleTriggerEntry | null;
 }
 
 const DEFAULT_TEMPERATURE = 0.55;
@@ -112,6 +126,8 @@ const TAG_ITEM_REMOVE_OPEN = "<ITEM_REMOVE_TAG>";
 const TAG_ITEM_REMOVE_CLOSE = "</ITEM_REMOVE_TAG>";
 const TAG_NPC_NEARBY_OPEN = "<NPC_NEARBY_TAG>";
 const TAG_NPC_NEARBY_CLOSE = "</NPC_NEARBY_TAG>";
+const TAG_BATTLE_TRIGGER_OPEN = "<BATTLE_TRIGGER_TAG>";
+const TAG_BATTLE_TRIGGER_CLOSE = "</BATTLE_TRIGGER_TAG>";
 
 function extractWorldBody(raw: string): string {
   const s = raw == null ? "" : String(raw);
@@ -183,6 +199,33 @@ function parseNearbyNpcs(raw: string): NpcNearbyEntry[] {
       };
     })
     .filter((e): e is NpcNearbyEntry => e !== null);
+}
+
+function parseCombatantList(arr: unknown[]): BattleCombatant[] {
+  return arr
+    .map((e: unknown): BattleCombatant | null => {
+      if (!e || typeof e !== "object") return null;
+      const o = e as Record<string, unknown>;
+      const displayName = String(o.displayName || "").trim();
+      if (!displayName) return null;
+      return { displayName, roleHint: String(o.roleHint || "") };
+    })
+    .filter((e): e is BattleCombatant => e !== null);
+}
+
+function parseBattleTrigger(raw: string): BattleTriggerEntry | null {
+  const text = extractTagContent(raw, TAG_BATTLE_TRIGGER_OPEN, TAG_BATTLE_TRIGGER_CLOSE);
+  if (!text.trim()) return null;
+  const obj = safeJsonParse(text);
+  if (!obj || typeof obj !== "object") return null;
+  const o = obj as Record<string, unknown>;
+  if (o.shouldEnterBattle !== true) return null;
+  const triggerKind = o.triggerKind === "active" ? "active" as const : "passive" as const;
+  const triggerReason = String(o.triggerReason || "").trim();
+  const allies = Array.isArray(o.allies) ? parseCombatantList(o.allies) : [];
+  const enemies = Array.isArray(o.enemies) ? parseCombatantList(o.enemies) : [];
+  if (allies.length === 0 || enemies.length === 0) return null;
+  return { shouldEnterBattle: true, triggerKind, triggerReason, allies, enemies };
 }
 
 export function parseStateAiResponse(raw: string): StateParsed {
@@ -286,6 +329,8 @@ export function parseStateAiResponse(raw: string): StateParsed {
 
   const nearbyNpcs = parseNearbyNpcs(raw);
 
+  const battleTrigger = parseBattleTrigger(raw);
+
   return {
     worldLocation,
     userState,
@@ -293,6 +338,7 @@ export function parseStateAiResponse(raw: string): StateParsed {
     itemAdds,
     itemRemoves,
     nearbyNpcs,
+    battleTrigger,
   };
 }
 

@@ -1,0 +1,182 @@
+import type {
+  BattleCombatant,
+  BattleSummon,
+  PassiveTrigger,
+  BattleState,
+} from "./battleTypes";
+
+import type { BattleTriggerEntry } from "../ai/state_generate";
+import type { PlayerBaseStats, EquippedSlotsState, GongfaSlotsState } from "../role_core/types/playInfo";
+import type { ElixirItemDefinition, InventoryStackItem } from "../role_core/types/itemInfo";
+import type { EffectComponent } from "../role_core/types/combatMechanics";
+import { protagonist } from "../role_core/Protagonist";
+import { Npc } from "../role_core/Npc";
+import { npcStore } from "../role_core/npcStore";
+import { generateCombatantId } from "./battleEngine";
+import { gameLog } from "../log/gameLog";
+
+function extractPassiveTriggers(
+  equippedSlots: EquippedSlotsState,
+  gongfaSlots: GongfaSlotsState,
+): PassiveTrigger[] {
+  const triggers: PassiveTrigger[] = [];
+
+  for (const tr of equippedSlots) {
+    if (!tr || !tr.function) continue;
+    for (const comp of tr.function.components) {
+      if (comp.trigger !== "active") {
+        triggers.push({
+          sourceType: "treasure",
+          sourceName: tr.name,
+          effectName: tr.function.name,
+          component: comp,
+          grade: tr.grade,
+        });
+      }
+    }
+  }
+
+  for (const gf of gongfaSlots) {
+    if (!gf || !gf.function) continue;
+    for (const comp of gf.function.components) {
+      if (comp.trigger !== "active") {
+        triggers.push({
+          sourceType: "gongfa",
+          sourceName: gf.name,
+          effectName: gf.function.name,
+          component: comp,
+          grade: gf.grade,
+          system: gf.system,
+        });
+      }
+    }
+  }
+
+  return triggers;
+}
+
+function extractRecoveryElixirs(inventorySlots: Array<InventoryStackItem | null>): ElixirItemDefinition[] {
+  const result: ElixirItemDefinition[] = [];
+  for (const slot of inventorySlots) {
+    if (!slot) continue;
+    if ("itemType" in slot && slot.itemType === "丹药" && "effectType" in slot
+      && (slot.effectType === "恢复血量" || slot.effectType === "恢复法力")) {
+      result.push({ ...(slot as ElixirItemDefinition) });
+    }
+  }
+  return result;
+}
+
+function createProtagonistCombatant(): BattleCombatant | null {
+  const p = protagonist.value;
+  if (!p) return null;
+
+  const stats = p.getDerivedStats();
+  const elixirs = extractRecoveryElixirs(p.inventorySlots);
+  const passiveTriggers = extractPassiveTriggers(p.equippedSlots, p.gongfaSlots);
+
+  return {
+    id: generateCombatantId("ally", 0),
+    displayName: p.displayName,
+    team: "ally",
+    isProtagonist: true,
+    stats: { ...stats },
+    currentHp: p.currentHp,
+    maxHp: p.maxHp,
+    currentMp: p.currentMp,
+    maxMp: p.maxMp,
+    equippedSlots: p.equippedSlots.map(tr => tr ? { ...tr, bonus: { ...tr.bonus }, function: tr.function ? { ...tr.function } : undefined } : null) as EquippedSlotsState,
+    gongfaSlots: p.gongfaSlots.map(gf => gf ? { ...gf, bonus: { ...gf.bonus }, function: gf.function ? { ...gf.function } : undefined } : null) as import("../role_core/types/playInfo").GongfaSlotsState,
+    availableElixirs: elixirs,
+    activeEffects: [],
+    shield: 0,
+    isDead: false,
+    actedThisTurn: false,
+    passiveTriggers,
+    summons: [],
+    realm: { ...p.realm },
+  };
+}
+
+function createNpcCombatant(
+  npc: Npc,
+  team: "ally" | "enemy",
+  index: number,
+): BattleCombatant {
+  const stats = npc.getDerivedStats();
+  const elixirs = extractRecoveryElixirs(npc.inventorySlots);
+  const passiveTriggers = extractPassiveTriggers(npc.equippedSlots, npc.gongfaSlots);
+
+  return {
+    id: generateCombatantId(team, index),
+    displayName: npc.displayName,
+    team,
+    isProtagonist: false,
+    stats: { ...stats },
+    currentHp: npc.currentHp,
+    maxHp: npc.maxHp,
+    currentMp: npc.currentMp,
+    maxMp: npc.maxMp,
+    equippedSlots: npc.equippedSlots.map(tr => tr ? { ...tr, bonus: { ...tr.bonus }, function: tr.function ? { ...tr.function } : undefined } : null) as EquippedSlotsState,
+    gongfaSlots: npc.gongfaSlots.map(gf => gf ? { ...gf, bonus: { ...gf.bonus }, function: gf.function ? { ...gf.function } : undefined } : null) as import("../role_core/types/playInfo").GongfaSlotsState,
+    availableElixirs: elixirs,
+    activeEffects: [],
+    shield: 0,
+    isDead: false,
+    actedThisTurn: false,
+    passiveTriggers,
+    sourceNpcName: npc.displayName,
+    summons: [],
+    realm: { ...npc.realm },
+    powerTier: npc.powerTier,
+    identity: npc.identity,
+  };
+}
+
+export function initBattle(triggerEntry: BattleTriggerEntry): BattleState {
+  const allies: BattleCombatant[] = [];
+  const enemies: BattleCombatant[] = [];
+
+  const protagonistCombatant = createProtagonistCombatant();
+  if (protagonistCombatant) {
+    allies.push(protagonistCombatant);
+  }
+
+  let allyIndex = 1;
+  for (const ally of triggerEntry.allies) {
+    if (ally.roleHint === "主角") continue;
+    const npc = npcStore.getNpc(ally.displayName);
+    if (!npc || npc.isDead) {
+      gameLog.warn(`[initBattle] 友方NPC "${ally.displayName}" 未在npcStore中找到或已死亡`);
+      continue;
+    }
+    if (allies.length >= 5) break;
+    allies.push(createNpcCombatant(npc, "ally", allyIndex));
+    allyIndex++;
+  }
+
+  let enemyIndex = 0;
+  for (const enemy of triggerEntry.enemies) {
+    const npc = npcStore.getNpc(enemy.displayName);
+    if (!npc || npc.isDead) {
+      gameLog.warn(`[initBattle] 敌方NPC "${enemy.displayName}" 未在npcStore中找到或已死亡，已有NPC: [${Array.from(npcStore.npcs.value.keys()).join(", ")}]`);
+      continue;
+    }
+    if (enemies.length >= 5) break;
+    enemies.push(createNpcCombatant(npc, "enemy", enemyIndex));
+    enemyIndex++;
+  }
+
+  return {
+    phase: "init",
+    turn: 1,
+    allies,
+    enemies,
+    log: [],
+    triggerEntry,
+    pendingAction: null,
+    selectedTargetId: null,
+    actionSubmenu: null,
+    maxTurns: 30,
+  };
+}

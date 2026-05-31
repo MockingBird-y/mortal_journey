@@ -4,6 +4,7 @@ import { useOpeningStoryFromFateChoice } from "../ai/useOpeningStory";
 import { useApiConfig } from "../ai/useApiConfig";
 import { protagonist } from "../role_core/Protagonist";
 import type { FateChoiceResult } from "../fate_choice/types";
+import type { BattleTriggerEntry } from "../ai/state_generate";
 import SideToolbarPanel from "./SideToolbarPanel.vue";
 import PlayerInfoPanel from "./PlayerInfoPanel.vue";
 import StoryChatPanel from "./StoryChatPanel.vue";
@@ -27,6 +28,7 @@ const { storyBody, phase, errorMessage, worldTime, worldTimeBaseline, worldLocat
 
 const emit = defineEmits<{
   back: [];
+  battleTrigger: [value: BattleTriggerEntry];
 }>();
 
 function onBack() {
@@ -62,6 +64,7 @@ function onBack() {
           :current-world-location="worldLocation"
           v-model:world-time="worldTime"
           @update:world-location="worldLocation = $event"
+          @battle-trigger="emit('battleTrigger', $event)"
         />
       </main>
       <aside class="main-screen__pane main-screen__pane--side" aria-label="右栏：功能面板">

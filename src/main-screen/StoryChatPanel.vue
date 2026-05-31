@@ -3,7 +3,7 @@ import { ref, watch, computed } from "vue";
 import type { OpeningStoryPhase } from "../ai/useOpeningStory";
 import { useApiConfig } from "../ai/useApiConfig";
 import { generateStory, type StoryChatEntry } from "../ai/story_generate";
-import { generateState, type StateParsed } from "../ai/state_generate";
+import { generateState, type StateParsed, type BattleTriggerEntry } from "../ai/state_generate";
 import { protagonist } from "../role_core/Protagonist";
 import { npcStore } from "../role_core/npcStore";
 import { Character } from "../role_core/Character";
@@ -33,6 +33,7 @@ const { apiUrl, apiKey, apiModel } = useApiConfig();
 const emit = defineEmits<{
   "update:worldLocation": [value: string];
   "update:worldTime": [value: WorldTime];
+  "battleTrigger": [value: BattleTriggerEntry];
 }>();
 
 interface ChatMessage {
@@ -173,6 +174,10 @@ async function handleSend(): Promise<void> {
 
       if (stateResult.nearbyNpcs.length > 0) {
         npcStore.applyNpcUpdates(stateResult.nearbyNpcs, p.linggen);
+      }
+
+      if (stateResult.battleTrigger) {
+        emit("battleTrigger", stateResult.battleTrigger);
       }
     } catch (stateErr) {
       gameLog.error("[StoryChat] 状态更新失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));
