@@ -31,6 +31,10 @@ import {
   traitSlotRarity,
   traitSlotTitle,
   treasureCellName,
+  gongfaMasteryLabel,
+  gongfaMasteryThresholdText,
+  getShouyuanWarningLevel,
+  getBreakthroughStatusLabel,
 } from "./protagonistPanelDisplay";
 import ProtagonistDetailModal from "./ProtagonistDetailModal.vue";
 import {
@@ -66,6 +70,12 @@ const traitSlots = computed(() => getTraitSlots(props.protagonist));
 const inventoryBagDisplaySlots = computed(() =>
   props.protagonist ? getInventoryBagDisplaySlots(props.protagonist.inventorySlots) : [],
 );
+const shouyuanWarning = computed(() => getShouyuanWarningLevel(props.protagonist));
+const breakthroughLabel = computed(() => {
+  const p = props.protagonist;
+  if (!p || !p.realmComplete) return "";
+  return getBreakthroughStatusLabel(p.breakthroughStatus);
+});
 
 const detailOpen = ref(false);
 const detailPayload = ref<ProtagonistDetailPayload | null>(null);
@@ -190,7 +200,7 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
           <div class="mj-player-name-vertical">{{ protagonist.displayName }}</div>
         </div>
 
-        <p class="mj-realm-line">{{ Protagonist.formatRealm(protagonist.realm) }}<template v-if="protagonist.realmComplete">·圆满</template></p>
+        <p class="mj-realm-line">{{ Protagonist.formatRealm(protagonist.realm) }}<template v-if="protagonist.realmComplete">·圆满</template><template v-if="breakthroughLabel">（{{ breakthroughLabel }}）</template></p>
 
         <div class="mj-resource-row">
           <div class="mj-cultivation-head">
@@ -240,7 +250,7 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
             </div>
             <div class="mj-stat-cell">
               <span class="mj-stat-k">寿元</span>
-              <span class="mj-stat-v">{{ protagonist.shouyuan }}</span>
+              <span class="mj-stat-v" :class="{ 'mj-stat-v--danger': shouyuanWarning === 'danger', 'mj-stat-v--warning': shouyuanWarning === 'warning' }">{{ protagonist.shouyuan }}</span>
             </div>
           </div>
         </div>
@@ -339,12 +349,13 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
                 class="mj-inventory-slot"
                 :class="cell ? 'mj-gongfa-slot--filled' : ''"
                 :data-rarity="cell ? gradeToTraitRarity(cell.grade) : undefined"
-                :title="cell ? `${gongfaCellName(cell)}\n（点击查看详情）` : '功法空位'"
+                :title="cell ? `${gongfaCellName(cell)}（第${cell.mastery ?? 1}层${cell.masteryExp ? ' ' + cell.masteryExp + '/' + gongfaMasteryThresholdText(cell) : ''}）\n（点击查看详情）` : '功法空位'"
                 :tabindex="cell ? 0 : -1"
                 @click="cell && onGongfaSlotClick(gi)"
                 @keydown="cell && onSlotKeydown($event, () => onGongfaSlotClick(gi))"
               >
                 <span class="mj-gongfa-slot-label">{{ cell ? gongfaCellName(cell) : "" }}</span>
+                <span v-if="cell && (cell.mastery ?? 1) > 1" class="mj-gongfa-slot-mastery">{{ gongfaMasteryLabel(cell) }}</span>
               </div>
             </div>
           </div>

@@ -145,7 +145,15 @@ export class Character {
     const ratio = getEquipBonusRealmRatio(this.realm.major, this.realm.minor);
     for (const gf of this.gongfaSlots) {
       if (!gf) continue;
-      Character.addZhItemBonusInto(primaryStats, gf.bonus, ratio);
+      const mastery = gf.mastery ?? 1;
+      const masteryMult = 0.5 + mastery * 0.05;
+      const adjusted: Record<string, number> = {};
+      for (const [k, v] of Object.entries(gf.bonus as Record<string, number>)) {
+        if (typeof v === "number" && Number.isFinite(v)) {
+          adjusted[k] = Math.trunc(v * masteryMult);
+        }
+      }
+      Character.addZhItemBonusInto(primaryStats, adjusted, ratio);
     }
     for (const [k, v] of Object.entries(this.elixirBonuses)) {
       if (typeof v === "number" && v !== 0) primaryStats[k] = (primaryStats[k] ?? 0) + v;

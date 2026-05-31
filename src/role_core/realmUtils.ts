@@ -4,6 +4,7 @@
  */
 
 import type { PlayerBaseStats } from "./types/playInfo";
+import type { GongfaItemDefinition } from "./types/itemInfo";
 import {
   TABLE,
   REALM_ORDER,
@@ -13,6 +14,11 @@ import {
   SHOUYUAN_VALUES,
   EQUIP_BONUS_RATIOS,
   MIN_NARRATIVE_AGE_BY_MAJOR,
+  CULTIVATION_SPEED_TABLE,
+  GONGFA_GRADE_CULTIVATION_MULT,
+  LINGGEN_CULTIVATION_MULT,
+  GONGFA_MASTERY_THRESHOLDS,
+  GONGFA_MASTERY_EXP_PER_YEAR,
   realmStageIndex,
   type RealmBaseStatsRow,
   type RealmMajor,
@@ -289,4 +295,119 @@ export function getProtagonistNarrativeAge(
   const maj = resolveEffectiveMajorForNarrativeAge(fc0, g);
   const floor = getMinNarrativeAgeForMajor(maj);
   return Math.max(base, floor);
+}
+
+export interface CultivationSpeedBreakdown {
+  base: number;
+  gongfaGradeMult: number;
+  gongfaMasteryMult: number;
+  linggenMult: number;
+  total: number;
+  bestGongfaName: string | null;
+  bestGongfaGrade: string | null;
+  bestGongfaMastery: number;
+}
+
+export function getCultivationSpeed(params: {
+  realm: { major: string; minor: string };
+  linggen: string[];
+  gongfaSlots: ReadonlyArray<GongfaItemDefinition | null>;
+}): number {
+  return getCultivationSpeedBreakdown(params).total;
+}
+
+export function getCultivationSpeedBreakdown(params: {
+  realm: { major: string; minor: string };
+  linggen: string[];
+  gongfaSlots: ReadonlyArray<GongfaItemDefinition | null>;
+}): CultivationSpeedBreakdown {
+  const { realm, linggen, gongfaSlots } = params;
+
+  const idx = realmStageIndex(realm.major, realm.minor) - 1;
+  const base = idx >= 0 && idx < CULTIVATION_SPEED_TABLE.length
+    ? CULTIVATION_SPEED_TABLE[idx]
+    : CULTIVATION_SPEED_TABLE[0];
+
+  let bestGradeMult = 1.0;
+  let bestMasteryMult = 1.0;
+  let bestGongfaName: string | null = null;
+  let bestGongfaGrade: string | null = null;
+  let bestMastery = 1;
+
+  for (const slot of gongfaSlots) {
+    if (!slot) continue;
+    const gradeMult = GONGFA_GRADE_CULTIVATION_MULT[slot.grade] ?? 1.0;
+    const mastery = slot.mastery ?? 1;
+    const masteryMult = 1.0 + (mastery - 1) * 0.1;
+    if (gradeMult * masteryMult > bestGradeMult * bestMasteryMult) {
+      bestGradeMult = gradeMult;
+      bestMasteryMult = masteryMult;
+      bestGongfaName = slot.name;
+      bestGongfaGrade = slot.grade;
+      bestMastery = mastery;
+    }
+  }
+
+  const linggenCount = linggen.length > 0 ? linggen.length : 5;
+  const linggenMult = LINGGEN_CULTIVATION_MULT[linggenCount] ?? 0.7;
+
+  const total = Math.round(base * bestGradeMult * bestMasteryMult * linggenMult);
+
+  return {
+    base,
+    gongfaGradeMult: bestGradeMult,
+    gongfaMasteryMult: bestMasteryMult,
+    linggenMult,
+    total,
+    bestGongfaName,
+    bestGongfaGrade,
+    bestGongfaMastery: bestMastery,
+  };
+}
+
+export function getGongfaMasteryExpPerYear(realmMajor: string, realmMinor: string): number {
+  const idx = realmStageIndex(realmMajor, realmMinor) - 1;
+  if (idx < 0 || idx >= GONGFA_MASTERY_EXP_PER_YEAR.length) return GONGFA_MASTERY_EXP_PER_YEAR[0];
+  return GONGFA_MASTERY_EXP_PER_YEAR[idx];
+}
+
+export function getGongfaMasteryThreshold(masteryLevel: number): number {
+  if (masteryLevel < 1 || masteryLevel >= 10) return Infinity;
+  return GONGFA_MASTERY_THRESHOLDS[masteryLevel - 1];
+}
+
+export function addGongfaMasteryExp(
+  gongfa: GongfaItemDefinition,
+  expIncrease: number,
+): { leveledUp: boolean; newMastery: number } {
+  if (expIncrease <= 0) return { leveledUp: false, newMastery: gongfa.mastery ?? 1 };
+
+  let mastery = gongfa.mastery ?? 1;
+  let exp = gongfa.masteryExp ?? 0;
+
+  if (mastery >= 10) {
+    gongfa.masteryExp = exp;
+    return { leveledUp: false, newMastery: 10 };
+  }
+
+  exp += expIncrease;
+  let leveledUp = false;
+
+  while (mastery < 10) {
+    const threshold = getGongfaMasteryThreshold(mastery);
+    if (exp < threshold) break;
+    exp -= threshold;
+    mastery++;
+    leveledUp = true;
+  }
+
+  if (mastery >= 10) {
+    mastery = 10;
+    exp = 0;
+  }
+
+  gongfa.mastery = mastery;
+  gongfa.masteryExp = exp;
+
+  return { leveledUp, newMastery: mastery };
 }

@@ -167,6 +167,7 @@ export function parseGongfaObject(e: unknown, realmMajor: string, realmMinor: st
     bonus: parseBonusField(obj.bonus, grade),
     system,
     role,
+    mastery: 1,
     function: rollGongfaFunction(system, grade, role),
   };
 }
@@ -189,7 +190,7 @@ export function parseStorageObject(e: unknown, realmMajor: string, realmMinor: s
   if (itemType === "功法") {
     const system = normalizeGongfaSystem(obj.system);
     const role = normalizeGongfaRole(obj.role);
-    return { itemType: "功法", name, desc, grade, count, system, role, bonus: parseBonusField(obj.bonus, grade), function: rollGongfaFunction(system, grade, role) } as GongfaItemDefinition;
+    return { itemType: "功法", name, desc, grade, count, system, role, mastery: 1, bonus: parseBonusField(obj.bonus, grade), function: rollGongfaFunction(system, grade, role) } as GongfaItemDefinition;
   }
 
   switch (itemType) {

@@ -10,7 +10,7 @@ export const STATE_SYSTEM_PRESET = `
 [修仙背景信息]
 1. 修仙者境界：大境界分为练气、筑基、结丹、元婴、化神，每个大境界又有三个小境界，分为初期、中期、后期，特别注意：练气期不是12层，而是初期中期后期。
 2. 修仙者寿命：每个大境界的修士寿命不同，练气期修士寿命为100岁，筑基期修士寿命为200岁，结丹期修士寿命为500岁，元婴期修士寿命为1000岁，化神期修士寿命为2000岁。
-3. 提升修为方式：修仙者可以通过灵石提升自身修为。
+3. 提升修为方式：修仙者可以通过灵石辅助修炼提升自身修为，也可通过服用丹药、战斗感悟、吸收灵石等途径获得修为。
 4. 五行灵根：修士需具备灵根方可感应天地灵气。灵根分为金木水火土及变异属性，灵根越少修炼速度越高，四灵根修炼极慢。
 
 [世界地点规则]
@@ -21,14 +21,70 @@ export const STATE_SYSTEM_PRESET = `
 [主角状态更新规则]
 1. 血量和法力：根据剧情描述和主角的当前状态，用百分比表示主角的血量和法力。hpPercent 为血量百分比（0-100），mpPercent 为法力百分比（0-100）。100 表示满血/满蓝，80 表示轻微受伤/消耗少量法力，50 表示半血/半蓝，0 表示死亡。受伤/跌落/中毒/被攻击通常降低血量；施展功法/强行催动灵力通常降低法力；休整/疗伤/服丹可恢复。
 2. 修为提升：根据剧情描述输出 xiuweiIncrease（正整数，绝对值）。修炼、服丹、战斗感悟、吸收灵石等剧情增加修为；增加量与剧情强度匹配。
-3. 修为增加量参考：练气期日常修炼约 50~200，服用下品丹药约 100~300，重大机缘约 300~800。境界越高所需修为越多，增加量也应相应提高。
-4. 修为圆满：当主角摘要中标注"修为已圆满"时，不可再输出 xiuweiIncrease；修为未圆满时才可输出。
-5. 突破：仅在主角修为已圆满且剧情明确描述突破情节时，才可设置 realmBreakthrough 为 true。
-6. 输出格式：<USER_STATE_TAG> … </USER_STATE_TAG>，内为 JSON 对象，须含键 hpPercent、mpPercent（0-100整数）。可选键 xiuweiIncrease 和 realmBreakthrough。
+3. 修为增加量参考：练气期日常修炼约 20~80，服用下品丹药约 50~200，重大机缘约 200~600。境界越高所需修为越多，增加量也应相应提高。修为参考公式（修为/年）：基础速度×功法品阶倍率×灵根系数。练气基础约40，筑基约160，结丹约500，元婴约1500，化神约4000。功法品阶倍率：下品×1.0，中品×1.2，上品×1.5，极品×2.0，仙品×3.0，神品×5.0。灵根系数：天灵根(1灵根)×1.8，双灵根×1.4，三灵根×1.1，四灵根×0.9，五灵根×0.7。无灵石修炼速度仅×0.3（极慢），正常消耗灵石×1.0，大量灵石灌注×2.0。
+4. 修为圆满：当主角摘要中标注"修为已圆满"或突破状态为"ready"或"in_quest"时，不可再输出 xiuweiIncrease；修为未圆满时才可输出。但修为已圆满时仍可输出 gongfaMasteryChanges（功法熟练度可继续提升）。
+
+5. 突破系统（核心机制）：
+  5.1 突破不是自动完成，需要完成与境界匹配的突破任务。突破任务是一段完整的剧情链，不是单次事件。
+  5.2 各境界突破任务参考（严格遵循《凡人修仙传》风格修仙世界观）：
+    - 练气→筑基：参加宗门比试/考核，争夺有限的筑基丹或筑基名额。需要击败同门弟子或通过试炼。宗门弟子众多，名额稀少，竞争激烈。
+    - 筑基→结丹：前往危险秘境寻找结丹所需的天材地宝，或通过拍卖行/交易获取结丹丹药。秘境中危机四伏，宝物伴随杀机。
+    - 结丹→元婴：搜集珍稀材料炼制元婴丹药，或寻找古修遗迹获取突破机缘，最终需要渡天劫。天劫九死一生。
+    - 元婴→化神：需要感悟天地法则，寻找上古传承或天道碎片，最终渡化神天劫。化神天劫威力恐怖，需要充分准备。
+  5.3 突破任务流程：
+    5.3.1 当玩家表示要突破且突破状态为"ready"时，设置 breakthroughQuestStart 为 true，开始生成突破任务剧情。
+    5.3.2 突破任务可能持续多轮交互（准备→执行→结果），期间突破状态为"in_quest"。
+    5.3.3 任务成功可能获得突破所需物品（通过 itemAdds 添加到储物袋），玩家后续使用该物品时才真正突破。
+    5.3.4 任务失败设置 breakthroughFailed 为 true，回到 ready 状态，可重新尝试或寻找其他途径。
+  5.4 仅在以下条件全部满足时设置 realmBreakthrough 为 true：玩家已获得突破所需物品（丹药/灵物等）、剧情明确描述服用丹药/使用灵物/渡过天劫、突破成功。
+  5.5 突破失败不会损失修为，但可能损失血量/法力/灵石/时间。失败后玩家可以继续修炼功法增强实力，或寻找其他突破途径。
+
+6. 世界时间推进（核心机制）：
+  6.1 每次状态更新都必须输出 timeAdvance 字段，表示世界时间的推进。timeAdvance 是一个 JSON 对象，包含以下可选字段：
+    - years（整数）：经过的年数。闭关修炼、长途旅行等长时间行为使用。
+    - months（整数）：经过的月数。短期闭关、等待事件等使用。
+    - days（整数）：经过的天数。日常活动、战斗后休整、短途旅行等使用。
+    - hour（整数，0-23）：当前时刻的绝对小时数。直接覆盖，用于对齐剧情场景。
+  6.2 years/months/days 为增量（累加到当前时间），hour 为绝对值（直接覆盖当前小时）。
+  6.3 每月固定30天，每年12月=360天。
+  6.4 时间推进与剧情场景的对应关系：
+    - 短暂交谈、商店购物、查看任务：days: 0，hour 设为对应时辰（清晨6-8、上午9-11、正午12、午后13-15、傍晚17-18、夜晚19-21、深夜22-23、凌晨0-5）。
+    - 战斗场景：days: 0，hour 根据战斗发生时间设置。战斗通常不超过1小时。
+    - 日常修炼（非闭关）：days: 1~7，hour 根据修炼结束时间设置。
+    - 短途旅行/跑腿/探索：days: 1~30，hour 根据到达时间设置。
+    - 短期闭关修炼：months: 1~6 或 years: 1~2。
+    - 长期闭关修炼：练气期 years: 1~5，筑基期 years: 3~10，结丹期 years: 5~20，元婴期 years: 10~50，化神期 years: 20~100。
+    - 等待特定事件（等拍卖会、等秘境开启）：months: 1~6。
+  6.5 hour 必须与剧情描述的场景时间对应：
+    - 剧情提到"清晨/早晨/天刚亮" → hour: 6~8
+    - 剧情提到"上午" → hour: 9~11
+    - 剧情提到"正午/午时" → hour: 12
+    - 剧情提到"下午/午后" → hour: 13~15
+    - 剧情提到"傍晚/黄昏/日落" → hour: 17~18
+    - 剧情提到"入夜/夜晚/入夜后" → hour: 19~21
+    - 剧情提到"深夜/子时/半夜" → hour: 22~23
+    - 剧情提到"凌晨/黎明前" → hour: 0~5
+  6.6 如果剧情没有明确时间变化，至少推进 hour 到剧情隐含的时辰。如果连时辰都无法判断，保持当前时间不变（省略 timeAdvance 或设为空对象 {}）。
+  6.7 注意：timeAdvance 推进的世界时间会影响主角年龄。年龄 = 开局年龄 + 世界时间经过的年数。寿元有限，时间流逝即寿命消耗。闭关修炼多年会消耗大量寿命，请合理判断时间推进量。
+
+7. 功法熟练度提升（仅特殊场景）：闭关修炼时功法熟练度由系统按公式自动积累，不需要AI输出。仅在以下特殊场景输出 gongfaMasteryChanges 数组：
+  7.1 顿悟、秘境感悟、战斗突破等特殊事件 → 输出 masteryExpIncrease（正整数，熟练度经验增量）
+  7.2 玩家明确提到某功法名 → 主要提升该功法（masteryExpIncrease: 视场景强度，一般50~200，顿悟可达500）
+  7.3 玩家未指定功法 → 根据角色当前功法和修炼情境自动判断最合理的功法提升
+  7.4 角色无功法 → 不输出此字段
+  7.5 普通闭关修炼不需要输出此字段（系统自动计算）
+  7.6 字段名使用 masteryExpIncrease（熟练度经验增量），不要使用 masteryIncrease
+
+8. 灵石修炼消耗参考：根据修炼年数和境界决定灵石消耗（通过 spiritStoneChanges 的 remove 操作体现）。练气期约15~30灵石/年，筑基期60~120灵石/年，结丹期200~450灵石/年，元婴期800~2000灵石/年，化神期4000~12000灵石/年。大量灵石灌注修炼时消耗翻倍。玩家说"用灵石修炼"才消耗灵石，"闭关修炼"不指定灵石则不消耗。
+6. 输出格式：<USER_STATE_TAG> … </USER_STATE_TAG>，内为 JSON 对象，须含键 hpPercent、mpPercent（0-100整数）。可选键 xiuweiIncrease、realmBreakthrough、breakthroughQuestStart、breakthroughFailed、timeAdvance、gongfaMasteryChanges。
 7. 示例：
-7.1 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100} </USER_STATE_TAG>
-7.2 <USER_STATE_TAG> {"hpPercent":80,"mpPercent":70,"xiuweiIncrease":150} </USER_STATE_TAG>
-7.3 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"realmBreakthrough":true} </USER_STATE_TAG>
+7.1 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"timeAdvance":{"hour":10}} </USER_STATE_TAG>
+7.2 <USER_STATE_TAG> {"hpPercent":80,"mpPercent":70,"xiuweiIncrease":150,"timeAdvance":{"days":1,"hour":15}} </USER_STATE_TAG>
+7.3 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"realmBreakthrough":true,"timeAdvance":{"days":3,"hour":8}} </USER_STATE_TAG>
+7.4 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"breakthroughQuestStart":true,"timeAdvance":{"hour":14}} </USER_STATE_TAG>
+7.5 <USER_STATE_TAG> {"hpPercent":30,"mpPercent":10,"breakthroughFailed":true,"timeAdvance":{"days":1,"hour":12}} </USER_STATE_TAG>
+7.6 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"xiuweiIncrease":648,"timeAdvance":{"years":3,"hour":9}} </USER_STATE_TAG>
+7.7 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"gongfaMasteryChanges":[{"gongfaName":"紫阳混元劲","masteryExpIncrease":150}],"timeAdvance":{"days":1,"hour":15}} </USER_STATE_TAG>
 
 [灵石规则]
 1. 灵石是修仙界通用货币，不区分品阶，统一称为"灵石"。

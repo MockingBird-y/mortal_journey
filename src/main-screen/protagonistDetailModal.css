@@ -416,3 +416,32 @@
   width: 100%;
   margin-top: 8px;
 }
+
+.mj-protagonist-detail-root .mj-mastery-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.mj-protagonist-detail-root .mj-mastery-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.mj-protagonist-detail-root .mj-mastery-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4a9eff, #7b5fff);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.mj-protagonist-detail-root .mj-mastery-progress-pct {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  min-width: 32px;
+  text-align: right;
+}

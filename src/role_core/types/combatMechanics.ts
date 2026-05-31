@@ -381,7 +381,7 @@ function buildFormulaSuffix(
   if (!displayStat) return "";
   const scaling = GRADE_SCALING_POWER[grade][meta.scalingPowerKey];
   const combined = scaling * systemMult;
-  const multStr = `${combined}×`;
+  const multStr = `${parseFloat(combined.toFixed(2))}×`;
   return `(${multStr}${displayStat})`;
 }
 

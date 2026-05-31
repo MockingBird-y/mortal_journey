@@ -555,3 +555,29 @@
   outline: 2px solid var(--mj-gold, #e8c547);
   outline-offset: 1px;
 }
+
+/* 功法熟练度角标 */
+.main-panel--player .mj-gongfa-slot-mastery {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  font-size: 0.65rem;
+  color: var(--mj-gold-dim, #a89040);
+  opacity: 0.85;
+}
+
+/* 寿元警告 */
+.main-panel--player .mj-stat-v--danger {
+  color: #e74c3c;
+  font-weight: bold;
+}
+
+.main-panel--player .mj-stat-v--warning {
+  color: #f39c12;
+}
+
+/* 修炼速度小字 */
+.main-panel--player .mj-stat-v--sm {
+  font-size: 0.78em;
+  opacity: 0.8;
+}

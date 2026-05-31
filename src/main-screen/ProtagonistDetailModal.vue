@@ -85,7 +85,15 @@ onUnmounted(() => {
         >
           <div v-for="(s, si) in payload.sections" :key="si" class="mj-trait-modal-section">
             <span class="mj-trait-modal-k">{{ s.label }}</span>
-            <div class="mj-trait-modal-v">{{ s.text }}</div>
+            <div class="mj-trait-modal-v">
+              {{ s.text }}
+              <div v-if="s.progress && !s.progress.isMax" class="mj-mastery-progress">
+                <div class="mj-mastery-progress-bar">
+                  <div class="mj-mastery-progress-fill" :style="{ width: s.progress.percent + '%' }" />
+                </div>
+                <span class="mj-mastery-progress-pct">{{ s.progress.percent }}%</span>
+              </div>
+            </div>
           </div>
         </div>
         <div v-if="payload.actions?.length" class="mj-item-detail-actions">

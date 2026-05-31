@@ -29,6 +29,13 @@ import {
   MIN_NARRATIVE_AGE_BY_MAJOR,
   TREASURE_BONUS_COUNT_BY_GRADE,
   rollGradeAttriValue,
+  CULTIVATION_SPEED_TABLE,
+  GONGFA_GRADE_CULTIVATION_MULT,
+  LINGGEN_CULTIVATION_MULT,
+  GONGFA_MASTERY_THRESHOLDS,
+  GONGFA_MASTERY_EXP_PER_YEAR,
+  LINGSHI_CULTIVATION_COST_PER_YEAR,
+  LINGSHI_ACCELERATION_MULT,
 } from "./gameConstants";
 
 export {
@@ -46,6 +53,13 @@ export {
   MIN_NARRATIVE_AGE_BY_MAJOR,
   TREASURE_BONUS_COUNT_BY_GRADE,
   rollGradeAttriValue,
+  CULTIVATION_SPEED_TABLE,
+  GONGFA_GRADE_CULTIVATION_MULT,
+  LINGGEN_CULTIVATION_MULT,
+  GONGFA_MASTERY_THRESHOLDS,
+  GONGFA_MASTERY_EXP_PER_YEAR,
+  LINGSHI_CULTIVATION_COST_PER_YEAR,
+  LINGSHI_ACCELERATION_MULT,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -138,6 +152,8 @@ export const SUB_STAGES = ["初期", "中期", "后期"] as const;
 export type RealmSubStage = (typeof SUB_STAGES)[number];
 
 export type NarrationPerson = "first" | "second" | "third";
+
+export type BreakthroughStatus = "idle" | "ready" | "in_quest";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 一、数据 — 境界基础属性表（指数公式生成）
@@ -243,6 +259,7 @@ export interface ProtagonistPlayInfo extends CharacterPlayInfoCommon {
   traits: TraitEntry[];
   xiuwei: number;
   realmComplete: boolean;
+  breakthroughStatus: BreakthroughStatus;
 }
 
 export type PowerTier = "小怪" | "精英怪" | "小boss" | "大boss" | "普通NPC";

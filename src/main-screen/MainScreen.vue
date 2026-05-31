@@ -60,6 +60,7 @@ function onBack() {
           :phase="phase"
           :error-message="errorMessage"
           :current-world-location="worldLocation"
+          v-model:world-time="worldTime"
           @update:world-location="worldLocation = $event"
         />
       </main>

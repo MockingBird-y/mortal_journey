@@ -5,8 +5,7 @@
  * 继承自 `Character` 基类，主角特有字段：修为/叙事人称/出身/天赋。
  */
 
-import { ref, triggerRef, type Ref } from "vue";
-import type { FateChoiceResult } from "../fate_choice/types";
+import { ref, triggerRef, type Ref } from "vue";import type { FateChoiceResult } from "../fate_choice/types";
 import type {
   CategorizedItemDefinition,
   GongfaItemDefinition,
@@ -42,6 +41,7 @@ import type {
   NarrationPerson,
   ProtagonistPlayInfo,
   TraitEntry,
+  BreakthroughStatus,
 } from "./types/playInfo";
 import {
   EQUIP_SLOT_COUNT,
@@ -74,7 +74,7 @@ import {
   getProtagonistNarrativeAge,
   getShouyuanForRealm,
 } from "./types/playInfo";
-import { getCultivationRequired } from "./realmUtils";
+import { getCultivationRequired, getGongfaMasteryExpPerYear, addGongfaMasteryExp } from "./realmUtils";
 
 const VALID_ITEM_TYPES: ReadonlySet<string> = new Set([
   "法宝", "功法", "丹药", "材料", "杂物",
@@ -119,6 +119,8 @@ export class Protagonist extends Character {
   xiuwei: number;
   /** 当前小境界修为是否已圆满。 */
   realmComplete: boolean;
+  /** 突破任务状态：idle=正常修炼, ready=修为圆满可尝试突破, in_quest=突破任务进行中。 */
+  breakthroughStatus: BreakthroughStatus;
 
   /**
    * 从 `ProtagonistPlayInfo` 数据对象构造实例。
@@ -133,6 +135,7 @@ export class Protagonist extends Character {
     this.traits = data.traits;
     this.xiuwei = data.xiuwei;
     this.realmComplete = data.realmComplete;
+    this.breakthroughStatus = data.breakthroughStatus ?? (data.realmComplete ? "ready" : "idle");
   }
 
   // ===================================================================
@@ -162,6 +165,7 @@ export class Protagonist extends Character {
     if (this.xiuwei >= cap) {
       this.xiuwei = cap;
       this.realmComplete = true;
+      this.breakthroughStatus = "ready";
     }
     Protagonist.notifyChanged();
   }
@@ -188,6 +192,7 @@ export class Protagonist extends Character {
     this.realm = { major: nextMajor, minor: nextMinor };
     this.xiuwei = 0;
     this.realmComplete = false;
+    this.breakthroughStatus = "idle";
 
     const newBase = getBaseStats(nextMajor, nextMinor) ?? getBaseStats("练气", "初期") ?? Protagonist.emptyPlayerBase();
     for (const k of BASE_STAT_KEYS) {
@@ -359,6 +364,49 @@ export class Protagonist extends Character {
   }
 
   // ===================================================================
+  // 突破任务状态
+  // ===================================================================
+
+  setBreakthroughStatus(status: BreakthroughStatus): void {
+    this.breakthroughStatus = status;
+    Protagonist.notifyChanged();
+  }
+
+  onBreakthroughFailed(): void {
+    this.breakthroughStatus = "ready";
+    Protagonist.notifyChanged();
+  }
+
+  isShouyuanExhausted(): boolean {
+    return this.shouyuan <= 0;
+  }
+
+  applyGongfaMasteryExpChanges(changes: Array<{ gongfaName: string; masteryExpIncrease: number }>): void {
+    for (const change of changes) {
+      for (const slot of this.gongfaSlots) {
+        if (slot && slot.name === change.gongfaName) {
+          addGongfaMasteryExp(slot, change.masteryExpIncrease);
+          break;
+        }
+      }
+    }
+    Protagonist.notifyChanged();
+  }
+
+  applyAutoGongfaMasteryExp(years: number): void {
+    if (!Number.isFinite(years) || years <= 0) return;
+    const expPerYear = getGongfaMasteryExpPerYear(this.realm.major, this.realm.minor);
+    for (const slot of this.gongfaSlots) {
+      if (!slot) continue;
+      const exp = Math.floor(expPerYear * years);
+      if (exp > 0) {
+        addGongfaMasteryExp(slot, exp);
+      }
+    }
+    Protagonist.notifyChanged();
+  }
+
+  // ===================================================================
   // AI 开局状态应用
   // ===================================================================
 
@@ -396,8 +444,20 @@ export class Protagonist extends Character {
       if (typeof state.userState.xiuweiIncrease === "number") {
         this.addXiuwei(state.userState.xiuweiIncrease);
       }
+      if (state.userState.breakthroughQuestStart === true
+          && this.breakthroughStatus === "ready") {
+        this.setBreakthroughStatus("in_quest");
+      }
+      if (state.userState.breakthroughFailed === true
+          && this.breakthroughStatus === "in_quest") {
+        this.onBreakthroughFailed();
+      }
       if (state.userState.realmBreakthrough === true) {
         this.breakthrough();
+      }
+      if (state.userState.gongfaMasteryChanges
+          && state.userState.gongfaMasteryChanges.length > 0) {
+        this.applyGongfaMasteryExpChanges(state.userState.gongfaMasteryChanges);
       }
     }
 
@@ -429,6 +489,7 @@ export class Protagonist extends Character {
           itemType,
           system,
           role,
+          mastery: 1,
           function: fn,
         } as InventoryStackItem);
         continue;
@@ -475,6 +536,7 @@ export class Protagonist extends Character {
       traits: this.traits,
       xiuwei: this.xiuwei,
       realmComplete: this.realmComplete,
+      breakthroughStatus: this.breakthroughStatus,
     };
   }
 
@@ -609,6 +671,7 @@ export class Protagonist extends Character {
       traits: Array.isArray(o.traits) ? (o.traits as TraitEntry[]) : [],
       xiuwei: typeof o.xiuwei === "number" && Number.isFinite(o.xiuwei) ? Math.max(0, o.xiuwei) : 0,
       realmComplete: o.realmComplete === true,
+      breakthroughStatus: Protagonist.normalizeBreakthroughStatus(o.breakthroughStatus, o.realmComplete === true),
     });
   }
 
@@ -668,6 +731,7 @@ export class Protagonist extends Character {
       traits,
       xiuwei: 0,
       realmComplete: false,
+      breakthroughStatus: "idle",
     });
 
     const derived = p.getDerivedStats();
@@ -685,6 +749,13 @@ export class Protagonist extends Character {
   // 静态工具方法
   // ===================================================================
 
+  private static normalizeBreakthroughStatus(raw: unknown, realmComplete: boolean): BreakthroughStatus {
+    if (raw === "in_quest") return "in_quest";
+    if (raw === "ready") return "ready";
+    if (raw === "idle") return "idle";
+    return realmComplete ? "ready" : "idle";
+  }
+
   /**
    * 将存档中的功法栏数组规范为固定长度、逐项可为 `null`。
    *
@@ -699,6 +770,9 @@ export class Protagonist extends Character {
       if (item && typeof item === "object" && "function" in (item as any)) {
         const o = item as any;
         o.function = migrateSpecialEffect(o.function);
+      }
+      if (item && typeof item === "object" && (item as any).itemType === "功法" && typeof (item as any).mastery !== "number") {
+        (item as any).mastery = 1;
       }
       base[i] = item as GongfaItemDefinition | null;
     }
@@ -720,6 +794,9 @@ export class Protagonist extends Character {
       const item = x as any;
       if (item && typeof item === "object" && "function" in item) {
         item.function = migrateSpecialEffect(item.function);
+      }
+      if (item && typeof item === "object" && item.itemType === "功法" && typeof item.mastery !== "number") {
+        item.mastery = 1;
       }
       return item as InventoryStackItem;
     });

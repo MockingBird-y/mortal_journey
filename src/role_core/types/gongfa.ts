@@ -751,4 +751,6 @@ export interface GongfaItemDefinition {
   system?: GongfaSystem;
   role?: GongfaRole;
   function?: GongfaSpecialEffect;
+  mastery?: number;
+  masteryExp?: number;
 }

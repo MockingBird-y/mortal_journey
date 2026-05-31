@@ -12,6 +12,8 @@ import {
   type GongfaSlotsState,
   type InventoryStackItem,
 } from "../role_core/types/playInfo";
+import { getCultivationSpeed } from "../role_core/realmUtils";
+import { type WorldTime, type TimeDelta, formatWorldTimeZhDisplay } from "../role_core/worldTime";
 
 export interface StateGenerateInput {
   apiUrl: string;
@@ -24,6 +26,7 @@ export interface StateGenerateInput {
   storyBody: string;
   protagonist: ProtagonistPlayInfo;
   currentWorldLocation?: string;
+  currentWorldTime?: WorldTime;
   npcSnapshot?: string;
 }
 
@@ -32,6 +35,13 @@ export interface UserStateChange {
   mpPercent: number;
   xiuweiIncrease?: number;
   realmBreakthrough?: boolean;
+  breakthroughQuestStart?: boolean;
+  breakthroughFailed?: boolean;
+  timeAdvance?: TimeDelta;
+  gongfaMasteryChanges?: Array<{
+    gongfaName: string;
+    masteryExpIncrease: number;
+  }>;
 }
 
 export interface SpiritStoneChange {
@@ -192,7 +202,38 @@ export function parseStateAiResponse(raw: string): StateParsed {
       const mpPercent = typeof o.mpPercent === "number" ? Math.max(0, Math.min(100, Math.round(o.mpPercent))) : 100;
       const xiuweiIncrease = typeof o.xiuweiIncrease === "number" ? Math.max(0, Math.floor(o.xiuweiIncrease)) : undefined;
       const realmBreakthrough = o.realmBreakthrough === true ? true : undefined;
-      userState = { hpPercent, mpPercent, xiuweiIncrease, realmBreakthrough };
+      const breakthroughQuestStart = o.breakthroughQuestStart === true ? true : undefined;
+      const breakthroughFailed = o.breakthroughFailed === true ? true : undefined;
+      let timeAdvance: TimeDelta | undefined;
+      const rawTime = o.timeAdvance;
+      if (rawTime && typeof rawTime === "object") {
+        const td = rawTime as Record<string, unknown>;
+        const years = typeof td.years === "number" ? Math.max(0, Math.floor(td.years)) : undefined;
+        const months = typeof td.months === "number" ? Math.max(0, Math.floor(td.months)) : undefined;
+        const days = typeof td.days === "number" ? Math.max(0, Math.floor(td.days)) : undefined;
+        const hour = typeof td.hour === "number" ? Math.max(0, Math.min(23, Math.floor(td.hour))) : undefined;
+        if (years || months || days || hour !== undefined) {
+          timeAdvance = { years, months, days, hour };
+        }
+      }
+      const rawMastery = o.gongfaMasteryChanges;
+      let gongfaMasteryChanges: Array<{ gongfaName: string; masteryExpIncrease: number }> | undefined;
+      if (Array.isArray(rawMastery)) {
+        const parsed = rawMastery
+          .map((e: unknown) => {
+            if (!e || typeof e !== "object") return null;
+            const m = e as Record<string, unknown>;
+            const gongfaName = String(m.gongfaName || "").trim();
+            const raw = typeof m.masteryExpIncrease === "number" ? m.masteryExpIncrease
+              : typeof m.masteryIncrease === "number" ? m.masteryIncrease
+              : 0;
+            const masteryExpIncrease = Math.max(1, Math.floor(raw));
+            return gongfaName ? { gongfaName, masteryExpIncrease } : null;
+          })
+          .filter((e): e is { gongfaName: string; masteryExpIncrease: number } => e !== null);
+        if (parsed.length > 0) gongfaMasteryChanges = parsed;
+      }
+      userState = { hpPercent, mpPercent, xiuweiIncrease, realmBreakthrough, breakthroughQuestStart, breakthroughFailed, timeAdvance, gongfaMasteryChanges };
     }
   }
 
@@ -276,7 +317,10 @@ function formatGongfaSlots(slots: GongfaSlotsState): string {
   for (let i = 0; i < slots.length; i++) {
     const g = slots[i];
     if (!g) continue;
-    lines.push(`功法：${g.name}（${g.grade}）${g.desc ? "—" + g.desc : ""}`);
+    const mastery = g.mastery ?? 1;
+    const exp = g.masteryExp ?? 0;
+    const expStr = mastery < 10 ? `，熟练度${exp}` : "";
+    lines.push(`功法：${g.name}（${g.grade}，第${mastery}层/10层${expStr}）${g.desc ? "—" + g.desc : ""}`);
   }
   return lines.length > 0 ? lines.join("\n") : "无";
 }
@@ -307,6 +351,10 @@ function buildStateUserContent(input: StateGenerateInput): string {
     ? `\n当前世界地点：${input.currentWorldLocation.trim()}`
     : "";
 
+  const timeHint = input.currentWorldTime
+    ? `\n当前世界时间：${formatWorldTimeZhDisplay(input.currentWorldTime)}`
+    : "";
+
   return [
     "【剧情正文】",
     input.storyBody,
@@ -314,11 +362,14 @@ function buildStateUserContent(input: StateGenerateInput): string {
     "【主角当前状态】",
     `姓名：${p.displayName}`,
     `境界：${p.realm.major}${p.realm.minor}${p.realmComplete ? "·圆满" : ""}`,
-    `修为状态：${p.realmComplete ? "修为已圆满，可突破" : "修为未圆满"}`,
+    `修为状态：${p.realmComplete ? "修为已圆满" : "修为未圆满"}`,
+    `突破状态：${p.realmComplete ? (p.breakthroughStatus === "in_quest" ? "突破任务进行中" : "修为已圆满，可尝试突破") : "修为未圆满"}`,
+    `修炼速度参考（修为/年）：约${getCultivationSpeed({ realm: p.realm, linggen: (p as { linggen?: string[] }).linggen ?? [], gongfaSlots: p.gongfaSlots })}`,
     `当前血量：${p.currentHp}/${p.maxHp}`,
     `当前法力：${p.currentMp}/${p.maxMp}`,
     `灵根：${(p as { linggen?: string[] }).linggen?.join("") || "无"}`,
     locationHint,
+    timeHint,
     "",
     "【装备】",
     formatEquippedSlots(p.equippedSlots),

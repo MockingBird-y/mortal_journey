@@ -3,18 +3,21 @@
  */
 
 import type { TreasureItemDefinition } from "../role_core/types/itemInfo";
+import type { GongfaItemDefinition } from "../role_core/types/itemInfo";
 import {
   getCultivationRequired,
   EQUIP_SLOT_COUNT,
 } from "../role_core/types/playInfo";
+import { getGongfaMasteryThreshold } from "../role_core/realmUtils";
 import type {
   EquipSlotKey,
-  GongfaItemDefinition,
   InventoryStackItem,
   PlayerBaseStats,
   ProtagonistPlayInfo,
   TraitEntry,
+  BreakthroughStatus,
 } from "../role_core/types/playInfo";
+import { getCultivationSpeed } from "../role_core/realmUtils";
 
 /** 储物袋展示用网格列数（与 `mainScreenPlayerPanel.css`、`Protagonist.INVENTORY_SLOT_EXPAND_STEP` 一致） */
 export const INVENTORY_BAG_GRID_COLUMNS = 4;
@@ -314,4 +317,62 @@ export function traitSlotRarity(t: TraitEntry | null): string | undefined {
 export function traitSlotInnerText(t: TraitEntry | null): string {
   if (!t) return "空";
   return typeof t === "string" ? t : t.name;
+}
+
+export function gongfaMasteryLabel(cell: GongfaItemDefinition | null): string {
+  if (!cell) return "";
+  const mastery = cell.mastery ?? 1;
+  return `${mastery}/10`;
+}
+
+export interface GongfaMasteryProgress {
+  mastery: number;
+  exp: number;
+  threshold: number;
+  percent: number;
+  isMax: boolean;
+}
+
+export function getGongfaMasteryProgress(cell: GongfaItemDefinition | null): GongfaMasteryProgress {
+  if (!cell) return { mastery: 1, exp: 0, threshold: 100, percent: 0, isMax: false };
+  const mastery = cell.mastery ?? 1;
+  const exp = cell.masteryExp ?? 0;
+  if (mastery >= 10) return { mastery: 10, exp: 0, threshold: 0, percent: 100, isMax: true };
+  const threshold = getGongfaMasteryThreshold(mastery);
+  const percent = Math.min(100, Math.round(exp / threshold * 100));
+  return { mastery, exp, threshold, percent, isMax: false };
+}
+
+export function gongfaMasteryThresholdText(cell: GongfaItemDefinition): string {
+  const mastery = cell.mastery ?? 1;
+  if (mastery >= 10) return "—";
+  return String(getGongfaMasteryThreshold(mastery));
+}
+
+export function getCultivationSpeedDisplay(p: ProtagonistPlayInfo | null): string {
+  if (!p) return "—";
+  const speed = getCultivationSpeed({
+    realm: p.realm,
+    linggen: p.linggen,
+    gongfaSlots: p.gongfaSlots,
+  });
+  return `约${speed}修为/年`;
+}
+
+export type ShouyuanWarningLevel = "danger" | "warning" | "normal";
+
+export function getShouyuanWarningLevel(p: ProtagonistPlayInfo | null): ShouyuanWarningLevel {
+  if (!p) return "normal";
+  if (p.shouyuan <= 50) return "danger";
+  if (p.shouyuan <= 200) return "warning";
+  return "normal";
+}
+
+export function getBreakthroughStatusLabel(status: BreakthroughStatus): string {
+  switch (status) {
+    case "in_quest": return "突破中";
+    case "ready": return "可突破";
+    case "idle": 
+    default: return "";
+  }
 }

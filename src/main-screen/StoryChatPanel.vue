@@ -9,6 +9,7 @@ import { npcStore } from "../role_core/npcStore";
 import { Character } from "../role_core/Character";
 import { gameLog } from "../log/gameLog";
 import { useTypewriter } from "../composables/useTypewriter";
+import { advanceWorldTime, type WorldTime } from "../role_core/worldTime";
 
 const props = withDefaults(
   defineProps<{
@@ -16,12 +17,14 @@ const props = withDefaults(
     phase?: OpeningStoryPhase;
     errorMessage?: string;
     currentWorldLocation?: string;
+    worldTime?: WorldTime;
   }>(),
   {
     storyText: "",
     phase: "idle",
     errorMessage: "",
     currentWorldLocation: "",
+    worldTime: undefined,
   },
 );
 
@@ -29,6 +32,7 @@ const { apiUrl, apiKey, apiModel } = useApiConfig();
 
 const emit = defineEmits<{
   "update:worldLocation": [value: string];
+  "update:worldTime": [value: WorldTime];
 }>();
 
 interface ChatMessage {
@@ -139,6 +143,7 @@ async function handleSend(): Promise<void> {
         storyBody: storyResult.storyBody,
         protagonist: p,
         currentWorldLocation: props.currentWorldLocation || undefined,
+        currentWorldTime: props.worldTime,
         npcSnapshot: npcSnapshot || undefined,
         signal: ac.signal,
       });
@@ -152,6 +157,18 @@ async function handleSend(): Promise<void> {
       const current = protagonist.value;
       if (current) {
         current.applyStateChanges(stateResult);
+
+        if (stateResult.userState?.timeAdvance && props.worldTime) {
+          const delta = stateResult.userState.timeAdvance;
+          const newTime = advanceWorldTime(props.worldTime, delta);
+          emit("update:worldTime", newTime);
+          if (delta.years && delta.years > 0) {
+            current.applyAutoGongfaMasteryExp(delta.years);
+          }
+          if (current.isShouyuanExhausted()) {
+            gameLog.warn("[StoryChat] 寿元耗尽！");
+          }
+        }
       }
 
       if (stateResult.nearbyNpcs.length > 0) {
