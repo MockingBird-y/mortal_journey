@@ -179,4 +179,8 @@ export interface BattleResult {
   protagonistMpPercent: number;
   elixirsUsed: { name: string; count: number }[];
   enemiesKilled: string[];
+  triggerReason: string;
+  allyNames: string[];
+  enemyNames: string[];
+  triggerKind: "active" | "passive";
 }

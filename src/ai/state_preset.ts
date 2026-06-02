@@ -176,8 +176,12 @@ export const STATE_SYSTEM_PRESET = `
 
 [战斗触发规则]
 1. 战斗触发输出格式：<BATTLE_TRIGGER_TAG> … </BATTLE_TRIGGER_TAG>，内为 JSON 对象；字段包含 shouldEnterBattle（布尔值）、triggerKind（"active"或"passive"）、triggerReason（字符串，简述触发原因）、allies（我方参战名单）、enemies（敌方参战名单）。
-2. 何时可触发（shouldEnterBattle=true）：须同时满足——（A）所有 allies/enemies 必须在本回合 <NPC_NEARBY_TAG> 中输出完整角色卡（含本回合新出现的敌人/妖兽，无论之前是否在快照中存在）；（B）动手已发生或不可避免（如已碰招、已命中、已见血，或 user 明确决战且叙事已到战备段）。两个条件缺一不可。
-3. 何时禁止触发：仅对峙/拦路/喊话/亮兵器未交手、冲刺在途未接触、仍可交涉退让、或 user 未表态开战且剧情未写到战备段时，不得输出 <BATTLE_TRIGGER_TAG>。
+2. 何时可触发（shouldEnterBattle=true）：须同时满足——（A）所有 allies/enemies 必须在本回合 <NPC_NEARBY_TAG> 中输出完整角色卡（含本回合新出现的敌人/妖兽，无论之前是否在快照中存在）；（B）满足以下任一条件：
+  - B1：剧情正文中已写到双方正式交手（碰招、受击、法术对轰、妖兽扑到面前）；
+  - B2：user 明确表达战斗意图（如"攻击""战斗""动手""杀""除掉""练手"等）且目标已在本回合 <NPC_NEARBY_TAG> 中有对应角色卡；
+  - B3：剧情正文写到战备段（文末战备收束段落），表明战斗一触即发。
+  以上三个子条件满足其一即可。
+3. 何时禁止触发：完全不存在战斗意图且叙事中也未写到任何交战/战备情景时（如仅对峙未出手且 user 未表达战斗意图），不得输出 <BATTLE_TRIGGER_TAG>。
 4. 名单一致性：allies/enemies 的 displayName 必须与主角信息及周围人物快照（或本回合新写入的 NPC）逐字一致；若同名多人须补 id 以避免程序错配。
 5. 规模与约束：shouldEnterBattle=true 时双方通常各 1~3 人；allies 必须包含主角，enemies 至少 1 人；不得使用空名称或泛称。
 6. triggerKind 含义："active"表示主角主动开战（user 明确下令攻击/除敌），"passive"表示被迫应战（对方先动手、遭伏击、无可退避）。

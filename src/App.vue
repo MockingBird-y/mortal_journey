@@ -8,6 +8,7 @@ import BattleScreen from "./battle_core/BattleScreen.vue";
 import { gameLog } from "./log/gameLog";
 import type { FateChoiceResult } from "./fate_choice/types";
 import type { BattleTriggerEntry } from "./ai/state_generate";
+import type { BattleResult } from "./battle_core/battleTypes";
 
 const fateChoiceVisible = ref(false);
 const mainScreenVisible = ref(false);
@@ -40,10 +41,16 @@ function onBattleTrigger(entry: BattleTriggerEntry) {
 }
 
 const battleVisible = ref(false);
+const lastBattleResult = ref<BattleResult | null>(null);
 
-function onBattleEnd() {
+function onBattleEnd(result: BattleResult | null) {
   battleVisible.value = false;
   pendingBattleTrigger.value = null;
+  if (result) lastBattleResult.value = result;
+}
+
+function onBattleResultConsumed() {
+  lastBattleResult.value = null;
 }
 
 watch(pendingBattleTrigger, (entry) => {
@@ -78,8 +85,10 @@ watch(pendingBattleTrigger, (entry) => {
       v-if="mainScreenVisible"
       :visible="mainScreenVisible"
       :fate-choice="lastFateChoice"
+      :battle-result="lastBattleResult"
       @back="onMainScreenBack"
       @battle-trigger="onBattleTrigger"
+      @consume-battle-result="onBattleResultConsumed"
     />
   </Transition>
 

@@ -10,6 +10,7 @@ import { Character } from "../role_core/Character";
 import { gameLog } from "../log/gameLog";
 import { useTypewriter } from "../composables/useTypewriter";
 import { advanceWorldTime, type WorldTime } from "../role_core/worldTime";
+import type { BattleResult } from "../battle_core/battleTypes";
 
 const props = withDefaults(
   defineProps<{
@@ -18,6 +19,7 @@ const props = withDefaults(
     errorMessage?: string;
     currentWorldLocation?: string;
     worldTime?: WorldTime;
+    battleResult?: BattleResult | null;
   }>(),
   {
     storyText: "",
@@ -25,6 +27,7 @@ const props = withDefaults(
     errorMessage: "",
     currentWorldLocation: "",
     worldTime: undefined,
+    battleResult: undefined,
   },
 );
 
@@ -34,6 +37,7 @@ const emit = defineEmits<{
   "update:worldLocation": [value: string];
   "update:worldTime": [value: WorldTime];
   "battleTrigger": [value: BattleTriggerEntry];
+  "consumeBattleResult": [];
 }>();
 
 interface ChatMessage {
@@ -83,6 +87,37 @@ watch(
   },
   { immediate: true },
 );
+
+function applyStateResult(stateResult: StateParsed, linggen: string[]): void {
+  if (stateResult.worldLocation.trim()) {
+    emit("update:worldLocation", stateResult.worldLocation.trim());
+  }
+
+  const current = protagonist.value;
+  if (current) {
+    current.applyStateChanges(stateResult);
+
+    if (stateResult.userState?.timeAdvance && props.worldTime) {
+      const delta = stateResult.userState.timeAdvance;
+      const newTime = advanceWorldTime(props.worldTime, delta);
+      emit("update:worldTime", newTime);
+      if (delta.years && delta.years > 0) {
+        current.applyAutoGongfaMasteryExp(delta.years);
+      }
+      if (current.isShouyuanExhausted()) {
+        gameLog.warn("[StoryChat] 寿元耗尽！");
+      }
+    }
+  }
+
+  if (stateResult.nearbyNpcs.length > 0) {
+    npcStore.applyNpcUpdates(stateResult.nearbyNpcs, linggen);
+  }
+
+  if (stateResult.battleTrigger) {
+    emit("battleTrigger", stateResult.battleTrigger);
+  }
+}
 
 async function handleSend(): Promise<void> {
   const msg = inputText.value.trim();
@@ -151,34 +186,7 @@ async function handleSend(): Promise<void> {
 
       if (abortCtl !== ac) return;
 
-      if (stateResult.worldLocation.trim()) {
-        emit("update:worldLocation", stateResult.worldLocation.trim());
-      }
-
-      const current = protagonist.value;
-      if (current) {
-        current.applyStateChanges(stateResult);
-
-        if (stateResult.userState?.timeAdvance && props.worldTime) {
-          const delta = stateResult.userState.timeAdvance;
-          const newTime = advanceWorldTime(props.worldTime, delta);
-          emit("update:worldTime", newTime);
-          if (delta.years && delta.years > 0) {
-            current.applyAutoGongfaMasteryExp(delta.years);
-          }
-          if (current.isShouyuanExhausted()) {
-            gameLog.warn("[StoryChat] 寿元耗尽！");
-          }
-        }
-      }
-
-      if (stateResult.nearbyNpcs.length > 0) {
-        npcStore.applyNpcUpdates(stateResult.nearbyNpcs, p.linggen);
-      }
-
-      if (stateResult.battleTrigger) {
-        emit("battleTrigger", stateResult.battleTrigger);
-      }
+      applyStateResult(stateResult, p.linggen);
     } catch (stateErr) {
       gameLog.error("[StoryChat] 状态更新失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));
     }
@@ -214,6 +222,108 @@ function onInputKeydown(e: KeyboardEvent): void {
     handleSend();
   }
 }
+
+function formatBattleResultMessage(r: BattleResult): string {
+  const outcomeMap: Record<string, string> = {
+    victory: "胜利",
+    defeat: "失败",
+    fled: "撤退",
+    draw: "平局",
+  };
+  const outcomeText = outcomeMap[r.outcome];
+  const killed = r.enemiesKilled.length > 0
+    ? `，击杀了${r.enemiesKilled.join("、")}` : "";
+  const elixir = r.elixirsUsed.length > 0
+    ? `，消耗了${r.elixirsUsed.map(e => `${e.name}×${e.count}`).join("、")}` : "";
+  const kind = r.triggerKind === "active" ? "主动发起" : "被迫迎战";
+
+  return [
+    `[战斗结算]`,
+    `${r.allyNames.join("、")}与${r.enemyNames.join("、")}发生了战斗（${kind}，原因：${r.triggerReason}）。`,
+    `战斗结果：${outcomeText}，共${r.turn}回合。`,
+    `主角HP剩余${r.protagonistHpPercent}%，MP剩余${r.protagonistMpPercent}%${killed}${elixir}。`,
+    `请根据战斗结果继续生成后续剧情。`,
+  ].join("\n");
+}
+
+watch(
+  () => props.battleResult,
+  async (result) => {
+    if (!result) return;
+
+    const p = protagonist.value;
+    if (!p) return;
+
+    const url = String(apiUrl.value || "").trim();
+    const model = String(apiModel.value || "").trim();
+    if (!url || !model) return;
+
+    const msg = formatBattleResultMessage(result);
+    chatMessages.value.push({ type: "user", content: msg });
+
+    emit("consumeBattleResult");
+
+    generating.value = true;
+    genError.value = "";
+
+    const chatHistory: StoryChatEntry[] = chatMessages.value.map((m) => ({
+      role: m.type === "user" ? "user" as const : "assistant" as const,
+      content: m.content,
+    }));
+
+    const npcSnapshot = buildNpcSnapshot();
+
+    const ac = new AbortController();
+    abortCtl = ac;
+
+    try {
+      const storyResult = await generateStory({
+        apiUrl: url,
+        apiKey: String(apiKey.value || "").trim() || undefined,
+        model,
+        protagonist: p,
+        chatHistory,
+        signal: ac.signal,
+      });
+
+      if (abortCtl !== ac) return;
+
+      if (!storyResult.storyBody.trim()) {
+        genError.value = "模型返回的剧情正文为空。";
+        return;
+      }
+
+      chatMessages.value.push({ type: "story", content: storyResult.storyBody.trim() });
+
+      try {
+        const stateResult: StateParsed = await generateState({
+          apiUrl: url,
+          apiKey: String(apiKey.value || "").trim() || undefined,
+          model,
+          storyBody: storyResult.storyBody,
+          protagonist: p,
+          currentWorldLocation: props.currentWorldLocation || undefined,
+          currentWorldTime: props.worldTime,
+          npcSnapshot: npcSnapshot || undefined,
+          signal: ac.signal,
+        });
+
+        if (abortCtl !== ac) return;
+
+        applyStateResult(stateResult, p.linggen);
+      } catch (stateErr) {
+        gameLog.error("[StoryChat] 战斗后状态更新失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));
+      }
+    } catch (e) {
+      if (ac.signal.aborted) return;
+      genError.value = e instanceof Error ? e.message : String(e);
+      gameLog.error("[StoryChat] " + genError.value);
+    } finally {
+      if (abortCtl === ac) abortCtl = null;
+      generating.value = false;
+    }
+  },
+);
 </script>
 
 <template>

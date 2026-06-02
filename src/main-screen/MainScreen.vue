@@ -5,6 +5,7 @@ import { useApiConfig } from "../ai/useApiConfig";
 import { protagonist } from "../role_core/Protagonist";
 import type { FateChoiceResult } from "../fate_choice/types";
 import type { BattleTriggerEntry } from "../ai/state_generate";
+import type { BattleResult } from "../battle_core/battleTypes";
 import SideToolbarPanel from "./SideToolbarPanel.vue";
 import PlayerInfoPanel from "./PlayerInfoPanel.vue";
 import StoryChatPanel from "./StoryChatPanel.vue";
@@ -12,6 +13,7 @@ import StoryChatPanel from "./StoryChatPanel.vue";
 const props = defineProps<{
   visible: boolean;
   fateChoice?: FateChoiceResult | null;
+  battleResult?: BattleResult | null;
 }>();
 
 const { apiUrl, apiKey, apiModel } = useApiConfig();
@@ -29,6 +31,7 @@ const { storyBody, phase, errorMessage, worldTime, worldTimeBaseline, worldLocat
 const emit = defineEmits<{
   back: [];
   battleTrigger: [value: BattleTriggerEntry];
+  consumeBattleResult: [];
 }>();
 
 function onBack() {
@@ -62,9 +65,11 @@ function onBack() {
           :phase="phase"
           :error-message="errorMessage"
           :current-world-location="worldLocation"
+          :battle-result="props.battleResult"
           v-model:world-time="worldTime"
           @update:world-location="worldLocation = $event"
           @battle-trigger="emit('battleTrigger', $event)"
+          @consume-battle-result="emit('consumeBattleResult')"
         />
       </main>
       <aside class="main-screen__pane main-screen__pane--side" aria-label="右栏：功能面板">

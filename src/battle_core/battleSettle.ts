@@ -95,5 +95,9 @@ export function settleBattle(state: BattleState): BattleResult {
     protagonistMpPercent: protagonistCombatant ? Math.round(protagonistCombatant.currentMp / Math.max(1, protagonistCombatant.maxMp) * 100) : 0,
     elixirsUsed,
     enemiesKilled,
+    triggerReason: state.triggerEntry.triggerReason,
+    allyNames: state.triggerEntry.allies.map(a => a.displayName),
+    enemyNames: state.triggerEntry.enemies.map(e => e.displayName),
+    triggerKind: state.triggerEntry.triggerKind,
   };
 }
