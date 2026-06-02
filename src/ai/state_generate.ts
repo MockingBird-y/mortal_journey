@@ -109,6 +109,7 @@ export interface StateParsed {
   itemRemoves: ItemRemoveEntry[];
   nearbyNpcs: NpcNearbyEntry[];
   battleTrigger: BattleTriggerEntry | null;
+  storySnapshot: string;
 }
 
 const DEFAULT_TEMPERATURE = 0.55;
@@ -128,6 +129,8 @@ const TAG_NPC_NEARBY_OPEN = "<NPC_NEARBY_TAG>";
 const TAG_NPC_NEARBY_CLOSE = "</NPC_NEARBY_TAG>";
 const TAG_BATTLE_TRIGGER_OPEN = "<BATTLE_TRIGGER_TAG>";
 const TAG_BATTLE_TRIGGER_CLOSE = "</BATTLE_TRIGGER_TAG>";
+const TAG_STORY_SNAPSHOT_OPEN = "<mj_story_snapshot>";
+const TAG_STORY_SNAPSHOT_CLOSE = "</mj_story_snapshot>";
 
 function extractWorldBody(raw: string): string {
   const s = raw == null ? "" : String(raw);
@@ -331,6 +334,8 @@ export function parseStateAiResponse(raw: string): StateParsed {
 
   const battleTrigger = parseBattleTrigger(raw);
 
+  const storySnapshot = extractTagContent(raw, TAG_STORY_SNAPSHOT_OPEN, TAG_STORY_SNAPSHOT_CLOSE);
+
   return {
     worldLocation,
     userState,
@@ -339,6 +344,7 @@ export function parseStateAiResponse(raw: string): StateParsed {
     itemRemoves,
     nearbyNpcs,
     battleTrigger,
+    storySnapshot,
   };
 }
 

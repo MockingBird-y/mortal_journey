@@ -40,6 +40,7 @@ export function useOpeningStoryFromFateChoice(
   worldTime: Ref<WorldTime>;
   worldTimeBaseline: Ref<WorldTime>;
   worldLocation: Ref<string>;
+  initSnapshot: Ref<string>;
 } {
   const storyBody = ref("");
   const phase = ref<OpeningStoryPhase>("idle");
@@ -48,6 +49,7 @@ export function useOpeningStoryFromFateChoice(
   /** 开局锁定：年龄增量 = `calendarYearsElapsed(baseline, worldTime)` */
   const worldTimeBaseline = ref<WorldTime>(cloneWorldTime(worldTime.value));
   const worldLocation = ref("");
+  const initSnapshot = ref("");
 
   let abortCtl: AbortController | null = null;
 
@@ -56,6 +58,7 @@ export function useOpeningStoryFromFateChoice(
     worldTime.value = w;
     worldTimeBaseline.value = cloneWorldTime(w);
     worldLocation.value = "";
+    initSnapshot.value = "";
   }
 
   function resetStoryOnly(): void {
@@ -137,6 +140,10 @@ export function useOpeningStoryFromFateChoice(
             worldLocation.value = stateResult.worldLocation.trim();
           }
 
+          if (stateResult.storySnapshot.trim()) {
+            initSnapshot.value = stateResult.storySnapshot.trim();
+          }
+
           const current = protagonist.value;
           if (current) {
             current.applyInitState(stateResult);
@@ -159,5 +166,5 @@ export function useOpeningStoryFromFateChoice(
     { immediate: true },
   );
 
-  return { storyBody, phase, errorMessage, worldTime, worldTimeBaseline, worldLocation };
+  return { storyBody, phase, errorMessage, worldTime, worldTimeBaseline, worldLocation, initSnapshot };
 }

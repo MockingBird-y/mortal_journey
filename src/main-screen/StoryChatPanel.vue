@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, watch } from "vue";
 import type { OpeningStoryPhase } from "../ai/useOpeningStory";
 import { useApiConfig } from "../ai/useApiConfig";
 import { generateStory, type StoryChatEntry } from "../ai/story_generate";
@@ -8,7 +8,6 @@ import { protagonist } from "../role_core/Protagonist";
 import { npcStore } from "../role_core/npcStore";
 import { Character } from "../role_core/Character";
 import { gameLog } from "../log/gameLog";
-import { useTypewriter } from "../composables/useTypewriter";
 import { advanceWorldTime, type WorldTime } from "../role_core/worldTime";
 import type { BattleResult } from "../battle_core/battleTypes";
 
@@ -20,6 +19,7 @@ const props = withDefaults(
     currentWorldLocation?: string;
     worldTime?: WorldTime;
     battleResult?: BattleResult | null;
+    initSnapshot?: string;
   }>(),
   {
     storyText: "",
@@ -28,6 +28,7 @@ const props = withDefaults(
     currentWorldLocation: "",
     worldTime: undefined,
     battleResult: undefined,
+    initSnapshot: "",
   },
 );
 
@@ -43,6 +44,7 @@ const emit = defineEmits<{
 interface ChatMessage {
   type: "story" | "user";
   content: string;
+  snapshot?: string;
 }
 
 const chatMessages = ref<ChatMessage[]>([]);
@@ -60,29 +62,35 @@ function autoResizeTextarea(): void {
 
 let abortCtl: AbortController | null = null;
 
-const lastStoryContent = computed(() => {
+function buildChatHistory(): StoryChatEntry[] {
   const msgs = chatMessages.value;
+  let latestStoryIdx = -1;
   for (let i = msgs.length - 1; i >= 0; i--) {
-    if (msgs[i].type === "story") return msgs[i].content;
+    if (msgs[i].type === "story") {
+      latestStoryIdx = i;
+      break;
+    }
   }
-  return "";
-});
-const { displayed: typewriterText, skipToEnd: skipTypewriter } = useTypewriter(lastStoryContent, 25);
-
-function isLatestStory(idx: number): boolean {
-  const msgs = chatMessages.value;
-  if (msgs[idx].type !== "story") return false;
-  for (let i = msgs.length - 1; i > idx; i--) {
-    if (msgs[i].type === "story") return false;
-  }
-  return true;
+  return msgs.map((m, idx) => {
+    const isStory = m.type === "story";
+    const isLatest = isStory && idx === latestStoryIdx;
+    const useSnapshot = isStory && !isLatest && m.snapshot;
+    return {
+      role: isStory ? ("assistant" as const) : ("user" as const),
+      content: useSnapshot ? m.snapshot! : m.content,
+    };
+  });
 }
 
 watch(
   () => props.storyText,
   (text) => {
     if (text?.trim() && chatMessages.value.length === 0) {
-      chatMessages.value.push({ type: "story", content: text.trim() });
+      chatMessages.value.push({
+        type: "story",
+        content: text.trim(),
+        snapshot: props.initSnapshot?.trim() || undefined,
+      });
     }
   },
   { immediate: true },
@@ -142,10 +150,7 @@ async function handleSend(): Promise<void> {
   generating.value = true;
   genError.value = "";
 
-  const chatHistory: StoryChatEntry[] = chatMessages.value.map((m) => ({
-    role: m.type === "user" ? "user" as const : "assistant" as const,
-    content: m.content,
-  }));
+  const chatHistory: StoryChatEntry[] = buildChatHistory();
 
   const npcSnapshot = buildNpcSnapshot();
 
@@ -187,6 +192,13 @@ async function handleSend(): Promise<void> {
       if (abortCtl !== ac) return;
 
       applyStateResult(stateResult, p.linggen);
+
+      if (stateResult.storySnapshot.trim()) {
+        const last = chatMessages.value[chatMessages.value.length - 1];
+        if (last && last.type === "story") {
+          last.snapshot = stateResult.storySnapshot.trim();
+        }
+      }
     } catch (stateErr) {
       gameLog.error("[StoryChat] 状态更新失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));
     }
@@ -266,10 +278,7 @@ watch(
     generating.value = true;
     genError.value = "";
 
-    const chatHistory: StoryChatEntry[] = chatMessages.value.map((m) => ({
-      role: m.type === "user" ? "user" as const : "assistant" as const,
-      content: m.content,
-    }));
+    const chatHistory: StoryChatEntry[] = buildChatHistory();
 
     const npcSnapshot = buildNpcSnapshot();
 
@@ -311,6 +320,13 @@ watch(
         if (abortCtl !== ac) return;
 
         applyStateResult(stateResult, p.linggen);
+
+        if (stateResult.storySnapshot.trim()) {
+          const last = chatMessages.value[chatMessages.value.length - 1];
+          if (last && last.type === "story") {
+            last.snapshot = stateResult.storySnapshot.trim();
+          }
+        }
       } catch (stateErr) {
         gameLog.error("[StoryChat] 战斗后状态更新失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));
       }
@@ -353,13 +369,9 @@ watch(
             v-for="(msg, idx) in chatMessages"
             :key="idx"
             :class="['main-panel__chat-bubble', msg.type === 'user' ? 'main-panel__chat-bubble--user' : 'main-panel__chat-bubble--story']"
-            @click="isLatestStory(idx) && skipTypewriter()"
           >
             <template v-if="msg.type === 'story'">
-              <div
-                class="main-panel__story-prose"
-                :class="{ 'main-panel__story-prose--typing': isLatestStory(idx) && typewriterText.length < msg.content.length }"
-              >{{ isLatestStory(idx) ? typewriterText : msg.content }}</div>
+              <div class="main-panel__story-prose">{{ msg.content }}</div>
             </template>
             <template v-else>
               {{ msg.content }}

@@ -86,8 +86,14 @@ export const INIT_STATE_SYSTEM_PRESET = `
   }
 ]</NPC_NEARBY_TAG>
 
+[剧情快照规则]
+1. 将开局剧情正文精炼为一段2~3句的简述，用于后续剧情生成时替代完整剧情文本。
+2. 快照只需概括核心事件：主角身处何处、身份背景、当前处境、开局时发生了什么关键事件。
+3. 省略环境描写、心理活动、对话细节等修辞内容，只保留对剧情走向有影响的要素。
+4. 示例：<mj_story_snapshot>韩立出身贫寒，为给家人筹钱治病加入七玄门成为外门弟子，初入宗门便被分配到杂务处做杂役，与同门师兄张铁结识。</mj_story_snapshot>
+
 [输出契约·必须遵守]
-你将收到一段开局剧情正文和主角初始状态。你需要根据剧情内容，输出以下七段标签（顺序固定）：
+你将收到一段开局剧情正文和主角初始状态。你需要根据剧情内容，输出以下八段标签（顺序固定）：
 1. <mj_world_body>开局主场景专名</mj_world_body>
 2. <mj_equip_body>主角开局法宝配置</mj_equip_body>
 3. <mj_magic_body>主角开局功法配置</mj_magic_body>
@@ -95,5 +101,6 @@ export const INIT_STATE_SYSTEM_PRESET = `
 5. <USER_STATE_TAG>主角血量法力百分比</USER_STATE_TAG>
 6. <SPIRIT_STONE_TAG>初始灵石</SPIRIT_STONE_TAG>
 7. <NPC_NEARBY_TAG>开局周围人物列表</NPC_NEARBY_TAG>
+8. <mj_story_snapshot>开局剧情快照（开局剧情的2~3句简述）</mj_story_snapshot>
 禁止缺少任何一段；禁止改写标签名的大小写或字符；禁止用 Markdown 代码围栏包裹标签。
 `;

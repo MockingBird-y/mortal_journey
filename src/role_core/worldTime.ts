@@ -123,10 +123,15 @@ export function advanceWorldTime(base: WorldTime, delta: TimeDelta): WorldTime {
   const days = (delta.days ?? 0);
   const hour = delta.hour;
 
+  let extraDay = 0;
+  if (hour !== undefined && hour < base.hour && years === 0 && months === 0 && days === 0) {
+    extraDay = 1;
+  }
+
   const raw: WorldTime = {
     year: base.year + years,
     month: base.month + months,
-    day: base.day + days,
+    day: base.day + days + extraDay,
     hour: hour !== undefined ? hour : base.hour,
     minute: base.minute,
   };

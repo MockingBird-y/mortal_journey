@@ -38,6 +38,7 @@ export interface InitStateParsed {
   mpPercent: number;
   spiritStones: { op: "add"; name: string; count: number }[];
   nearbyNpcs: NpcNearbyEntry[];
+  storySnapshot: string;
 }
 
 const DEFAULT_INIT_STATE_TEMPERATURE = 0.55;
@@ -57,6 +58,8 @@ const TAG_SPIRIT_STONE_OPEN = "<SPIRIT_STONE_TAG>";
 const TAG_SPIRIT_STONE_CLOSE = "</SPIRIT_STONE_TAG>";
 const TAG_NPC_NEARBY_OPEN = "<NPC_NEARBY_TAG>";
 const TAG_NPC_NEARBY_CLOSE = "</NPC_NEARBY_TAG>";
+const TAG_STORY_SNAPSHOT_OPEN = "<mj_story_snapshot>";
+const TAG_STORY_SNAPSHOT_CLOSE = "</mj_story_snapshot>";
 
 function safeJsonParse(text: string): unknown {
   try {
@@ -172,7 +175,9 @@ export function parseInitStateAiResponse(raw: string, realmMajor: string, realmM
 
   const nearbyNpcs = parseInitNearbyNpcs(raw);
 
-  return { equips, gongfas, storage, worldLocation, hpPercent, mpPercent, spiritStones, nearbyNpcs };
+  const storySnapshot = extractTagContent(raw, TAG_STORY_SNAPSHOT_OPEN, TAG_STORY_SNAPSHOT_CLOSE);
+
+  return { equips, gongfas, storage, worldLocation, hpPercent, mpPercent, spiritStones, nearbyNpcs, storySnapshot };
 }
 
 export function buildEquippedSlotsFromParsed(parsed: InitStateParsed): EquippedSlotsState {
