@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref } from "vue";
 import DebugLogPanel from "./log/DebugLogPanel.vue";
 import StartFrame from "./start_frame/StartFrame.vue";
 import FateChoiceScreen from "./fate_choice/FateChoiceScreen.vue";
@@ -38,6 +38,7 @@ const pendingBattleTrigger = ref<BattleTriggerEntry | null>(null);
 function onBattleTrigger(entry: BattleTriggerEntry) {
   gameLog.info("[App] 战斗触发: " + JSON.stringify(entry, null, 2));
   pendingBattleTrigger.value = entry;
+  battleVisible.value = true;
 }
 
 const battleVisible = ref(false);
@@ -52,12 +53,6 @@ function onBattleEnd(result: BattleResult | null) {
 function onBattleResultConsumed() {
   lastBattleResult.value = null;
 }
-
-watch(pendingBattleTrigger, (entry) => {
-  if (entry) {
-    battleVisible.value = true;
-  }
-});
 </script>
 
 <template>

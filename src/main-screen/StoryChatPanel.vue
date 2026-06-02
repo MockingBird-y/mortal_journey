@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import type { OpeningStoryPhase } from "../ai/useOpeningStory";
 import { useApiConfig } from "../ai/useApiConfig";
 import { generateStory, type StoryChatEntry } from "../ai/story_generate";
@@ -52,6 +52,8 @@ const inputText = ref("");
 const generating = ref(false);
 const genError = ref("");
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const pendingBattleTrigger = ref<BattleTriggerEntry | null>(null);
+const battlePending = computed(() => pendingBattleTrigger.value !== null);
 
 function autoResizeTextarea(): void {
   const el = textareaRef.value;
@@ -123,8 +125,15 @@ function applyStateResult(stateResult: StateParsed, linggen: string[]): void {
   }
 
   if (stateResult.battleTrigger) {
-    emit("battleTrigger", stateResult.battleTrigger);
+    pendingBattleTrigger.value = stateResult.battleTrigger;
   }
+}
+
+function enterBattle(): void {
+  const entry = pendingBattleTrigger.value;
+  if (!entry) return;
+  pendingBattleTrigger.value = null;
+  emit("battleTrigger", entry);
 }
 
 async function handleSend(): Promise<void> {
@@ -384,13 +393,19 @@ watch(
         <p v-if="genError" class="main-panel__story-status main-panel__story-status--error">
           {{ genError }}
         </p>
+        <div v-if="battlePending" class="main-panel__battle-entry">
+          <button type="button" class="main-panel__battle-entry-btn" @click="enterBattle">
+            <i class="fa-solid fa-swords" aria-hidden="true"></i>
+            进入战斗
+          </button>
+        </div>
       </div>
       <div class="main-panel__composer">
         <textarea
           ref="textareaRef"
           class="main-panel__input"
-          :readonly="generating"
-          :disabled="phase !== 'ready' && chatMessages.length === 0"
+          :readonly="generating || battlePending"
+          :disabled="(phase !== 'ready' && chatMessages.length === 0) || battlePending"
           placeholder="输入你的行动…"
           aria-label="消息输入"
           v-model="inputText"
@@ -401,7 +416,7 @@ watch(
         <button
           type="button"
           class="main-screen__btn"
-          :disabled="generating || !inputText.trim() || (phase !== 'ready' && chatMessages.length === 0)"
+          :disabled="generating || battlePending || !inputText.trim() || (phase !== 'ready' && chatMessages.length === 0)"
           @click="handleSend"
         >
           {{ generating ? "生成中…" : "发送" }}
