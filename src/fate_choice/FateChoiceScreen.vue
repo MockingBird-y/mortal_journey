@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useFateChoice } from "./useFateChoice";
-import type { FateChoiceResult, NarrationPerson } from "./types";
+import type { FateChoiceResult, NarrationPerson, DifficultyLevel } from "./types";
 import type { TraitOption } from "./useFateChoice";
 import { parseRealmFromCustomText } from "./useFateChoice";
 import { CUSTOM_REALM_MAJORS, CUSTOM_REALM_MINORS } from "./types";
 import TraitDetailModal from "./TraitDetailModal.vue";
+import LinggenDetailModal from "./LinggenDetailModal.vue";
 import CustomBirthModal from "./CustomBirthModal.vue";
 
 const props = defineProps<{ visible: boolean }>();
@@ -18,7 +19,9 @@ const emit = defineEmits<{
 const {
   CREATION_BIRTHS,
   CREATION_GENDERS,
+  DIFFICULTY_OPTIONS,
   birthKeysOrdered,
+  selectedDifficulty,
   selectedBirth,
   customBirth,
   selectedGender,
@@ -28,12 +31,9 @@ const {
   selectedLinggen,
   statusMessage,
   isReady,
-  traitRandomizeDisabled,
-  traitRandomizeTitle,
   reset,
   prepareInitialRolls,
   randomizeTraits,
-  toggleTraitLock,
   applyRandomLinggen,
   buildPayload,
   selectBirth,
@@ -47,6 +47,7 @@ function birthCardBlurb(birthKey: string): string {
 }
 
 const traitDetailTrait = ref<TraitOption | null>(null);
+const linggenDetailOpen = ref(false);
 const customModalOpen = ref(false);
 
 const customModalInitial = computed(() => {
@@ -98,6 +99,7 @@ watch(
       reset();
       prepareInitialRolls();
       traitDetailTrait.value = null;
+      linggenDetailOpen.value = false;
       customModalOpen.value = false;
       statusMessage.value = "";
     }
@@ -114,6 +116,11 @@ function onBackdropKeydown(e: KeyboardEvent) {
     }
     if (customModalOpen.value) {
       customModalOpen.value = false;
+      e.preventDefault();
+      return;
+    }
+    if (linggenDetailOpen.value) {
+      linggenDetailOpen.value = false;
       e.preventDefault();
       return;
     }
@@ -154,6 +161,12 @@ function setNarrationPerson(key: string): void {
   }
 }
 
+function setDifficulty(key: string): void {
+  if (key === "简单" || key === "正常" || key === "困难") {
+    selectedDifficulty.value = key as DifficultyLevel;
+  }
+}
+
 function customBirthSummary(): string {
   if (selectedBirth.value !== "自定义" || !customBirth.value) {
     return "点击填写出身地点、境界与背景";
@@ -184,6 +197,23 @@ function customBirthSummary(): string {
                 <span>命运抉择</span>
               </div>
               <div class="creation-step-subtitle">完成配置后点击「确认选择」生成开局 JSON（属性由后续流程计算）</div>
+            </div>
+          </div>
+
+          <div class="creation-section-title"><i class="fas fa-skull-crossbones"></i> 难度</div>
+          <div class="creation-grid">
+            <div
+              v-for="opt in DIFFICULTY_OPTIONS"
+              :key="opt.key"
+              class="creation-card"
+              :class="{ selected: selectedDifficulty === opt.key }"
+              role="button"
+              tabindex="0"
+              @click="setDifficulty(opt.key)"
+              @keydown.enter="setDifficulty(opt.key)"
+            >
+              <h4>{{ opt.title }}</h4>
+              <p>{{ opt.desc }}</p>
             </div>
           </div>
 
@@ -271,8 +301,6 @@ function customBirthSummary(): string {
               <button
                 type="button"
                 class="major-action-button"
-                :disabled="traitRandomizeDisabled"
-                :title="traitRandomizeTitle || undefined"
                 @click="randomizeTraits()"
               >
                 <i class="fas fa-dice"></i> 逆天改命
@@ -284,13 +312,8 @@ function customBirthSummary(): string {
                   v-for="trait in currentTraitOptions"
                   :key="trait.name"
                   class="trait-card"
-                  :class="[{ selected: trait.locked }]"
                   :data-rarity="trait.rarity"
                   :data-trait-name="trait.name"
-                  role="button"
-                  tabindex="0"
-                  @click="toggleTraitLock(trait.name)"
-                  @keydown.enter="toggleTraitLock(trait.name)"
                 >
                   <div class="trait-rarity">{{ trait.rarity }}</div>
                   <div class="trait-name">{{ trait.name }}</div>
@@ -302,17 +325,9 @@ function customBirthSummary(): string {
                   >
                     <i class="fas fa-info-circle"></i>
                   </button>
-                  <div v-if="trait.locked" class="selected-indicator"><i class="fas fa-lock"></i></div>
                 </div>
               </template>
               <div v-else class="muted" style="text-align: center; opacity: 0.7">尚未刷新候选词条，点击「逆天改命」。</div>
-            </div>
-            <div
-              v-if="currentTraitOptions.length"
-              class="creation-trait-bonus-summary muted"
-              style="text-align: center; font-size: 12px; opacity: 0.75; padding: 4px 8px 0"
-            >
-              点击词条可锁定；此处仅记录选择，不计算属性。
             </div>
           </div>
 
@@ -326,6 +341,14 @@ function customBirthSummary(): string {
               >
                 <div class="linggen-tag" :class="'tag-type-' + linggenParts.type">{{ linggenParts.type }}</div>
                 <div class="linggen-elements">{{ linggenParts.elements.join(" ") }}</div>
+                <button
+                  type="button"
+                  class="trait-detail-btn"
+                  title="查看灵根详情"
+                  @click.stop="linggenDetailOpen = true"
+                >
+                  <i class="fas fa-info-circle"></i>
+                </button>
               </div>
               <div v-else style="color: #aaa">请点击「随机灵根」。</div>
             </div>
@@ -334,9 +357,6 @@ function customBirthSummary(): string {
                 <i class="fas fa-dice-d20"></i> 随机灵根
               </button>
             </div>
-            <p class="muted creation-linggen-hint">
-              金灵根提升物攻；木灵根提升法攻；水灵根提升法力；火灵根提升血量；土灵根提升物防与法防。灵根越多，修炼越慢。
-            </p>
           </div>
 
           <div
@@ -368,6 +388,12 @@ function customBirthSummary(): string {
       </div>
 
       <TraitDetailModal :trait="traitDetailTrait" @close="traitDetailTrait = null" />
+      <LinggenDetailModal
+        :open="linggenDetailOpen"
+        :type="linggenParts.type"
+        :elements="linggenParts.elements"
+        @close="linggenDetailOpen = false"
+      />
       <CustomBirthModal
         :open="customModalOpen"
         :initial-location="customModalInitial.location"

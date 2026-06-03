@@ -12,6 +12,23 @@ import type { TraitRarity } from "./traits";
 /** 叙事人称（第几人称）。 */
 export type NarrationPerson = "first" | "second" | "third";
 
+/** 难度等级。 */
+export type DifficultyLevel = "简单" | "正常" | "困难";
+
+/** 难度选项（UI 展示用）。 */
+export interface DifficultyOption {
+  key: DifficultyLevel;
+  title: string;
+  desc: string;
+}
+
+/** 难度选项列表。 */
+export const DIFFICULTY_OPTIONS: readonly DifficultyOption[] = [
+  { key: "简单", title: "简单", desc: "天道庇佑，长生无虞。己身与同道皆不堕轮回，亦无寿元之劫，可从容悟道修行。" },
+  { key: "正常", title: "正常", desc: "天命无常，生死有数。寿元有尽，须争分夺秒以求突破；己身与同道皆可陨落，一步踏错便是万劫不复。" },
+  { key: "困难", title: "困难", desc: "天地不仁，大道无情。于正常之上，各路修士皆非凡俗，实力远超常理，修行之路步步凶险。" },
+] as const;
+
 /** 出身定义：`location` 为地点名，`desc` 为简介（卡片与开局摘要）。 */
 export interface BirthDefinition {
   location: string;
@@ -23,8 +40,6 @@ export interface FateChoiceTrait {
   name: string;
   rarity: string;
   desc: string;
-  /** 是否锁定（逆天改命刷新时保留）。 */
-  locked: boolean;
 }
 
 /**
@@ -69,6 +84,8 @@ export interface FateChoiceBasics {
    * 灵根五行元素列表。
    */
   linggen: string[];
+  /** 难度等级。 */
+  difficulty: DifficultyLevel;
 }
 
 /**
@@ -99,6 +116,32 @@ export const CUSTOM_REALM_MINORS = ["初期", "中期", "后期"] as const;
 export const LINGGEN_TYPE_PREFIXES: ReadonlySet<string> = new Set(["天灵根", "真灵根", "伪灵根", "无灵根"]);
 
 export const LINGGEN_ELEMENT_POOL: readonly string[] = ["金", "木", "水", "火", "土"];
+
+/**
+ * 灵根元素效果对照表。
+ *
+ * | 元素 | 效果         |
+ * | ---- | ------------ |
+ * | 金   | 提升暴击伤害 |
+ * | 木   | 提升丹药效果 |
+ * | 水   | 提升技能冷却速度 |
+ * | 火   | 提升恢复效果 |
+ * | 土   | 提高护盾效果 |
+ */
+export const LINGGEN_ELEMENT_EFFECTS: Readonly<Record<string, string>> = {
+  金: "提升暴击伤害",
+  木: "提升丹药效果",
+  水: "提升功法冷却速度",
+  火: "提升恢复效果",
+  土: "提升护盾效果",
+};
+
+export const LINGGEN_CULTIVATION_SPEED: Readonly<Record<number, string>> = {
+  1: "100%",
+  2: "75%",
+  3: "50%",
+  4: "30%",
+};
 
 // ---------------------------------------------------------------------------
 // 出身配置

@@ -228,7 +228,6 @@ export type TraitEntry =
       name: string;
       desc: string;
       rarity: string;
-      locked: boolean;
     };
 
 export interface CharacterPlayInfoCommon {

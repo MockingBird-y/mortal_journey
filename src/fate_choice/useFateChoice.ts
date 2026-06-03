@@ -5,12 +5,13 @@
 import { computed, ref } from "vue";
 import type { TraitRarity, TraitSample } from "./traits";
 import { traitSamples } from "./traits";
-import type { BirthDefinition, TraitRarityWeightRow } from "./types";
+import type { BirthDefinition, DifficultyLevel, TraitRarityWeightRow } from "./types";
 import {
   CREATION_BIRTHS,
   CREATION_GENDERS,
   CUSTOM_REALM_MAJORS,
   CUSTOM_REALM_MINORS,
+  DIFFICULTY_OPTIONS,
   LINGGEN_TYPE_PREFIXES,
   rollRandomLinggenName,
   START_REALM_MAJOR,
@@ -24,9 +25,7 @@ import "./fateChoice.css";
 // 公共类型与工具函数
 // ---------------------------------------------------------------------------
 
-export interface TraitOption extends TraitSample {
-  locked: boolean;
-}
+export interface TraitOption extends TraitSample {}
 
 /**
  * 从出生定义中取出地点名称（展示用）。
@@ -136,7 +135,7 @@ function rollTraitRarityFromWeights(rows: readonly TraitRarityWeightRow[]): Trai
 }
 
 function cloneTraitForOption(t: TraitSample): TraitOption {
-  return { name: t.name, rarity: t.rarity, desc: t.desc, locked: false };
+  return { name: t.name, rarity: t.rarity, desc: t.desc };
 }
 
 function pickRandomTraits(pool: readonly TraitSample[], excludeNames: string[], count: number): TraitOption[] {
@@ -196,6 +195,9 @@ function makePresetCustomBirth(birthKey: string): CustomBirthPayload | null {
  * 内部状态按 UI 选择顺序排列：姓名 → 叙事人称 → 性别 → 出身 → 词条 → 灵根 → 提交。
  */
 export function useFateChoice() {
+  // ── 0. 难度 ──────────────────────────────────────────────────────────────
+  const selectedDifficulty = ref<DifficultyLevel>("正常");
+
   // ── 1. 姓名 ──────────────────────────────────────────────────────────────
   const playerName = ref("韩立");
 
@@ -279,35 +281,10 @@ export function useFateChoice() {
   // ── 5. 天赋词条 ──────────────────────────────────────────────────────────
   const currentTraitOptions = ref<TraitOption[]>([]);
 
-  /** 保留已锁定词条并随机刷新其余槽位（共五格）。 */
+  /** 随机刷新五个天赋（全量替换）。 */
   function randomizeTraits(): void {
-    const locked = (currentTraitOptions.value || []).filter((t) => t && t.locked);
-    if (locked.length >= 5) return;
-    const need = Math.max(0, 5 - locked.length);
-    const exclude = locked.map((t) => t.name);
-    const fresh = pickRandomTraits(traitSamples, exclude, need);
-    currentTraitOptions.value = locked.concat(fresh);
+    currentTraitOptions.value = pickRandomTraits(traitSamples, [], 5);
   }
-
-  /** 按词条名切换对应选项的锁定状态。 */
-  function toggleTraitLock(traitName: string): void {
-    const opts = currentTraitOptions.value || [];
-    const idx = opts.findIndex((t) => t.name === traitName);
-    if (idx <= -1) return;
-    const next = opts.slice();
-    const row = next[idx]!;
-    next[idx] = { ...row, locked: !row.locked };
-    currentTraitOptions.value = next;
-  }
-
-  const traitRandomizeDisabled = computed(() => {
-    const locked = (currentTraitOptions.value || []).filter((t) => t?.locked).length;
-    return locked >= 5;
-  });
-
-  const traitRandomizeTitle = computed(() =>
-    traitRandomizeDisabled.value ? "五格均已锁定，请先解锁至少一格后再刷新。" : "",
-  );
 
   // ── 6. 灵根 ──────────────────────────────────────────────────────────────
   const selectedLinggen = ref<string | null>(null);
@@ -345,12 +322,12 @@ export function useFateChoice() {
         birthPlace: resolveStartBirthLocation(),
         originStory: resolveOriginStory(),
         linggen: linggenElementsArrayFromRoll(selectedLinggen.value),
+        difficulty: selectedDifficulty.value,
       },
       traits: (currentTraitOptions.value || []).map((t) => ({
         name: t.name,
         rarity: t.rarity,
         desc: t.desc,
-        locked: !!t.locked,
       })),
     };
   }
@@ -359,6 +336,7 @@ export function useFateChoice() {
 
   /** 将表单恢复为默认值。 */
   function reset(): void {
+    selectedDifficulty.value = "正常";
     playerName.value = "韩立";
     narrationPerson.value = "first";
     selectedGender.value = CREATION_GENDERS[0]!;
@@ -384,7 +362,9 @@ export function useFateChoice() {
     CREATION_GENDERS,
     CUSTOM_REALM_MAJORS,
     CUSTOM_REALM_MINORS,
+    DIFFICULTY_OPTIONS,
     birthKeysOrdered,
+    selectedDifficulty,
     playerName,
     narrationPerson,
     selectedGender,
@@ -394,9 +374,6 @@ export function useFateChoice() {
     applyCustomBirth,
     currentTraitOptions,
     randomizeTraits,
-    toggleTraitLock,
-    traitRandomizeDisabled,
-    traitRandomizeTitle,
     selectedLinggen,
     applyRandomLinggen,
     statusMessage,

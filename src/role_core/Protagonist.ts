@@ -704,7 +704,6 @@ export class Protagonist extends Character {
       name: t.name,
       desc: t.desc,
       rarity: t.rarity,
-      locked: t.locked,
     }));
 
     const p = new Protagonist({

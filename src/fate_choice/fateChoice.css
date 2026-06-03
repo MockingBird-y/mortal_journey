@@ -374,6 +374,21 @@
   transition: transform 0.25s ease;
 }
 
+.fc-screen .linggen-orb .trait-detail-btn {
+  position: absolute;
+  bottom: 1px;
+  right: 1px;
+  background: none;
+  border: none;
+  color: var(--mj-muted);
+  cursor: pointer;
+  font-size: 1em;
+}
+
+.fc-screen .linggen-orb .trait-detail-btn:hover {
+  color: var(--mj-gold-dim);
+}
+
 .fc-screen .linggen-tag {
   position: absolute;
   top: -14px;
