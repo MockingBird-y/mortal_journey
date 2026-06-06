@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from "vue";
 import { npcStore } from "../role_core/npcStore";
-import { buildNpcDetailPayload, buildNpcListEntryPayload } from "./npcDetailPayload";
-import type { NpcDetailPayload } from "./npcDetailPayload";
+import { buildNpcListEntryPayload } from "./npcDetailPayload";
+import type { Npc } from "../role_core/Npc";
 import { useScrollLock } from "../composables/useScrollLock";
 import NpcDetailModal from "./NpcDetailModal.vue";
 
@@ -17,7 +17,7 @@ const emit = defineEmits<{
 const scrollLock = useScrollLock();
 
 const detailOpen = ref(false);
-const detailPayload = ref<NpcDetailPayload | null>(null);
+const detailNpc = shallowRef<Npc | null>(null);
 
 const npcList = computed(() => {
   const list = [];
@@ -48,13 +48,13 @@ function onKeydown(ev: KeyboardEvent) {
 function openNpcDetail(npcIndex: number) {
   const entry = npcList.value[npcIndex];
   if (!entry) return;
-  detailPayload.value = buildNpcDetailPayload(entry.npc);
+  detailNpc.value = entry.npc;
   detailOpen.value = true;
 }
 
 function closeNpcDetail() {
   detailOpen.value = false;
-  detailPayload.value = null;
+  detailNpc.value = null;
 }
 
 watch(
@@ -138,7 +138,7 @@ onUnmounted(() => {
     </Transition>
     <NpcDetailModal
       :open="detailOpen"
-      :payload="detailPayload"
+      :npc="detailNpc"
       @close="closeNpcDetail"
     />
   </Teleport>

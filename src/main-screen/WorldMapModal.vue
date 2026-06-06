@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from "vue";
 import { worldMapStore } from "../role_core/worldMapStore";
 import { npcStore } from "../role_core/npcStore";
 import type { WorldLocation } from "../role_core/types/worldLocation";
-import { buildNpcDetailPayload } from "./npcDetailPayload";
-import type { NpcDetailPayload } from "./npcDetailPayload";
+import type { Npc } from "../role_core/Npc";
 import { useScrollLock } from "../composables/useScrollLock";
 import NpcDetailModal from "./NpcDetailModal.vue";
 
@@ -25,7 +24,7 @@ const selectedArea = ref("");
 const selectedDetail = ref("");
 
 const detailOpen = ref(false);
-const detailPayload = ref<NpcDetailPayload | null>(null);
+const detailNpc = shallowRef<Npc | null>(null);
 
 const regions = computed(() => worldMapStore.getRegions());
 
@@ -105,13 +104,13 @@ function autoSelectCurrentLocation() {
 }
 
 function openNpcDetail(npc: NonNullable<ReturnType<typeof npcStore.getNpc>>) {
-  detailPayload.value = buildNpcDetailPayload(npc);
+  detailNpc.value = npc;
   detailOpen.value = true;
 }
 
 function closeNpcDetail() {
   detailOpen.value = false;
-  detailPayload.value = null;
+  detailNpc.value = null;
 }
 
 function onBackdropClick() {
@@ -305,7 +304,7 @@ onUnmounted(() => {
     </Transition>
     <NpcDetailModal
       :open="detailOpen"
-      :payload="detailPayload"
+      :npc="detailNpc"
       @close="closeNpcDetail"
     />
   </Teleport>
