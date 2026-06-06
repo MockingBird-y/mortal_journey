@@ -13,6 +13,7 @@ import {
 } from "../role_core/worldTime";
 import { Protagonist, protagonist } from "../role_core/Protagonist";
 import { npcStore } from "../role_core/npcStore";
+import { worldMapStore } from "../role_core/worldMapStore";
 import type { FateChoiceResult } from "../fate_choice/types";
 import type { WorldLocation } from "../role_core/types/worldLocation";
 import { isEmptyWorldLocation } from "../role_core/types/worldLocation";
@@ -151,6 +152,13 @@ export function useOpeningStoryFromFateChoice(
           }
           if (stateResult.nearbyNpcs.length > 0) {
             npcStore.applyNpcUpdates(stateResult.nearbyNpcs, p.linggen);
+          }
+
+          if (stateResult.worldLocation && !isEmptyWorldLocation(stateResult.worldLocation)) {
+            worldMapStore.addLocation(
+              stateResult.worldLocation,
+              stateResult.nearbyNpcs.map(n => n.displayName),
+            );
           }
         } catch (stateErr) {
           gameLog.error("[OpeningStory] 状态生成失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));

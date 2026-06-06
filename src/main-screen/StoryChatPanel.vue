@@ -6,6 +6,7 @@ import { generateStory, type StoryChatEntry } from "../ai/story_generate";
 import { generateState, type StateParsed, type BattleTriggerEntry } from "../ai/state_generate";
 import { protagonist } from "../role_core/Protagonist";
 import { npcStore } from "../role_core/npcStore";
+import { worldMapStore } from "../role_core/worldMapStore";
 import { Character } from "../role_core/Character";
 import { gameLog } from "../log/gameLog";
 import { advanceWorldTime, type WorldTime } from "../role_core/worldTime";
@@ -124,6 +125,13 @@ function applyStateResult(stateResult: StateParsed, linggen: string[]): void {
 
   if (stateResult.nearbyNpcs.length > 0) {
     npcStore.applyNpcUpdates(stateResult.nearbyNpcs, linggen);
+  }
+
+  if (stateResult.worldLocation && !isEmptyWorldLocation(stateResult.worldLocation)) {
+    worldMapStore.addLocation(
+      stateResult.worldLocation,
+      stateResult.nearbyNpcs.map(n => n.displayName),
+    );
   }
 
   if (stateResult.battleTrigger) {

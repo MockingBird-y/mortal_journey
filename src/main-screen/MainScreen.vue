@@ -75,7 +75,7 @@ function onBack() {
         />
       </main>
       <aside class="main-screen__pane main-screen__pane--side" aria-label="右栏：功能面板">
-        <SideToolbarPanel />
+        <SideToolbarPanel :current-location="worldLocation" />
       </aside>
     </div>
   </div>

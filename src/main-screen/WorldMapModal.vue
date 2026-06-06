@@ -1,0 +1,318 @@
+<script setup lang="ts">
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { worldMapStore } from "../role_core/worldMapStore";
+import { npcStore } from "../role_core/npcStore";
+import type { WorldLocation } from "../role_core/types/worldLocation";
+import { buildNpcDetailPayload } from "./npcDetailPayload";
+import type { NpcDetailPayload } from "./npcDetailPayload";
+import { useScrollLock } from "../composables/useScrollLock";
+import NpcDetailModal from "./NpcDetailModal.vue";
+
+const props = defineProps<{
+  open: boolean;
+  currentLocation?: WorldLocation | null;
+}>();
+
+const emit = defineEmits<{
+  close: [];
+}>();
+
+const scrollLock = useScrollLock();
+
+const selectedRegion = ref("");
+const selectedCountry = ref("");
+const selectedArea = ref("");
+const selectedDetail = ref("");
+
+const detailOpen = ref(false);
+const detailPayload = ref<NpcDetailPayload | null>(null);
+
+const regions = computed(() => worldMapStore.getRegions());
+
+const countries = computed(() => {
+  if (!selectedRegion.value) return [];
+  return worldMapStore.getCountries(selectedRegion.value);
+});
+
+const areas = computed(() => {
+  if (!selectedRegion.value || !selectedCountry.value) return [];
+  return worldMapStore.getAreas(selectedRegion.value, selectedCountry.value);
+});
+
+const details = computed(() => {
+  if (!selectedRegion.value || !selectedCountry.value || !selectedArea.value) return [];
+  return worldMapStore.getDetails(selectedRegion.value, selectedCountry.value, selectedArea.value);
+});
+
+const selectedFullLocation = computed<WorldLocation | null>(() => {
+  if (!selectedRegion.value || !selectedCountry.value || !selectedArea.value || !selectedDetail.value) return null;
+  return {
+    region: selectedRegion.value,
+    country: selectedCountry.value,
+    area: selectedArea.value,
+    detail: selectedDetail.value,
+  };
+});
+
+const npcNamesAtLocation = computed(() => {
+  const loc = selectedFullLocation.value;
+  if (!loc) return [];
+  return worldMapStore.getNpcNamesAt(loc);
+});
+
+const npcEntries = computed(() => {
+  const names = npcNamesAtLocation.value;
+  const result: Array<{
+    npc: ReturnType<typeof npcStore.getNpc>;
+    name: string;
+  }> = [];
+  for (const name of names) {
+    const npc = npcStore.getNpc(name);
+    result.push({ npc, name });
+  }
+  return result;
+});
+
+function selectRegion(r: string) {
+  selectedRegion.value = r;
+  selectedCountry.value = "";
+  selectedArea.value = "";
+  selectedDetail.value = "";
+}
+
+function selectCountry(c: string) {
+  selectedCountry.value = c;
+  selectedArea.value = "";
+  selectedDetail.value = "";
+}
+
+function selectArea(a: string) {
+  selectedArea.value = a;
+  selectedDetail.value = "";
+}
+
+function selectDetail(d: string) {
+  selectedDetail.value = d;
+}
+
+function autoSelectCurrentLocation() {
+  const loc = props.currentLocation;
+  if (!loc) return;
+  if (loc.region) selectedRegion.value = loc.region;
+  if (loc.country) selectedCountry.value = loc.country;
+  if (loc.area) selectedArea.value = loc.area;
+  if (loc.detail) selectedDetail.value = loc.detail;
+}
+
+function openNpcDetail(npc: NonNullable<ReturnType<typeof npcStore.getNpc>>) {
+  detailPayload.value = buildNpcDetailPayload(npc);
+  detailOpen.value = true;
+}
+
+function closeNpcDetail() {
+  detailOpen.value = false;
+  detailPayload.value = null;
+}
+
+function onBackdropClick() {
+  emit("close");
+}
+
+function onCloseClick() {
+  emit("close");
+}
+
+function onKeydown(ev: KeyboardEvent) {
+  if (ev.key === "Escape" && props.open && !detailOpen.value) {
+    ev.preventDefault();
+    emit("close");
+  }
+}
+
+watch(
+  () => props.open,
+  (v) => {
+    if (v) {
+      scrollLock.acquire();
+      autoSelectCurrentLocation();
+    } else {
+      scrollLock.release();
+    }
+  },
+);
+
+onMounted(() => {
+  document.addEventListener("keydown", onKeydown, true);
+});
+onUnmounted(() => {
+  document.removeEventListener("keydown", onKeydown, true);
+});
+</script>
+
+<template>
+  <Teleport to="body">
+    <Transition name="mj-backdrop">
+      <div
+        v-if="open"
+        class="side-modal-overlay"
+        role="presentation"
+        aria-hidden="false"
+      >
+        <div
+          class="side-modal-overlay__backdrop"
+          tabindex="-1"
+          aria-label="关闭"
+          @click="onBackdropClick"
+        />
+        <Transition name="mj-modal" appear>
+          <div
+            class="side-modal side-modal--map"
+            role="dialog"
+            aria-modal="true"
+            @click.stop
+          >
+            <div class="side-modal__header">
+              <h4 class="side-modal__title">世界地图</h4>
+              <button type="button" class="side-modal__close" aria-label="关闭" @click="onCloseClick">
+                ×
+              </button>
+            </div>
+            <div class="side-modal__body map-panel">
+              <div class="map-cascader">
+                <div class="map-cascader__column">
+                  <div class="map-cascader__label">大区域</div>
+                  <div class="map-cascader__list">
+                    <button
+                      v-for="r in regions"
+                      :key="r"
+                      type="button"
+                      class="map-loc-btn"
+                      :class="{ 'map-loc-btn--active': selectedRegion === r }"
+                      @click="selectRegion(r)"
+                    >{{ r }}</button>
+                    <div v-if="regions.length === 0" class="map-panel__empty">暂无</div>
+                  </div>
+                </div>
+                <div class="map-cascader__column">
+                  <div class="map-cascader__label">国家/势力</div>
+                  <div class="map-cascader__list">
+                    <button
+                      v-for="c in countries"
+                      :key="c"
+                      type="button"
+                      class="map-loc-btn"
+                      :class="{ 'map-loc-btn--active': selectedCountry === c }"
+                      @click="selectCountry(c)"
+                    >{{ c }}</button>
+                    <div v-if="countries.length === 0" class="map-panel__empty">—</div>
+                  </div>
+                </div>
+                <div class="map-cascader__column">
+                  <div class="map-cascader__label">区域/宗门</div>
+                  <div class="map-cascader__list">
+                    <button
+                      v-for="a in areas"
+                      :key="a"
+                      type="button"
+                      class="map-loc-btn"
+                      :class="{ 'map-loc-btn--active': selectedArea === a }"
+                      @click="selectArea(a)"
+                    >{{ a }}</button>
+                    <div v-if="areas.length === 0" class="map-panel__empty">—</div>
+                  </div>
+                </div>
+                <div class="map-cascader__column">
+                  <div class="map-cascader__label">具体地点</div>
+                  <div class="map-cascader__list">
+                    <button
+                      v-for="d in details"
+                      :key="d"
+                      type="button"
+                      class="map-loc-btn"
+                      :class="{ 'map-loc-btn--active': selectedDetail === d }"
+                      @click="selectDetail(d)"
+                    >{{ d }}</button>
+                    <div v-if="details.length === 0" class="map-panel__empty">—</div>
+                  </div>
+                </div>
+              </div>
+              <div class="map-panel__npcs">
+                <div class="map-cascader__label">场景NPC</div>
+                <template v-if="!selectedFullLocation">
+                  <div class="map-panel__empty">请选择完整地点查看NPC</div>
+                </template>
+                <template v-else-if="npcEntries.length === 0">
+                  <div class="map-panel__empty">暂无NPC记录</div>
+                </template>
+                <template v-else>
+                  <div
+                    v-for="entry in npcEntries"
+                    :key="entry.name"
+                    class="map-npc-card"
+                    :class="{ 'map-npc-card--dead': entry.npc?.isDead }"
+                    @click="entry.npc && openNpcDetail(entry.npc)"
+                  >
+                    <div class="map-npc-avatar">
+                      <span class="map-npc-avatar-placeholder">
+                        {{ entry.name.slice(0, 1) }}
+                      </span>
+                    </div>
+                    <div class="map-npc-info">
+                      <div class="map-npc-top">
+                        <span class="map-npc-name">
+                          <template v-if="entry.npc?.isDead">
+                            <s>{{ entry.name }}</s>
+                          </template>
+                          <template v-else>{{ entry.name }}</template>
+                        </span>
+                        <span v-if="entry.npc" class="map-npc-realm">
+                          {{ entry.npc.realm.major }}{{ entry.npc.realm.minor }}
+                        </span>
+                      </div>
+                      <div class="map-npc-identity">
+                        {{ entry.npc?.identity ?? "未知" }}
+                      </div>
+                    </div>
+                    <div v-if="entry.npc" class="map-npc-bars">
+                      <div class="map-npc-bar-row">
+                        <span class="map-npc-bar-label">HP</span>
+                        <div class="map-npc-bar">
+                          <div
+                            class="map-npc-bar-fill map-npc-bar-fill--hp"
+                            :style="{ width: (entry.npc.maxHp > 0 ? Math.round(entry.npc.currentHp / entry.npc.maxHp * 100) : 0) + '%' }"
+                          />
+                        </div>
+                        <span class="map-npc-bar-nums">{{ entry.npc.currentHp }}/{{ entry.npc.maxHp }}</span>
+                      </div>
+                      <div class="map-npc-bar-row">
+                        <span class="map-npc-bar-label">MP</span>
+                        <div class="map-npc-bar">
+                          <div
+                            class="map-npc-bar-fill map-npc-bar-fill--mp"
+                            :style="{ width: (entry.npc.maxMp > 0 ? Math.round(entry.npc.currentMp / entry.npc.maxMp * 100) : 0) + '%' }"
+                          />
+                        </div>
+                        <span class="map-npc-bar-nums">{{ entry.npc.currentMp }}/{{ entry.npc.maxMp }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </div>
+    </Transition>
+    <NpcDetailModal
+      :open="detailOpen"
+      :payload="detailPayload"
+      @close="closeNpcDetail"
+    />
+  </Teleport>
+</template>
+
+<style scoped>
+.map-npc-card--dead {
+  opacity: 0.45;
+}
+</style>

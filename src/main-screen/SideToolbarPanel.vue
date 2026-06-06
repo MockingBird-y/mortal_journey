@@ -1,15 +1,20 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import NpcListModal from "./NpcListModal.vue";
+import type { WorldLocation } from "../role_core/types/worldLocation";
+import WorldMapModal from "./WorldMapModal.vue";
 
-const npcModalOpen = ref(false);
+const props = defineProps<{
+  currentLocation?: WorldLocation | null;
+}>();
 
-function openNpcModal() {
-  npcModalOpen.value = true;
+const mapModalOpen = ref(false);
+
+function openMapModal() {
+  mapModalOpen.value = true;
 }
 
-function closeNpcModal() {
-  npcModalOpen.value = false;
+function closeMapModal() {
+  mapModalOpen.value = false;
 }
 </script>
 
@@ -17,10 +22,14 @@ function closeNpcModal() {
   <section class="main-panel main-panel--side" aria-label="功能面板">
     <div class="main-panel__body">
       <div class="side-btn-group">
-        <button type="button" class="main-screen__btn side-btn" @click="openNpcModal">周围人物</button>
+        <button type="button" class="main-screen__btn side-btn" @click="openMapModal">世界地图</button>
       </div>
     </div>
-    <NpcListModal :open="npcModalOpen" @close="closeNpcModal" />
+    <WorldMapModal
+      :open="mapModalOpen"
+      :current-location="props.currentLocation"
+      @close="closeMapModal"
+    />
   </section>
 </template>
 
