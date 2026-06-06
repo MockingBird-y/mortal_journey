@@ -6,6 +6,7 @@ import { protagonist } from "../role_core/Protagonist";
 import type { FateChoiceResult } from "../fate_choice/types";
 import type { BattleTriggerEntry } from "../ai/state_generate";
 import type { BattleResult } from "../battle_core/battleTypes";
+import type { WorldLocation } from "../role_core/types/worldLocation";
 import SideToolbarPanel from "./SideToolbarPanel.vue";
 import PlayerInfoPanel from "./PlayerInfoPanel.vue";
 import StoryChatPanel from "./StoryChatPanel.vue";

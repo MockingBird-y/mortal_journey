@@ -10,13 +10,15 @@ import { Character } from "../role_core/Character";
 import { gameLog } from "../log/gameLog";
 import { advanceWorldTime, type WorldTime } from "../role_core/worldTime";
 import type { BattleResult } from "../battle_core/battleTypes";
+import type { WorldLocation } from "../role_core/types/worldLocation";
+import { formatWorldLocationDash, isEmptyWorldLocation } from "../role_core/types/worldLocation";
 
 const props = withDefaults(
   defineProps<{
     storyText?: string;
     phase?: OpeningStoryPhase;
     errorMessage?: string;
-    currentWorldLocation?: string;
+    currentWorldLocation?: WorldLocation | null;
     worldTime?: WorldTime;
     battleResult?: BattleResult | null;
     initSnapshot?: string;
@@ -25,7 +27,7 @@ const props = withDefaults(
     storyText: "",
     phase: "idle",
     errorMessage: "",
-    currentWorldLocation: "",
+    currentWorldLocation: null,
     worldTime: undefined,
     battleResult: undefined,
     initSnapshot: "",
@@ -35,7 +37,7 @@ const props = withDefaults(
 const { apiUrl, apiKey, apiModel } = useApiConfig();
 
 const emit = defineEmits<{
-  "update:worldLocation": [value: string];
+  "update:worldLocation": [value: WorldLocation | null];
   "update:worldTime": [value: WorldTime];
   "battleTrigger": [value: BattleTriggerEntry];
   "consumeBattleResult": [];
@@ -99,8 +101,8 @@ watch(
 );
 
 function applyStateResult(stateResult: StateParsed, linggen: string[]): void {
-  if (stateResult.worldLocation.trim()) {
-    emit("update:worldLocation", stateResult.worldLocation.trim());
+  if (stateResult.worldLocation && !isEmptyWorldLocation(stateResult.worldLocation)) {
+    emit("update:worldLocation", stateResult.worldLocation);
   }
 
   const current = protagonist.value;
@@ -192,7 +194,7 @@ async function handleSend(): Promise<void> {
         model,
         storyBody: storyResult.storyBody,
         protagonist: p,
-        currentWorldLocation: props.currentWorldLocation || undefined,
+        currentWorldLocation: props.currentWorldLocation ?? undefined,
         currentWorldTime: props.worldTime,
         npcSnapshot: npcSnapshot || undefined,
         signal: ac.signal,
@@ -320,7 +322,7 @@ watch(
           model,
           storyBody: storyResult.storyBody,
           protagonist: p,
-          currentWorldLocation: props.currentWorldLocation || undefined,
+          currentWorldLocation: props.currentWorldLocation ?? undefined,
           currentWorldTime: props.worldTime,
           npcSnapshot: npcSnapshot || undefined,
           signal: ac.signal,
@@ -355,6 +357,21 @@ watch(
   <section class="main-panel main-panel--story" aria-label="剧情对话">
     <header class="main-panel__head">
       <h2 class="main-panel__title">剧情</h2>
+      <div v-if="currentWorldLocation" class="main-panel__location-breadcrumb">
+        <span v-if="currentWorldLocation.region" class="mj-breadcrumb-seg">{{ currentWorldLocation.region }}</span>
+        <template v-if="currentWorldLocation.country">
+          <span class="mj-breadcrumb-sep">›</span>
+          <span class="mj-breadcrumb-seg">{{ currentWorldLocation.country }}</span>
+        </template>
+        <template v-if="currentWorldLocation.area">
+          <span class="mj-breadcrumb-sep">›</span>
+          <span class="mj-breadcrumb-seg">{{ currentWorldLocation.area }}</span>
+        </template>
+        <template v-if="currentWorldLocation.detail">
+          <span class="mj-breadcrumb-sep">›</span>
+          <span class="mj-breadcrumb-seg mj-breadcrumb-seg--detail">{{ currentWorldLocation.detail }}</span>
+        </template>
+      </div>
     </header>
     <div class="main-panel__body">
       <div class="main-panel__chat-messages" aria-label="剧情正文区域" aria-live="polite">

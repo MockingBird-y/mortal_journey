@@ -2,6 +2,7 @@ import { STORY_SYSTEM_PRESET } from "./story_preset";
 import { completeChatWithMessagesJson, type JsonChatRequestPayload, type ChatMessage } from "./openAiChatBridge";
 import { Protagonist } from "../role_core/Protagonist";
 import type { ProtagonistPlayInfo, NarrationPerson, EquippedSlotsState, GongfaSlotsState, InventoryStackItem, TraitEntry } from "../role_core/types/playInfo";
+import { formatWorldLocationDash } from "../role_core/types/worldLocation";
 
 export interface StoryChatEntry {
   role: "user" | "assistant";
@@ -104,7 +105,7 @@ function buildStoryUserContent(p: ProtagonistPlayInfo): string {
     ? p.traits.map(formatTrait).join("\n")
     : "无";
   const origin = p.originStory?.trim() || "—";
-  const birthPlace = p.birthPlace?.trim() || "—";
+  const birthPlace = p.birthPlace ? formatWorldLocationDash(p.birthPlace) : "—";
 
   return [
     "【主角摘要 · 请据此与历史剧情继续生成后续剧情】",

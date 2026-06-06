@@ -6,6 +6,8 @@ import { computed, ref } from "vue";
 import type { TraitRarity, TraitSample } from "./traits";
 import { traitSamples } from "./traits";
 import type { BirthDefinition, DifficultyLevel, TraitRarityWeightRow } from "./types";
+import type { WorldLocation } from "../role_core/types/worldLocation";
+import { formatWorldLocationDash } from "../role_core/types/worldLocation";
 import {
   CREATION_BIRTHS,
   CREATION_GENDERS,
@@ -33,9 +35,9 @@ export interface TraitOption extends TraitSample {}
  * @param {BirthDefinition|undefined} bd 出生配置；缺省时视为无地点。
  * @return {string} 去首尾空白后的地点名；无则为 `""`。
  */
-function resolveBirthLocationNameFromDef(bd: BirthDefinition | undefined): string {
-  if (!bd) return "";
-  return String(bd.location ?? "").trim();
+function resolveBirthLocationFromDef(bd: BirthDefinition | undefined): WorldLocation | null {
+  if (!bd) return null;
+  return bd.location;
 }
 
 /**
@@ -172,11 +174,12 @@ function buildOrderedBirthKeys(): string[] {
 function makePresetCustomBirth(birthKey: string): CustomBirthPayload | null {
   const bd = CREATION_BIRTHS[birthKey];
   if (!bd) return null;
-  const loc = resolveBirthLocationNameFromDef(bd) || "";
+  const loc = bd.location;
   const bg = resolveBirthLocationDescFromDef(bd) || "";
+  const locStr = formatWorldLocationDash(loc) || birthKey;
   return {
-    tag: loc || birthKey,
-    name: loc || birthKey,
+    tag: locStr,
+    name: locStr,
     location: loc,
     realmMajor: START_REALM_MAJOR,
     realmMinor: START_REALM_STAGE,
@@ -210,7 +213,7 @@ export function useFateChoice() {
   // ── 4. 出身 ──────────────────────────────────────────────────────────────
   const selectedBirth = ref("凡人");
   const customBirth = ref<CustomBirthPayload | null>(null);
-  const birthLocation = ref<string | null>(null);
+  const birthLocation = ref<WorldLocation | null>(null);
   const birthKeysOrdered = buildOrderedBirthKeys();
 
   /** 非「自定义」时，用当前选中的预设出生同步 `customBirth` 与 `birthLocation`。 */
@@ -219,8 +222,7 @@ export function useFateChoice() {
     const bd = CREATION_BIRTHS[selectedBirth.value];
     if (!bd) return;
     customBirth.value = makePresetCustomBirth(selectedBirth.value);
-    const locName = resolveBirthLocationNameFromDef(bd);
-    birthLocation.value = locName ? String(locName).trim() : null;
+    birthLocation.value = resolveBirthLocationFromDef(bd);
   }
 
   /** 选择预设出生（忽略名为 `自定义` 的调用）。 */
@@ -230,7 +232,6 @@ export function useFateChoice() {
     syncCustomBirthForCurrentSelection();
   }
 
-  /** 应用用户自定义出生。 */
   function applyCustomBirth(payload: CustomBirthPayload): void {
     selectedBirth.value = "自定义";
     birthLocation.value = payload.location;
@@ -256,17 +257,16 @@ export function useFateChoice() {
     return { major: START_REALM_MAJOR, minor: START_REALM_STAGE };
   }
 
-  /** 解析出生地展示名。 */
-  function resolveStartBirthLocation(): string {
-    if (birthLocation.value != null && String(birthLocation.value).trim() !== "") {
-      return String(birthLocation.value).trim();
+  function resolveStartBirthLocation(): WorldLocation {
+    if (birthLocation.value != null) {
+      return birthLocation.value;
     }
     const bd = CREATION_BIRTHS[selectedBirth.value];
     if (bd) {
-      const defaultLocName = resolveBirthLocationNameFromDef(bd);
-      if (defaultLocName) return String(defaultLocName).trim();
+      const loc = resolveBirthLocationFromDef(bd);
+      if (loc) return loc;
     }
-    return "";
+    return { region: "", country: "", area: "", detail: "" };
   }
 
   /** 解析出身故事/背景。 */

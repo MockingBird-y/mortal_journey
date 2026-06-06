@@ -42,6 +42,7 @@ import type {
   ProtagonistPlayInfo,
   TraitEntry,
   BreakthroughStatus,
+  WorldLocation,
 } from "./types/playInfo";
 import {
   EQUIP_SLOT_COUNT,
@@ -75,6 +76,9 @@ import {
   getShouyuanForRealm,
   getMinNarrativeAgeForMajor,
   getMaxNarrativeAgeForMajor,
+  parseWorldLocationFromDash,
+  formatWorldLocationDash,
+  isEmptyWorldLocation,
 } from "./types/playInfo";
 import { getCultivationRequired, getGongfaMasteryExpPerYear, addGongfaMasteryExp } from "./realmUtils";
 
@@ -112,7 +116,7 @@ export class Protagonist extends Character {
   /** 叙事人称（第一/第二/第三人称）。 */
   narrationPerson: NarrationPerson;
   /** 出生地点。 */
-  birthPlace: string;
+  birthPlace: WorldLocation;
   /** 出身故事。 */
   originStory: string;
   /** 天赋/词条列表。 */
@@ -662,7 +666,9 @@ export class Protagonist extends Character {
       id: typeof o.id === "string" && o.id.trim() !== "" ? o.id.trim() : "protagonist",
       displayName: typeof o.displayName === "string" ? o.displayName : "未命名",
       narrationPerson,
-      birthPlace: typeof o.birthPlace === "string" ? o.birthPlace : "",
+      birthPlace: typeof o.birthPlace === "string"
+        ? (parseWorldLocationFromDash(o.birthPlace) ?? { region: "", country: "", area: "", detail: o.birthPlace })
+        : (o.birthPlace && typeof o.birthPlace === "object" ? o.birthPlace as WorldLocation : { region: "", country: "", area: "", detail: "" }),
       originStory: typeof o.originStory === "string" ? o.originStory : "",
       realm: { major, minor },
       playerBase: { ...base },
@@ -721,7 +727,7 @@ export class Protagonist extends Character {
       id: "protagonist",
       displayName: basics.playerName.trim() || "未命名",
       narrationPerson: basics.narrationPerson,
-      birthPlace: basics.birthPlace.trim(),
+      birthPlace: basics.birthPlace,
       originStory: basics.originStory.trim(),
       realm: { major, minor },
       playerBase: { ...pb },

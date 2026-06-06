@@ -498,6 +498,12 @@
   overflow: auto;
 }
 
+.fc-screen .mj-custom-birth-loc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+}
+
 .fc-screen .mj-trait-modal-close {
   position: absolute;
   top: 8px;

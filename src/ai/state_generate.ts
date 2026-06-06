@@ -11,9 +11,11 @@ import {
   type EquippedSlotsState,
   type GongfaSlotsState,
   type InventoryStackItem,
+  type WorldLocation,
 } from "../role_core/types/playInfo";
 import { getCultivationSpeed } from "../role_core/realmUtils";
 import { type WorldTime, type TimeDelta, formatWorldTimeZhDisplay } from "../role_core/worldTime";
+import { formatWorldLocationDash, parseWorldLocationFromDash } from "../role_core/types/worldLocation";
 
 export interface StateGenerateInput {
   apiUrl: string;
@@ -25,7 +27,7 @@ export interface StateGenerateInput {
   signal?: AbortSignal;
   storyBody: string;
   protagonist: ProtagonistPlayInfo;
-  currentWorldLocation?: string;
+  currentWorldLocation?: WorldLocation | null;
   currentWorldTime?: WorldTime;
   npcSnapshot?: string;
 }
@@ -102,7 +104,7 @@ export interface BattleTriggerEntry {
 }
 
 export interface StateParsed {
-  worldLocation: string;
+  worldLocation: WorldLocation | null;
   userState: UserStateChange | null;
   spiritStoneChanges: SpiritStoneChange[];
   itemAdds: ItemAddEntry[];
@@ -132,14 +134,14 @@ const TAG_BATTLE_TRIGGER_CLOSE = "</BATTLE_TRIGGER_TAG>";
 const TAG_STORY_SNAPSHOT_OPEN = "<mj_story_snapshot>";
 const TAG_STORY_SNAPSHOT_CLOSE = "</mj_story_snapshot>";
 
-function extractWorldBody(raw: string): string {
+function extractWorldBody(raw: string): WorldLocation | null {
   const s = raw == null ? "" : String(raw);
   const i = s.indexOf(MJ_WORLD_BODY_OPEN);
-  if (i < 0) return "";
+  if (i < 0) return null;
   const from = i + MJ_WORLD_BODY_OPEN.length;
   const j = s.indexOf(MJ_WORLD_BODY_CLOSE, from);
-  if (j < 0) return s.slice(from).trim();
-  return s.slice(from, j).trim();
+  const text = j < 0 ? s.slice(from).trim() : s.slice(from, j).trim();
+  return parseWorldLocationFromDash(text);
 }
 
 function safeJsonParse(text: string): unknown {
@@ -399,8 +401,8 @@ function buildStateUserContent(input: StateGenerateInput): string {
     ? `\n【当前场景NPC】\n${input.npcSnapshot.trim()}\n`
     : "";
 
-  const locationHint = input.currentWorldLocation?.trim()
-    ? `\n当前世界地点：${input.currentWorldLocation.trim()}`
+  const locationHint = input.currentWorldLocation
+    ? `\n当前世界地点：${formatWorldLocationDash(input.currentWorldLocation)}`
     : "";
 
   const timeHint = input.currentWorldTime

@@ -11,7 +11,9 @@ import {
   type InventoryStackItem,
   type TreasureItemDefinition,
   type GongfaItemDefinition,
+  type WorldLocation,
 } from "../role_core/types/playInfo";
+import { formatWorldLocationDash, parseWorldLocationFromDash } from "../role_core/types/worldLocation";
 import type { NpcNearbyEntry } from "./state_generate";
 
 export interface InitStateApiConfig {
@@ -33,7 +35,7 @@ export interface InitStateParsed {
   equips: TreasureItemDefinition[];
   gongfas: GongfaItemDefinition[];
   storage: InventoryStackItem[];
-  worldLocation: string;
+  worldLocation: WorldLocation | null;
   hpPercent: number;
   mpPercent: number;
   spiritStones: { op: "add"; name: string; count: number }[];
@@ -130,11 +132,11 @@ export function parseInitStateAiResponse(raw: string, realmMajor: string, realmM
   const worldLocation = (() => {
     const s = raw == null ? "" : String(raw);
     const i = s.indexOf(MJ_WORLD_BODY_OPEN);
-    if (i < 0) return "";
+    if (i < 0) return null;
     const from = i + MJ_WORLD_BODY_OPEN.length;
     const j = s.indexOf(MJ_WORLD_BODY_CLOSE, from);
-    if (j < 0) return s.slice(from).trim();
-    return s.slice(from, j).trim();
+    const text = j < 0 ? s.slice(from).trim() : s.slice(from, j).trim();
+    return parseWorldLocationFromDash(text);
   })();
 
   const equipText = extractTagContent(raw, MJ_EQUIP_BODY_OPEN, MJ_EQUIP_BODY_CLOSE);
@@ -225,7 +227,7 @@ function buildInitStateUserContent(input: InitStateGenerateInput): string {
     `性别：${p.gender || "—"}`,
     `境界：${p.realm.major}${p.realm.minor}`,
     `灵根：${p.linggen.join("") || "无"}`,
-    `出身地点：${p.birthPlace || "—"}`,
+    `出身地点：${p.birthPlace ? formatWorldLocationDash(p.birthPlace) : "—"}`,
     "",
   ].join("\n");
 }

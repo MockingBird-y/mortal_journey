@@ -14,6 +14,8 @@ import {
 import { Protagonist, protagonist } from "../role_core/Protagonist";
 import { npcStore } from "../role_core/npcStore";
 import type { FateChoiceResult } from "../fate_choice/types";
+import type { WorldLocation } from "../role_core/types/worldLocation";
+import { isEmptyWorldLocation } from "../role_core/types/worldLocation";
 
 export type OpeningStoryPhase = "idle" | "loading" | "ready" | "error";
 
@@ -39,16 +41,15 @@ export function useOpeningStoryFromFateChoice(
   errorMessage: Ref<string>;
   worldTime: Ref<WorldTime>;
   worldTimeBaseline: Ref<WorldTime>;
-  worldLocation: Ref<string>;
+  worldLocation: Ref<WorldLocation | null>;
   initSnapshot: Ref<string>;
 } {
   const storyBody = ref("");
   const phase = ref<OpeningStoryPhase>("idle");
   const errorMessage = ref("");
   const worldTime = ref<WorldTime>(createDefaultWorldTime());
-  /** 开局锁定：年龄增量 = `calendarYearsElapsed(baseline, worldTime)` */
   const worldTimeBaseline = ref<WorldTime>(cloneWorldTime(worldTime.value));
-  const worldLocation = ref("");
+  const worldLocation = ref<WorldLocation | null>(null);
   const initSnapshot = ref("");
 
   let abortCtl: AbortController | null = null;
@@ -57,7 +58,7 @@ export function useOpeningStoryFromFateChoice(
     const w = createDefaultWorldTime();
     worldTime.value = w;
     worldTimeBaseline.value = cloneWorldTime(w);
-    worldLocation.value = "";
+    worldLocation.value = null;
     initSnapshot.value = "";
   }
 
@@ -136,8 +137,8 @@ export function useOpeningStoryFromFateChoice(
           });
           if (abortCtl !== ac) return;
 
-          if (stateResult.worldLocation.trim()) {
-            worldLocation.value = stateResult.worldLocation.trim();
+          if (stateResult.worldLocation && !isEmptyWorldLocation(stateResult.worldLocation)) {
+            worldLocation.value = stateResult.worldLocation;
           }
 
           if (stateResult.storySnapshot.trim()) {

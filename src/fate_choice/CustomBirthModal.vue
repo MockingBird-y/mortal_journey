@@ -2,10 +2,12 @@
 import { ref, computed, watch } from "vue";
 import { CUSTOM_REALM_MAJORS, CUSTOM_REALM_MINORS } from "./types";
 import type { CustomBirthPayload } from "./types";
+import type { WorldLocation } from "../role_core/types/worldLocation";
+import { formatWorldLocationDash } from "../role_core/types/worldLocation";
 
 const props = defineProps<{
   open: boolean;
-  initialLocation?: string;
+  initialLocation?: WorldLocation;
   initialRealmMajor?: string;
   initialRealmMinor?: string;
   initialBackground?: string;
@@ -16,21 +18,31 @@ const emit = defineEmits<{
   confirm: [payload: CustomBirthPayload];
 }>();
 
-const customLoc = ref("");
+const customRegion = ref("天南");
+const customCountry = ref("越国");
+const customArea = ref("");
+const customDetail = ref("");
 const customRealmMajor = ref<string>(CUSTOM_REALM_MAJORS[0]!);
 const customRealmMinor = ref<string>(CUSTOM_REALM_MINORS[0]!);
 const customBg = ref("");
 
 const customBirthFormValid = computed(
   () =>
-    String(customLoc.value || "").trim() !== "" && String(customBg.value || "").trim() !== "",
+    String(customRegion.value || "").trim() !== "" &&
+    String(customCountry.value || "").trim() !== "" &&
+    String(customDetail.value || "").trim() !== "" &&
+    String(customBg.value || "").trim() !== "",
 );
 
 watch(
   () => props.open,
   (v) => {
     if (!v) return;
-    customLoc.value = props.initialLocation ?? "";
+    const loc = props.initialLocation;
+    customRegion.value = loc?.region ?? "天南";
+    customCountry.value = loc?.country ?? "越国";
+    customArea.value = loc?.area ?? "";
+    customDetail.value = loc?.detail ?? "";
     customRealmMajor.value = props.initialRealmMajor ?? CUSTOM_REALM_MAJORS[0]!;
     customRealmMinor.value = props.initialRealmMinor ?? CUSTOM_REALM_MINORS[0]!;
     customBg.value = props.initialBackground ?? "";
@@ -39,14 +51,20 @@ watch(
 
 function confirm(): void {
   if (!customBirthFormValid.value) return;
-  const loc = String(customLoc.value || "").trim();
+  const loc: WorldLocation = {
+    region: String(customRegion.value || "").trim(),
+    country: String(customCountry.value || "").trim(),
+    area: String(customArea.value || "").trim(),
+    detail: String(customDetail.value || "").trim(),
+  };
   const maj = String(customRealmMajor.value || "").trim();
   const bg = String(customBg.value || "").trim();
   const mino = String(customRealmMinor.value || "").trim();
   const realmTxt = maj + mino;
+  const locStr = formatWorldLocationDash(loc);
   emit("confirm", {
-    tag: loc,
-    name: loc,
+    tag: locStr,
+    name: locStr,
     location: loc,
     realmMajor: maj,
     realmMinor: mino,
@@ -71,8 +89,24 @@ function confirm(): void {
           </button>
           <h3 class="mj-trait-modal-title">自定义出身</h3>
           <div class="mj-trait-modal-body mj-custom-birth-body">
-            <label class="mj-custom-birth-label" for="fc-custom-loc">出身地点</label>
-            <input id="fc-custom-loc" v-model="customLoc" class="mj-custom-birth-input" type="text" />
+            <div class="mj-custom-birth-loc-grid">
+              <div>
+                <label class="mj-custom-birth-label" for="fc-custom-region">大区域</label>
+                <input id="fc-custom-region" v-model="customRegion" class="mj-custom-birth-input" type="text" placeholder="如：天南" />
+              </div>
+              <div>
+                <label class="mj-custom-birth-label" for="fc-custom-country">国家</label>
+                <input id="fc-custom-country" v-model="customCountry" class="mj-custom-birth-input" type="text" placeholder="如：越国" />
+              </div>
+              <div>
+                <label class="mj-custom-birth-label" for="fc-custom-area">区域/宗门</label>
+                <input id="fc-custom-area" v-model="customArea" class="mj-custom-birth-input" type="text" placeholder="如：黄枫谷" />
+              </div>
+              <div>
+                <label class="mj-custom-birth-label" for="fc-custom-detail">具体地点</label>
+                <input id="fc-custom-detail" v-model="customDetail" class="mj-custom-birth-input" type="text" placeholder="如：外门" />
+              </div>
+            </div>
             <span class="mj-custom-birth-label">境界</span>
             <div class="mj-custom-birth-realm-row">
               <select id="fc-custom-major" v-model="customRealmMajor" class="mj-custom-birth-select">
@@ -94,7 +128,7 @@ function confirm(): void {
                 type="button"
                 class="major-action-button"
                 :disabled="!customBirthFormValid"
-                :title="customBirthFormValid ? undefined : '请填写出身地点与出身背景'"
+                :title="customBirthFormValid ? undefined : '请填写大区域、国家、具体地点与出身背景'"
                 @click="confirm"
               >
                 确定

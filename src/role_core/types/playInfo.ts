@@ -13,6 +13,7 @@ import type {
   GongfaItemDefinition,
   InventoryStackItem,
 } from "./itemInfo";
+import type { WorldLocation } from "./worldLocation";
 
 import {
   REALM_BASE_STATS_TABLE,
@@ -255,7 +256,7 @@ export interface CharacterPlayInfoCommon {
 export interface ProtagonistPlayInfo extends CharacterPlayInfoCommon {
   role: "protagonist";
   narrationPerson: NarrationPerson;
-  birthPlace: string;
+  birthPlace: WorldLocation;
   originStory: string;
   traits: TraitEntry[];
   xiuwei: number;
@@ -333,3 +334,12 @@ export type {
   FateChoiceSliceForAge,
   GameSliceForNarrativeAge,
 } from "../realmUtils";
+
+export type { WorldLocation } from "./worldLocation";
+export {
+  formatWorldLocation,
+  formatWorldLocationDash,
+  parseWorldLocationFromDash,
+  isWorldLocationEqual,
+  isEmptyWorldLocation,
+} from "./worldLocation";

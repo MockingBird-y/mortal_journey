@@ -127,6 +127,10 @@
   padding: 10px 12px;
   border-bottom: 1px solid var(--mj-border-subtle);
   background: rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 /* 左右侧栏顶条：世界时间 / 世界地点 — 同高、文案居中 */
@@ -161,6 +165,29 @@
   letter-spacing: 0.06em;
   text-transform: none;
   color: var(--mj-gold-dim);
+}
+
+.main-panel__location-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--mj-muted);
+}
+
+.mj-breadcrumb-seg {
+  white-space: nowrap;
+}
+
+.mj-breadcrumb-seg--detail {
+  color: var(--mj-gold-dim, #b89a4a);
+  font-weight: 500;
+}
+
+.mj-breadcrumb-sep {
+  color: var(--mj-border, rgba(140, 120, 83, 0.45));
+  font-size: 0.7rem;
+  margin: 0 1px;
 }
 
 .main-panel__body {

@@ -5,6 +5,7 @@ import type { FateChoiceResult, NarrationPerson, DifficultyLevel } from "./types
 import type { TraitOption } from "./useFateChoice";
 import { parseRealmFromCustomText } from "./useFateChoice";
 import { CUSTOM_REALM_MAJORS, CUSTOM_REALM_MINORS } from "./types";
+import { formatWorldLocationDash } from "../role_core/types/worldLocation";
 import TraitDetailModal from "./TraitDetailModal.vue";
 import LinggenDetailModal from "./LinggenDetailModal.vue";
 import CustomBirthModal from "./CustomBirthModal.vue";
@@ -55,7 +56,7 @@ const customModalInitial = computed(() => {
   const fill = selectedBirth.value === "自定义" && cb && !cb.presetBirthKey;
   if (!fill || !cb) {
     return {
-      location: "",
+      location: { region: "", country: "", area: "", detail: "" } as import("../role_core/types/worldLocation").WorldLocation,
       realmMajor: CUSTOM_REALM_MAJORS[0]!,
       realmMinor: CUSTOM_REALM_MINORS[0]!,
       background: "",
@@ -76,7 +77,7 @@ const customModalInitial = computed(() => {
     }
   }
   return {
-    location: cb.location ?? "",
+    location: cb.location ?? { region: "", country: "", area: "", detail: "" },
     realmMajor: maj,
     realmMinor: mino,
     background: cb.background ?? "",
@@ -172,7 +173,7 @@ function customBirthSummary(): string {
     return "点击填写出身地点、境界与背景";
   }
   const c = customBirth.value;
-  const a = String(c.location || c.tag || "").slice(0, 40);
+  const a = formatWorldLocationDash(c.location) || String(c.tag || "").slice(0, 40);
   const b = String(c.realmText || "").slice(0, 16);
   return a + " · " + b;
 }

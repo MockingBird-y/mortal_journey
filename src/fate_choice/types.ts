@@ -4,6 +4,7 @@
  */
 
 import type { TraitRarity } from "./traits";
+import type { WorldLocation } from "../role_core/types/worldLocation";
 
 // ---------------------------------------------------------------------------
 // 基础类型
@@ -29,9 +30,9 @@ export const DIFFICULTY_OPTIONS: readonly DifficultyOption[] = [
   { key: "困难", title: "困难", desc: "天地不仁，大道无情。于正常之上，各路修士皆非凡俗，实力远超常理，修行之路步步凶险。" },
 ] as const;
 
-/** 出身定义：`location` 为地点名，`desc` 为简介（卡片与开局摘要）。 */
+/** 出身定义：`location` 为四級地点，`desc` 为简介（卡片与开局摘要）。 */
 export interface BirthDefinition {
-  location: string;
+  location: WorldLocation;
   desc: string;
 }
 
@@ -48,7 +49,7 @@ export interface FateChoiceTrait {
 export interface CustomBirthPayload {
   tag: string;
   name: string;
-  location: string;
+  location: WorldLocation;
   realmMajor: string;
   realmMinor: string | null;
   realmText: string;
@@ -74,8 +75,8 @@ export interface FateChoiceBasics {
   realmMajor: string;
   /** 小境界（初期 / 中期 / 后期）；与所有大境界一致 */
   realmMinor: string | null;
-  /** 出生地（地点名称） */
-  birthPlace: string;
+  /** 出生地（四级地点） */
+  birthPlace: WorldLocation;
   /**
    * 出身信息：预设出身时为卡片说明与地点描述等合并文案；自定义出身时为填写的背景长文。
    */
@@ -151,11 +152,11 @@ export const CREATION_GENDERS = ["男性", "女性"] as const;
 
 export const CREATION_BIRTHS: Readonly<Record<string, BirthDefinition>> = {
   凡人: {
-    location: "凡人家庭",
+    location: { region: "天南", country: "越国", area: "凡俗", detail: "凡人家庭" },
     desc: "出身于凡人家庭，多务农为生，生活清苦，希望改变命运。",
   },
   黄枫谷弟子: {
-    location: "黄枫谷外门",
+    location: { region: "天南", country: "越国", area: "黄枫谷", detail: "外门" },
     desc: "出身于越国七大宗门之一的黄枫谷外门，以剑修传承闻名，门规严谨。",
   },
 };

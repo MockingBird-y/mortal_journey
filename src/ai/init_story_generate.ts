@@ -2,6 +2,8 @@ import { INIT_STORY_SYSTEM_PRESET } from "./init_story_preset";
 import { completeChatWithMessagesJson, type JsonChatRequestPayload } from "./openAiChatBridge";
 import { Protagonist } from "../role_core/Protagonist";
 import type { ProtagonistPlayInfo, NarrationPerson, TraitEntry } from "../role_core/types/playInfo";
+import { formatWorldLocationDash } from "../role_core/types/worldLocation";
+import type { WorldLocation } from "../role_core/types/worldLocation";
 
 export interface InitStoryApiConfig {
   apiUrl: string;
@@ -52,7 +54,7 @@ function narrationPersonLine(person: NarrationPerson): string {
 
 export function buildInitStoryUserContent(protagonist: ProtagonistPlayInfo, userStoryHint?: string): string {
   const p = protagonist;
-  const place = p.birthPlace?.trim() || "—";
+  const place = p.birthPlace ? formatWorldLocationDash(p.birthPlace) : "—";
   const origin = p.originStory?.trim() || "—";
   const hint =
     userStoryHint != null && String(userStoryHint).trim() !== ""
