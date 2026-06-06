@@ -111,7 +111,7 @@ export function getRow(realm: string, stage?: string | null): RealmBaseStatsRow 
   if (realm == null || realm === "" || stage == null || stage === "") return null;
   const r = getByKey()[realm + "\u0001" + stage];
   return r
-    ? { realm: r.realm, stage: r.stage, hp: r.hp, mp: r.mp, patk: r.patk, matk: r.matk }
+    ? { realm: r.realm, stage: r.stage, hp: r.hp, mp: r.mp, patk: r.patk, matk: r.matk, pdef: r.pdef, mdef: r.mdef }
     : null;
 }
 

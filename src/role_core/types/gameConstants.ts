@@ -31,21 +31,21 @@ import type { GradeDropRate } from "./itemInfo";
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const REALM_BASE_STATS_TABLE = [
-  { hp: 200,    mp: 100,   patk: 10,  matk: 10 },
-  { hp: 300,    mp: 150,   patk: 15,  matk: 15 },
-  { hp: 500,    mp: 250,   patk: 25,  matk: 25 },
-  { hp: 1000,   mp: 500,   patk: 50,  matk: 50 },  // 筑基
-  { hp: 1500,   mp: 750,   patk: 75,  matk: 75 },
-  { hp: 2000,   mp: 1000,  patk: 100, matk: 100 },
-  { hp: 3000,   mp: 1500,  patk: 150, matk: 150 }, // 结丹
-  { hp: 4000,   mp: 2000,  patk: 200, matk: 200 },
-  { hp: 5000,   mp: 2500,  patk: 250, matk: 250 },
-  { hp: 10000,  mp: 5000,  patk: 500, matk: 500 }, // 元婴
-  { hp: 13000,  mp: 6500,  patk: 650, matk: 650 },
-  { hp: 15000,  mp: 7500,  patk: 750, matk: 750 },
-  { hp: 20000,  mp: 10000, patk: 1000, matk: 1000 }, // 化神
-  { hp: 25000,  mp: 12500, patk: 1250, matk: 1250 },
-  { hp: 30000,  mp: 15000, patk: 1500, matk: 1500 },
+  { hp: 200,    mp: 100,   patk: 10,  matk: 10,  pdef: 5,   mdef: 5 },
+  { hp: 300,    mp: 150,   patk: 15,  matk: 15,  pdef: 8,   mdef: 8 },
+  { hp: 500,    mp: 250,   patk: 25,  matk: 25,  pdef: 15,  mdef: 15 },
+  { hp: 1000,   mp: 500,   patk: 50,  matk: 50,  pdef: 30,  mdef: 30 },  // 筑基
+  { hp: 1500,   mp: 750,   patk: 75,  matk: 75,  pdef: 45,  mdef: 45 },
+  { hp: 2000,   mp: 1000,  patk: 100, matk: 100, pdef: 60,  mdef: 60 },
+  { hp: 3000, mp: 1500,  patk: 150, matk: 150, pdef: 27,   mdef: 27 },  // 结丹
+  { hp: 4000, mp: 2000,  patk: 200, matk: 200, pdef: 36,   mdef: 36 },
+  { hp: 5000, mp: 2500,  patk: 250, matk: 250, pdef: 45,   mdef: 45 },
+  { hp: 10000,  mp: 5000,  patk: 500, matk: 500, pdef: 90,  mdef: 90 },  // 元婴
+  { hp: 13000,  mp: 6500,  patk: 650, matk: 650, pdef: 117, mdef: 117 },
+  { hp: 15000,  mp: 7500,  patk: 750, matk: 750, pdef: 135, mdef: 135 },
+  { hp: 20000,  mp: 10000, patk: 1000, matk: 1000, pdef: 180, mdef: 180 }, // 化神
+  { hp: 25000,  mp: 12500, patk: 1250, matk: 1250, pdef: 225, mdef: 225 },
+  { hp: 30000,  mp: 15000, patk: 1500, matk: 1500, pdef: 270, mdef: 270 },
 ] as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -123,6 +123,12 @@ export const DERIVED_STAT_DEFAULTS: Readonly<Partial<Record<DerivedStatKey, numb
  * 其余键按绝对值加算（主属性 × 比例 ÷ 100 取整）。
  * 例：体魄 100 点 → hp 基数放大 10%。
  */
+export const PRIMARY_STAT_BASE: Readonly<Record<string, number>> = {
+  physique: 10, spirit: 10, strength: 10,
+  perception: 10, guard: 10, agility: 10,
+  insight: 0, fortune: 0,
+};
+
 export const PRIMARY_TO_DERIVED_MAP: Readonly<Record<PrimaryStatKey, ReadonlyArray<{ key: DerivedStatKey; per100: number }>>> = {
   physique: [{ key: "hp", per100: 10 }],
   spirit: [{ key: "mp", per100: 10 }],
@@ -135,7 +141,7 @@ export const PRIMARY_TO_DERIVED_MAP: Readonly<Record<PrimaryStatKey, ReadonlyArr
 };
 
 /** 按百分比计算的派生属性键（基数来自境界表，主属性对其做乘法放大） */
-export const PCT_DERIVED_KEYS: ReadonlySet<string> = new Set(["hp", "mp", "pdef"]);
+export const PCT_DERIVED_KEYS: ReadonlySet<string> = new Set(["hp", "mp", "pdef", "mdef"]);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 8. 游戏常量

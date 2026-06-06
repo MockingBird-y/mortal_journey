@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, nextTick, watch } from "vue";
 import type { BattleTriggerEntry } from "../ai/state_generate";
-import type { BattleAction, BattleCombatant, BattleResult, GongfaActionItem, ElixirActionItem } from "../battle_core/battleTypes";
+import type { BattleAction, BattleCombatant, BattleResult, GongfaActionItem, ElixirActionItem } from "../battle_core/types";
 import { useBattle } from "../battle_core/useBattle";
-import { getAliveEnemies, findCombatantById } from "../battle_core/battleEngine";
 import { gameLog } from "../log/gameLog";
 import { useScrollLock } from "../composables/useScrollLock";
 
@@ -15,7 +14,7 @@ const emit = defineEmits<{
   battleEnd: [result: BattleResult | null];
 }>();
 
-const { state, result, resolving, startBattle, selectAction, selectTarget, getPlayerActionOptions, clearBattle } = useBattle();
+const { engine, state, result, resolving, startBattle, selectAction, selectTarget, getPlayerActionOptions, clearBattle, isBattleOver } = useBattle();
 
 const scrollLock = useScrollLock();
 
@@ -46,9 +45,8 @@ const isTargetSelection = computed(() => {
   return state.value?.phase === "target_selection";
 });
 
-const isBattleOver = computed(() => {
-  const phase = state.value?.phase;
-  return phase === "victory" || phase === "defeat" || phase === "fled" || phase === "draw";
+const battleOver = computed(() => {
+  return isBattleOver();
 });
 
 const actionOptions = computed(() => {
@@ -67,9 +65,11 @@ const targetTeam = computed((): "ally" | "enemy" => {
   const action = state.value?.pendingAction;
   if (!action) return "enemy";
   if (action.type === "gongfa") {
-    const p = state.value!.allies.find(a => a.isProtagonist);
-    if (p) {
-      const gf = p.gongfaSlots[action.gongfaIndex];
+    const s = state.value!;
+    const currentActorId = s.currentActorId;
+    const actor = s.allies.find(a => a.id === currentActorId) ?? s.enemies.find(en => en.id === currentActorId);
+    if (actor) {
+      const gf = actor.gongfaSlots[action.gongfaIndex];
       if (gf?.function) {
         const hasOffensive = gf.function.components.some(c => c.mechanic?.startsWith("dmg_") || c.mechanic?.startsWith("debuff_") || c.mechanic?.startsWith("cc_"));
         return hasOffensive ? "enemy" : "ally";
@@ -83,34 +83,32 @@ function onNormalAttack() {
   selectAction({ type: "normal_attack", targetId: "" });
 }
 
+function onMagicAttack() {
+  selectAction({ type: "magic_attack", targetId: "" });
+}
+
 function onGongfaSelect(item: GongfaActionItem) {
   if (item.needTarget) {
     selectAction({ type: "gongfa", gongfaIndex: item.gongfaIndex, targetId: "" });
   } else {
-    const p = state.value?.allies.find(a => a.isProtagonist);
-    if (p) {
-      selectTarget(p.id);
+    const currentActorId = state.value?.currentActorId;
+    if (currentActorId) {
+      selectTarget(currentActorId);
     }
   }
 }
 
 function onElixirSelect(item: ElixirActionItem) {
   selectAction({ type: "elixir", elixirIndex: item.elixirIndex });
-  const s = state.value;
-  if (s && s.pendingAction && s.pendingAction.type === "elixir") {
-    const p = s.allies.find(a => a.isProtagonist);
-    if (p) {
-      selectTarget(p.id);
-    }
+  const currentActorId = state.value?.currentActorId;
+  if (currentActorId) {
+    selectTarget(currentActorId);
   }
 }
 
 function onFlee() {
   selectAction({ type: "flee" });
-  const s = state.value;
-  if (s && s.pendingAction && s.pendingAction.type === "flee") {
-    selectTarget("");
-  }
+  selectTarget("");
 }
 
 function onTargetClick(combatantId: string) {
@@ -135,10 +133,6 @@ function hpBarClass(combatant: BattleCombatant): string {
   if (pct > 0.6) return "battle__hp-bar--high";
   if (pct > 0.3) return "battle__hp-bar--mid";
   return "battle__hp-bar--low";
-}
-
-function mpBarClass(): string {
-  return "battle__mp-bar";
 }
 
 function logAlignClass(team?: string): string {
@@ -219,8 +213,7 @@ function closeSubmenus() {
                 <template v-if="isPlayerTurn">你的回合</template>
                 <template v-else-if="isTargetSelection">选择目标</template>
                 <template v-else-if="resolving">结算中…</template>
-                <template v-else-if="state.phase === 'ally_ai'">友方行动</template>
-                <template v-else-if="state.phase === 'enemy_ai'">敌方行动</template>
+                <template v-else-if="state.phase === 'running'">战斗中…</template>
               </span>
             </header>
 
@@ -229,6 +222,9 @@ function closeSubmenus() {
                 <template v-if="isPlayerTurn && actionOptions">
                   <button class="battle__action-btn" @click="onNormalAttack" :disabled="!actionOptions.canNormalAttack">
                     ⚔ 普通攻击
+                  </button>
+                  <button class="battle__action-btn" @click="onMagicAttack" :disabled="!actionOptions.canMagicAttack" v-if="actionOptions.canMagicAttack">
+                    ✨ 法术攻击
                   </button>
                   <div class="battle__action-group">
                     <button class="battle__action-btn" @click="toggleGongfaSubmenu" :disabled="actionOptions.gongfaItems.length === 0">
@@ -264,7 +260,7 @@ function closeSubmenus() {
                     🏃 逃跑
                   </button>
                 </template>
-                <template v-else-if="!isBattleOver">
+                <template v-else-if="!battleOver">
                   <p class="battle__action-wait">等待中…</p>
                 </template>
               </aside>
@@ -350,7 +346,7 @@ function closeSubmenus() {
               </aside>
             </div>
 
-            <div v-if="isBattleOver" class="battle__overlay">
+            <div v-if="battleOver" class="battle__overlay">
               <div class="battle__result">
                 <h2 v-if="state.phase === 'victory'">🎉 战斗胜利！</h2>
                 <h2 v-else-if="state.phase === 'defeat'">💀 战斗失败</h2>

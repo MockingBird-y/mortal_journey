@@ -25,6 +25,7 @@ import {
   getBaseStats,
   getEquipBonusRealmRatio,
 } from "./realmUtils";
+import { PRIMARY_STAT_BASE } from "./types/gameConstants";
 import type { SpiritStoneName } from "./types/spiritStone";
 import {
   DEFAULT_INVENTORY_SLOT_COUNT,
@@ -141,7 +142,7 @@ export class Character {
   }
 
   protected collectPrimaryBonuses(): Record<string, number> {
-    const primaryStats: Record<string, number> = {};
+    const primaryStats: Record<string, number> = { ...PRIMARY_STAT_BASE };
     const ratio = getEquipBonusRealmRatio(this.realm.major, this.realm.minor);
     for (const gf of this.gongfaSlots) {
       if (!gf) continue;

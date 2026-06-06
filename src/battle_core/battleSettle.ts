@@ -1,4 +1,4 @@
-import type { BattleState, BattleResult, BattleCombatant } from "./battleTypes";
+import type { BattleState, BattleResult, BattleCombatant, BattleOutcome } from "./types";
 import { protagonist } from "../role_core/Protagonist";
 import { npcStore } from "../role_core/npcStore";
 
@@ -83,7 +83,7 @@ export function settleBattle(state: BattleState): BattleResult {
     }
   }
 
-  const outcome = state.phase === "victory" ? "victory"
+  const outcome: BattleOutcome = state.phase === "victory" ? "victory"
     : state.phase === "defeat" ? "defeat"
     : state.phase === "fled" ? "fled"
     : "draw";

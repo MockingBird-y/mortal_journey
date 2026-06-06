@@ -1,138 +1,72 @@
 import type {
+  BattleState,
   BattleCombatant,
-  GongfaActionItem,
-  ElixirActionItem,
   BattleAction,
-} from "./battleTypes";
+  BattleEngineLike,
+} from "./types";
 
-import {
-  getAliveEnemies,
-  isActionPrevented,
-  isSilenced,
-} from "./battleEngine";
+export class BattleAI {
+  decide(actor: BattleCombatant, state: BattleState, engine: BattleEngineLike): BattleAction | null {
+    const enemies = actor.team === "ally" ? state.enemies : state.allies;
+    const aliveEnemies = enemies.filter(e => !e.isDead);
+    if (aliveEnemies.length === 0) return null;
 
-function selectWeakestEnemy(enemies: BattleCombatant[]): BattleCombatant | null {
-  const alive = getAliveEnemies(enemies);
-  if (alive.length === 0) return null;
-  return alive.reduce((a, b) => a.currentHp < b.currentHp ? a : b);
-}
+    const canAct = engine.effectManager.canAct(actor);
+    if (!canAct.canAct) return null;
 
-function selectRandomEnemy(enemies: BattleCombatant[]): BattleCombatant | null {
-  const alive = getAliveEnemies(enemies);
-  if (alive.length === 0) return null;
-  return alive[Math.floor(Math.random() * alive.length)];
-}
+    const canUseSkills = engine.effectManager.canUseSkills(actor);
 
-function selectTargetByPowerTier(
-  actor: BattleCombatant,
-  enemies: BattleCombatant[],
-  allies: BattleCombatant[],
-): BattleCombatant | null {
-  const tier = actor.powerTier ?? "普通NPC";
-  const alive = getAliveEnemies(enemies);
-  if (alive.length === 0) return null;
-
-  switch (tier) {
-    case "大boss":
-    case "小boss": {
-      const protagonist = allies.find(a => a.isProtagonist && !a.isDead);
-      if (protagonist) return protagonist;
-      return selectWeakestEnemy(enemies);
+    if (canUseSkills) {
+      const gongfaAction = this.trySelectGongfa(actor, state, engine, aliveEnemies);
+      if (gongfaAction) return gongfaAction;
     }
-    case "精英怪":
-      return selectWeakestEnemy(enemies);
-    default:
-      return selectRandomEnemy(enemies);
-  }
-}
 
-function findActiveGongfaOptions(actor: BattleCombatant): GongfaActionItem[] {
-  const items: GongfaActionItem[] = [];
-  for (let i = 0; i < actor.gongfaSlots.length; i++) {
-    const gf = actor.gongfaSlots[i];
-    if (!gf || !gf.function || gf.function.type !== "主动") continue;
-    if (actor.currentMp < (gf.function.mpCost ?? 0)) continue;
-
-    const hasOffensive = gf.function.components.some(c => {
-      if (!c.mechanic) return false;
-      return c.mechanic.startsWith("dmg_") || c.mechanic.startsWith("debuff_") || c.mechanic.startsWith("cc_");
-    });
-
-    items.push({
-      gongfaIndex: i,
-      name: `${gf.name}·${gf.function.name}`,
-      mpCost: gf.function.mpCost ?? 0,
-      needTarget: hasOffensive,
-      targetTeam: hasOffensive ? "enemy" : "ally",
-      description: gf.function.components.map(c => c.desc).join("，"),
-    });
-  }
-  return items;
-}
-
-function findHealGongfaIndex(actor: BattleCombatant): number | null {
-  for (let i = 0; i < actor.gongfaSlots.length; i++) {
-    const gf = actor.gongfaSlots[i];
-    if (!gf || !gf.function || gf.function.type !== "主动") continue;
-    if (actor.currentMp < (gf.function.mpCost ?? 0)) continue;
-    const hasHeal = gf.function.components.some(c => c.mechanic?.startsWith("heal_"));
-    if (hasHeal) return i;
-  }
-  return null;
-}
-
-function findHealElixirIndex(actor: BattleCombatant): number | null {
-  for (let i = 0; i < actor.availableElixirs.length; i++) {
-    const el = actor.availableElixirs[i];
-    if (el.count <= 0) continue;
-    if (el.effectType === "恢复血量" || el.effectType === "恢复法力") return i;
-  }
-  return null;
-}
-
-export function chooseNpcAction(
-  actor: BattleCombatant,
-  allies: BattleCombatant[],
-  enemies: BattleCombatant[],
-): BattleAction {
-  const preventCheck = isActionPrevented(actor);
-  if (preventCheck.prevented) {
-    const target = selectTargetByPowerTier(actor, enemies, allies);
-    return { type: "normal_attack", targetId: target?.id ?? "" };
-  }
-
-  const hpRatio = actor.maxHp > 0 ? actor.currentHp / actor.maxHp : 1;
-
-  if (hpRatio < 0.3) {
-    const elixirIdx = findHealElixirIndex(actor);
-    if (elixirIdx !== null) {
-      return { type: "elixir", elixirIndex: elixirIdx };
+    if (actor.currentMp >= Math.round(actor.maxMp * 0.05) && Math.random() < 0.3) {
+      const target = this.selectTarget(aliveEnemies);
+      if (target) return { type: "magic_attack", targetId: target.id };
     }
+
+    const target = this.selectTarget(aliveEnemies);
+    if (target) return { type: "normal_attack", targetId: target.id };
+
+    return null;
   }
 
-  if (hpRatio < 0.5) {
-    const healIdx = findHealGongfaIndex(actor);
-    if (healIdx !== null) {
-      return { type: "gongfa", gongfaIndex: healIdx, targetId: actor.id };
-    }
-  }
+  private trySelectGongfa(
+    actor: BattleCombatant,
+    state: BattleState,
+    engine: BattleEngineLike,
+    aliveEnemies: BattleCombatant[],
+  ): BattleAction | null {
+    for (let i = 0; i < actor.gongfaSlots.length; i++) {
+      const gf = actor.gongfaSlots[i];
+      if (!gf || !gf.function) continue;
+      if (actor.cooldowns[i] > 0) continue;
+      if ((gf.function.mpCost ?? 0) > actor.currentMp) continue;
 
-  if (!isSilenced(actor)) {
-    const options = findActiveGongfaOptions(actor);
-    if (options.length > 0) {
-      const best = options[0];
-      if (best.needTarget) {
-        const target = selectTargetByPowerTier(actor, enemies, allies);
-        if (target) {
-          return { type: "gongfa", gongfaIndex: best.gongfaIndex, targetId: target.id };
-        }
+      if (gf.function.type === "被动") continue;
+
+      const hasOffensive = gf.function.components.some(
+        c => c.mechanic?.startsWith("dmg_") || c.mechanic?.startsWith("debuff_") || c.mechanic?.startsWith("cc_"),
+      );
+
+      if (hasOffensive && aliveEnemies.length > 0) {
+        const target = this.selectTarget(aliveEnemies);
+        if (target) return { type: "gongfa", gongfaIndex: i, targetId: target.id };
       } else {
-        return { type: "gongfa", gongfaIndex: best.gongfaIndex, targetId: actor.id };
+        const allies = actor.team === "ally" ? state.allies : state.enemies;
+        const self = allies.find(a => a.id === actor.id);
+        return { type: "gongfa", gongfaIndex: i, targetId: self?.id ?? actor.id };
       }
     }
 
+    return null;
   }
 
-  const target = selectTargetByPowerTier(actor, enemies, allies);
-  return { type: "normal_attack", targetId: target?.id ?? "" };
+  private selectTarget(aliveEnemies: BattleCombatant[]): BattleCombatant | null {
+    if (aliveEnemies.length === 0) return null;
+    const lowestHp = aliveEnemies.reduce((a, b) => a.currentHp < b.currentHp ? a : b);
+    if (Math.random() < 0.6) return lowestHp;
+    return aliveEnemies[Math.floor(Math.random() * aliveEnemies.length)];
+  }
 }

@@ -10,7 +10,7 @@ import { worldMapStore } from "../role_core/worldMapStore";
 import { Character } from "../role_core/Character";
 import { gameLog } from "../log/gameLog";
 import { advanceWorldTime, type WorldTime } from "../role_core/worldTime";
-import type { BattleResult } from "../battle_core/battleTypes";
+import type { BattleResult } from "../battle_core/types";
 import type { WorldLocation } from "../role_core/types/worldLocation";
 import { formatWorldLocationDash, isEmptyWorldLocation } from "../role_core/types/worldLocation";
 

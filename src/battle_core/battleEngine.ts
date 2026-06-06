@@ -1,927 +1,563 @@
 import type {
+  BattleState,
   BattleCombatant,
-  ActiveStatusEffect,
   BattleAction,
   BattleLogEntry,
-  BattleLogType,
+  BattlePhase,
+  ActionContext,
+  GongfaActionItem,
+  ElixirActionItem,
+  DamageType,
+  EventContext,
   PassiveTrigger,
-  BattleSummon,
-  BattleState,
-} from "./battleTypes";
+  BattleEngineLike,
+} from "./types";
 
-import {
-  MECHANIC_META,
-  GRADE_FLAT_POWER,
-  GRADE_SCALING_POWER,
-  SYSTEM_POWER_MULT,
-  SYSTEM_DAMAGE_STAT,
-  resolveMechanicRawValue,
-} from "../role_core/types/combatMechanics";
-
-import type {
-  MechanicId,
-  MechanicCategory,
-  EffectTrigger,
-  StatusId,
-} from "../role_core/types/combatMechanics";
-
+import type { BattleTriggerEntry } from "../ai/state_generate";
+import type { PlayerBaseStats } from "../role_core/types/playInfo";
 import type { ItemGrade } from "../role_core/types/itemInfo";
 import type { GongfaSystem } from "../role_core/types/gongfa";
-import { GRADE_INDEX } from "../role_core/types/gameConstants";
-import type { PlayerBaseStats } from "../role_core/types/playInfo";
 
-interface PassiveTriggerResult {
-  trigger: PassiveTrigger;
-  owner: BattleCombatant;
-  value: number;
-}
+import { EventDispatcher } from "./EventDispatcher";
+import { TurnManager } from "./TurnManager";
+import { EffectManager } from "./EffectManager";
+import { DamagePipeline } from "./DamagePipeline";
+import { ConditionEvaluator } from "./ConditionEvaluator";
+import { MechanicRegistry } from "./MechanicRegistry";
+import { BattleAI } from "./BattleAI";
+import * as formulas from "./formulas";
 
-const REALM_SPELL_MP: Readonly<Record<string, number>> = {
-  "练气": 10,
-  "筑基": 20,
-  "结丹": 40,
-  "元婴": 80,
-  "化神": 150,
-};
+export class BattleEngine implements BattleEngineLike {
+  readonly eventDispatcher = new EventDispatcher();
+  readonly effectManager = new EffectManager(this.eventDispatcher);
+  readonly damagePipeline = new DamagePipeline(this.effectManager, this.eventDispatcher);
+  readonly conditionEvaluator = new ConditionEvaluator();
+  readonly mechanicRegistry = new MechanicRegistry();
 
-export function getSpellMpCost(realmMajor: string): number {
-  return REALM_SPELL_MP[realmMajor] ?? 10;
-}
+  private turnManager = new TurnManager();
+  private ai = new BattleAI();
 
-export function generateCombatantId(team: "ally" | "enemy", index: number): string {
-  return `${team}_${index}`;
-}
+  state!: BattleState;
+  private actedSet = new Set<string>();
 
-export function findCombatantById(id: string, allies: BattleCombatant[], enemies: BattleCombatant[]): BattleCombatant | undefined {
-  return allies.find(c => c.id === id) ?? enemies.find(c => c.id === id);
-}
+  init(allies: BattleCombatant[], enemies: BattleCombatant[], triggerEntry: BattleTriggerEntry): void {
+    this.state = {
+      phase: "init",
+      turn: 0,
+      allies,
+      enemies,
+      turnOrder: [],
+      currentActorId: null,
+      log: [],
+      triggerEntry,
+      pendingAction: null,
+      selectedTargetId: null,
+      maxTurns: 30,
+    };
 
-export function getAliveAllies(team: BattleCombatant[]): BattleCombatant[] {
-  return team.filter(c => !c.isDead);
-}
-
-export function getAliveEnemies(team: BattleCombatant[]): BattleCombatant[] {
-  return team.filter(c => !c.isDead);
-}
-
-export function getEffectiveStat(combatant: BattleCombatant, stat: keyof PlayerBaseStats): number {
-  const base = combatant.stats[stat] ?? 0;
-  const mod = getBuffModifier(combatant, stat);
-  return Math.max(0, Math.round(base + mod));
-}
-
-export function getBuffModifier(combatant: BattleCombatant, stat: string): number {
-  let total = 0;
-  for (const eff of combatant.activeEffects) {
-    if (eff.isPercent) {
-      const pctValue = eff.value * eff.stacks;
-      total += combatant.stats[stat as keyof PlayerBaseStats] * pctValue / 100;
-    } else {
-      total += eff.value * eff.stacks;
-    }
-  }
-  return total;
-}
-
-export function calcNormalAttackDamage(
-  attacker: BattleCombatant,
-  defender: BattleCombatant,
-): { damage: number; isCrit: boolean; isMiss: boolean } {
-  const hitRate = getEffectiveStat(attacker, "hitRate");
-  const dodgeRate = getEffectiveStat(defender, "dodgeRate");
-  const isMiss = Math.random() * 100 >= (hitRate - dodgeRate);
-  if (isMiss) return { damage: 0, isCrit: false, isMiss: true };
-
-  const patk = getEffectiveStat(attacker, "patk");
-  const pdef = getEffectiveStat(defender, "pdef");
-  const critRate = getEffectiveStat(attacker, "critRate");
-  const isCrit = Math.random() * 100 < critRate;
-  const critDmg = getEffectiveStat(attacker, "critDmg") / 100;
-
-  const base = Math.max(1, patk - pdef * 0.5);
-  const damage = Math.round(base * (isCrit ? critDmg : 1));
-  return { damage: Math.max(1, damage), isCrit, isMiss: false };
-}
-
-export function calcMagicAttackDamage(
-  attacker: BattleCombatant,
-  defender: BattleCombatant,
-): { damage: number; isCrit: boolean } {
-  const matk = getEffectiveStat(attacker, "matk");
-  const mdef = getEffectiveStat(defender, "mdef");
-  const critRate = getEffectiveStat(attacker, "critRate");
-  const isCrit = Math.random() * 100 < critRate;
-  const critDmg = getEffectiveStat(attacker, "critDmg") / 100;
-
-  const base = Math.max(1, matk * 1.2 - mdef * 0.5);
-  const damage = Math.round(base * (isCrit ? critDmg : 1));
-  return { damage: Math.max(1, damage), isCrit };
-}
-
-export function calcGongfaEffectValue(
-  mechanic: MechanicId,
-  grade: ItemGrade,
-  system: GongfaSystem | undefined,
-  attacker: BattleCombatant,
-): number {
-  const meta = MECHANIC_META[mechanic];
-  if (!meta) return 0;
-
-  if (meta.noStatScaling) {
-    return GRADE_SCALING_POWER[grade]?.[meta.scalingPowerKey] ?? 0;
+    this.registerPassiveTriggers(allies, enemies);
+    this.startBattle();
   }
 
-  const derivedStats = {
-    patk: getEffectiveStat(attacker, "patk"),
-    matk: getEffectiveStat(attacker, "matk"),
-    pdef: getEffectiveStat(attacker, "pdef"),
-    mdef: getEffectiveStat(attacker, "mdef"),
-  };
+  private registerPassiveTriggers(allies: BattleCombatant[], enemies: BattleCombatant[]): void {
+    const all = [...allies, ...enemies];
+    for (const c of all) {
+      for (const trigger of c.passiveTriggers) {
+        if (!trigger.component.mechanic) continue;
 
-  const primaryStat = attacker.stats.cultivationSpeed;
+        const handler = this.mechanicRegistry.get(trigger.component.mechanic);
+        if (!handler) continue;
 
-  return resolveMechanicRawValue(mechanic, grade, primaryStat, system, derivedStats);
-}
+        const triggerEvent = this.mapTriggerToEvent(trigger.component.trigger);
+        if (!triggerEvent) continue;
 
-export function applyDamage(
-  target: BattleCombatant,
-  rawDamage: number,
-): { damageDealt: number; shieldAbsorbed: number; killed: boolean } {
-  let remaining = rawDamage;
-  let shieldAbsorbed = 0;
+        const capturedTrigger = trigger;
+        const capturedHandler = handler;
+        this.eventDispatcher.on(triggerEvent, (ctx: EventContext) => {
+          const actor = ctx.actor ?? ctx.source ?? ctx.target;
+          if (!actor) return;
 
-  if (target.shield > 0) {
-    const absorbed = Math.min(target.shield, remaining);
-    target.shield -= absorbed;
-    remaining -= absorbed;
-    shieldAbsorbed = absorbed;
-  }
+          const actionCtx: ActionContext = {
+            actor,
+            action: ctx.action ?? { type: "normal_attack", targetId: "" },
+            allies: ctx.allies,
+            enemies: ctx.enemies,
+            turn: ctx.turn,
+            gongfaGrade: capturedTrigger.grade,
+            gongfaSystem: capturedTrigger.system,
+          };
 
-  const hpLoss = Math.min(target.currentHp, remaining);
-  target.currentHp -= hpLoss;
+          if (!this.conditionEvaluator.evaluate(capturedTrigger.component.condition, actionCtx)) return;
 
-  const killed = target.currentHp <= 0;
-  if (killed) {
-    target.isDead = true;
-    target.currentHp = 0;
-  }
-
-  return { damageDealt: shieldAbsorbed + hpLoss, shieldAbsorbed, killed };
-}
-
-export function applyHeal(
-  target: BattleCombatant,
-  rawHeal: number,
-): { healed: number } {
-  const deficit = target.maxHp - target.currentHp;
-  const healed = Math.min(deficit, Math.max(0, rawHeal));
-  target.currentHp += healed;
-  return { healed };
-}
-
-export function applyMpChange(
-  target: BattleCombatant,
-  delta: number,
-): { changed: number } {
-  const before = target.currentMp;
-  target.currentMp = Math.max(0, Math.min(target.maxMp, target.currentMp + delta));
-  return { changed: target.currentMp - before };
-}
-
-export function addStatusEffect(
-  target: BattleCombatant,
-  effect: ActiveStatusEffect,
-): void {
-  const existing = target.activeEffects.find(
-    e => e.name === effect.name && e.mechanic === effect.mechanic,
-  );
-
-  if (existing) {
-    if (effect.category === "cc") {
-      const idx = target.activeEffects.indexOf(existing);
-      target.activeEffects[idx] = effect;
-    } else if (effect.canStack) {
-      existing.stacks += 1;
-      existing.remainingTurns = Math.max(existing.remainingTurns, effect.remainingTurns);
-    } else {
-      existing.remainingTurns = Math.max(existing.remainingTurns, effect.remainingTurns);
-      existing.value = Math.max(existing.value, effect.value);
-    }
-  } else {
-    target.activeEffects.push(effect);
-  }
-}
-
-const DOT_STATUS_DAMAGE: Readonly<Partial<Record<StatusId, { pctMaxHp?: number; pctCurrentMp?: number; baseTurns?: number }>>> = {
-  poison: { pctMaxHp: 3 },
-  burn: { pctMaxHp: 5, baseTurns: 2 },
-  corrode: { pctCurrentMp: 5 },
-};
-
-export function tickStatusEffects(combatant: BattleCombatant, turn: number): BattleLogEntry[] {
-  const entries: BattleLogEntry[] = [];
-  const toRemove: number[] = [];
-
-  for (let i = 0; i < combatant.activeEffects.length; i++) {
-    const eff = combatant.activeEffects[i];
-
-    if (eff.status && DOT_STATUS_DAMAGE[eff.status]) {
-      const dotDef = DOT_STATUS_DAMAGE[eff.status]!;
-      const stacks = eff.stacks || 1;
-
-      if (dotDef.pctMaxHp) {
-        const dmg = Math.round(combatant.maxHp * dotDef.pctMaxHp / 100 * stacks);
-        const { damageDealt } = applyDamage(combatant, dmg);
-        entries.push({
-          turn,
-          actorName: eff.name,
-          action: "持续伤害",
-          targetName: combatant.displayName,
-          type: "dot",
-          value: damageDealt,
-          narrative: `${combatant.displayName}受到${eff.name}，损失${damageDealt}点生命`,
-          team: combatant.team,
-        });
-      }
-
-      if (dotDef.pctCurrentMp) {
-        const mpLoss = Math.round(combatant.currentMp * dotDef.pctCurrentMp / 100 * stacks);
-        applyMpChange(combatant, -mpLoss);
-        entries.push({
-          turn,
-          actorName: eff.name,
-          action: "法力侵蚀",
-          targetName: combatant.displayName,
-          type: "dot",
-          value: mpLoss,
-          narrative: `${combatant.displayName}受到${eff.name}，损失${mpLoss}点法力`,
-          team: combatant.team,
+          const entries = capturedHandler.execute(actionCtx, this);
+          this.addLogEntries(entries);
         });
       }
     }
+  }
 
-    eff.remainingTurns -= 1;
-    if (eff.remainingTurns <= 0) {
-      toRemove.push(i);
+  private mapTriggerToEvent(trigger: string): import("./types").BattleEvent | null {
+    switch (trigger) {
+      case "on_attack": return "action_end";
+      case "on_hit": return "damage_dealt";
+      case "on_crit": return "crit";
+      case "on_kill": return "kill";
+      case "on_death": return "death";
+      case "on_damaged": return "damage_taken";
+      case "on_heal": return "heal";
+      case "passive": return null;
+      default: return null;
     }
   }
 
-  for (let i = toRemove.length - 1; i >= 0; i--) {
-    combatant.activeEffects.splice(toRemove[i], 1);
+  private startBattle(): void {
+    this.state.phase = "running";
+    this.eventDispatcher.emit("battle_start", {
+      event: "battle_start",
+      allies: this.state.allies,
+      enemies: this.state.enemies,
+      turn: 0,
+    });
+    this.nextTurn();
   }
 
-  if (combatant.isDead) {
-    entries.push({
-      turn,
-      actorName: combatant.displayName,
-      action: "阵亡",
-      type: "death",
-      narrative: `${combatant.displayName}倒下了！`,
-      team: combatant.team,
+  private nextTurn(): void {
+    this.state.turn++;
+    this.actedSet.clear();
+
+    if (this.state.turn > this.state.maxTurns) {
+      this.state.phase = "draw";
+      this.emitBattleEnd();
+      return;
+    }
+
+    const alive = this.getAllCombatants().filter(c => !c.isDead);
+    this.turnManager.calculateOrder(alive);
+    this.state.turnOrder = this.turnManager.getOrder().map(c => c.id);
+
+    this.tickAllEffects();
+
+    if (this.checkBattleEnd()) return;
+
+    this.processNextActor();
+  }
+
+  private tickAllEffects(): void {
+    const all = this.getAllCombatants();
+    for (const c of all) {
+      if (c.isDead) continue;
+      const entries = this.effectManager.tickEffects(c, this.state.turn);
+      this.addLogEntries(entries);
+    }
+  }
+
+  private processNextActor(): void {
+    const next = this.turnManager.getNextActor(this.actedSet);
+    if (!next) {
+      this.eventDispatcher.emit("turn_end", {
+        event: "turn_end",
+        allies: this.state.allies,
+        enemies: this.state.enemies,
+        turn: this.state.turn,
+      });
+      this.nextTurn();
+      return;
+    }
+
+    this.state.currentActorId = next.id;
+
+    if (next.isPlayerControlled && !this.isAiControlled(next)) {
+      this.state.phase = "player_action";
+      this.state.pendingAction = null;
+      return;
+    }
+
+    this.executeAiTurn(next);
+  }
+
+  private isAiControlled(_combatant: BattleCombatant): boolean {
+    return false;
+  }
+
+  private executeAiTurn(combatant: BattleCombatant): void {
+    const action = this.ai.decide(combatant, this.state, this);
+    if (!action) {
+      this.actedSet.add(combatant.id);
+      this.processNextActor();
+      return;
+    }
+
+    this.executeAction(combatant, action);
+    this.actedSet.add(combatant.id);
+
+    if (this.checkBattleEnd()) return;
+    this.processNextActor();
+  }
+
+  submitPlayerAction(action: BattleAction): void {
+    const s = this.state;
+    const actor = this.findCombatant(s.currentActorId ?? "");
+    if (!actor) return;
+
+    this.executeAction(actor, action);
+    this.actedSet.add(actor.id);
+
+    if (!this.checkBattleEnd()) {
+      this.processNextActor();
+    }
+  }
+
+  private executeAction(actor: BattleCombatant, action: BattleAction): void {
+    this.eventDispatcher.emit("action_start", {
+      event: "action_start",
+      actor,
+      allies: actor.team === "ally" ? this.state.allies : this.state.enemies,
+      enemies: actor.team === "ally" ? this.state.enemies : this.state.allies,
+      turn: this.state.turn,
+    });
+
+    switch (action.type) {
+      case "normal_attack":
+        this.executeNormalAttack(actor, action.targetId);
+        break;
+      case "magic_attack":
+        this.executeMagicAttack(actor, action.targetId);
+        break;
+      case "gongfa":
+        this.executeGongfa(actor, action.gongfaIndex, action.targetId);
+        break;
+      case "elixir":
+        this.executeElixir(actor, (action as { type: "elixir"; elixirIndex: number }).elixirIndex);
+        break;
+      case "flee":
+        this.executeFlee(actor);
+        break;
+    }
+
+    this.tickSummons(actor);
+
+    this.eventDispatcher.emit("action_end", {
+      event: "action_end",
+      actor,
+      action,
+      allies: actor.team === "ally" ? this.state.allies : this.state.enemies,
+      enemies: actor.team === "ally" ? this.state.enemies : this.state.allies,
+      turn: this.state.turn,
     });
   }
 
-  return entries;
-}
+  private executeNormalAttack(actor: BattleCombatant, targetId: string): void {
+    const target = this.findCombatant(targetId);
+    if (!target || target.isDead) {
+      this.addLog({ turn: this.state.turn, actorName: actor.displayName, action: "普通攻击", type: "miss", narrative: `${actor.displayName}的攻击落空了`, team: actor.team });
+      return;
+    }
 
-export function isActionPrevented(
-  combatant: BattleCombatant,
-): { prevented: boolean; reason?: string } {
-  const ccEffects = combatant.activeEffects.filter(e => e.category === "cc");
+    const patk = this.getEffectiveStat(actor, "patk");
+    const rawDmg = formulas.calcNormalAttackRaw(patk);
+    const critRate = this.getEffectiveStat(actor, "critRate");
+    const isCrit = formulas.checkCrit(critRate);
 
-  for (const eff of ccEffects) {
-    if (eff.mechanic === "cc_stun" || eff.mechanic === "cc_freeze") {
-      return { prevented: true, reason: eff.mechanic === "cc_stun" ? "眩晕中" : "冻结中" };
+    const result = this.damagePipeline.execute(
+      { source: actor, target, rawDamage: rawDmg, damageType: "physical", isCrit },
+      this.state.turn,
+      this.state.allies,
+      this.state.enemies,
+    );
+
+    if (result.dodged) {
+      this.addLog({ turn: this.state.turn, actorName: actor.displayName, action: "普通攻击", targetName: target.displayName, type: "miss", narrative: `${target.displayName}闪避了${actor.displayName}的攻击`, team: actor.team });
+    } else {
+      const critText = isCrit ? "，暴击！" : "";
+      this.addLog({ turn: this.state.turn, actorName: actor.displayName, action: "普通攻击", targetName: target.displayName, type: isCrit ? "crit" : "damage", value: result.hpLost, narrative: `${actor.displayName}对${target.displayName}造成${result.hpLost}点物理伤害${critText}`, team: actor.team });
+      if (result.killed) {
+        this.addLog({ turn: this.state.turn, actorName: target.displayName, action: "阵亡", type: "death", narrative: `${target.displayName}被击败了！`, team: target.team });
+      }
     }
   }
 
-  return { prevented: false };
-}
+  private executeMagicAttack(actor: BattleCombatant, targetId: string): void {
+    const target = this.findCombatant(targetId);
+    if (!target || target.isDead) {
+      this.addLog({ turn: this.state.turn, actorName: actor.displayName, action: "法术攻击", type: "miss", narrative: `${actor.displayName}的法术攻击落空了`, team: actor.team });
+      return;
+    }
 
-export function isSilenced(combatant: BattleCombatant): boolean {
-  return combatant.activeEffects.some(e => e.mechanic === "cc_silence");
-}
+    const matk = this.getEffectiveStat(actor, "matk");
+    const rawDmg = formulas.calcMagicAttackRaw(matk);
+    const critRate = this.getEffectiveStat(actor, "critRate");
+    const isCrit = formulas.checkCrit(critRate);
+    const mpCost = Math.round(actor.maxMp * 0.05);
+    const actualMp = this.applyMpChange(actor, -mpCost);
 
-export function isFeared(combatant: BattleCombatant): boolean {
-  return combatant.activeEffects.some(e => e.mechanic === "cc_fear");
-}
+    if (actualMp >= 0 && mpCost > 0) {
+      this.addLog({ turn: this.state.turn, actorName: actor.displayName, action: "消耗法力", type: "info", value: mpCost, narrative: `${actor.displayName}消耗${mpCost}点法力`, team: actor.team });
+    }
 
-export function isRooted(combatant: BattleCombatant): boolean {
-  return combatant.activeEffects.some(e => e.mechanic === "cc_root");
-}
+    const result = this.damagePipeline.execute(
+      { source: actor, target, rawDamage: rawDmg, damageType: "magical", isCrit },
+      this.state.turn,
+      this.state.allies,
+      this.state.enemies,
+    );
 
-export function checkPassiveTriggers(
-  combatant: BattleCombatant,
-  event: EffectTrigger,
-  _context: {
-    attacker?: BattleCombatant;
-    target?: BattleCombatant;
-    isCrit?: boolean;
-    killed?: boolean;
-  },
-): PassiveTriggerResult[] {
-  const results: PassiveTriggerResult[] = [];
-
-  for (const pt of combatant.passiveTriggers) {
-    if (pt.component.trigger !== event) continue;
-
-    let value: number;
-    if (pt.sourceType === "treasure") {
-      const flatPower = GRADE_FLAT_POWER[pt.grade];
-      const key = MECHANIC_META[pt.component.mechanic!]?.flatPowerKey ?? "flatDmg";
-      value = flatPower?.[key as keyof typeof flatPower] ?? 0;
+    if (result.dodged) {
+      this.addLog({ turn: this.state.turn, actorName: actor.displayName, action: "法术攻击", targetName: target.displayName, type: "miss", narrative: `${target.displayName}闪避了${actor.displayName}的法术`, team: actor.team });
     } else {
-      value = calcGongfaEffectValue(
-        pt.component.mechanic!,
-        pt.grade,
-        pt.system,
-        combatant,
+      const critText = isCrit ? "，暴击！" : "";
+      this.addLog({ turn: this.state.turn, actorName: actor.displayName, action: "法术攻击", targetName: target.displayName, type: isCrit ? "crit" : "damage", value: result.hpLost, narrative: `${actor.displayName}对${target.displayName}造成${result.hpLost}点法术伤害${critText}`, team: actor.team });
+      if (result.killed) {
+        this.addLog({ turn: this.state.turn, actorName: target.displayName, action: "阵亡", type: "death", narrative: `${target.displayName}被击败了！`, team: target.team });
+      }
+    }
+  }
+
+  private executeGongfa(actor: BattleCombatant, gongfaIndex: number, targetId: string): void {
+    const gf = actor.gongfaSlots[gongfaIndex];
+    if (!gf || !gf.function) {
+      this.addLog({ turn: this.state.turn, actorName: actor.displayName, action: "功法", type: "info", narrative: `${actor.displayName}尝试使用功法但失败了`, team: actor.team });
+      return;
+    }
+
+    if (actor.cooldowns[gongfaIndex] > 0) {
+      this.addLog({ turn: this.state.turn, actorName: actor.displayName, action: "功法冷却中", type: "info", narrative: `${gf.name}正在冷却中（剩余${actor.cooldowns[gongfaIndex]}回合）`, team: actor.team });
+      return;
+    }
+
+    const mpCost = gf.function.mpCost ?? 0;
+    if (mpCost > 0) {
+      const actualMp = this.applyMpChange(actor, -mpCost);
+      if (actor.currentMp < 0) {
+        actor.currentMp = 0;
+      }
+      this.addLog({ turn: this.state.turn, actorName: actor.displayName, action: "消耗法力", type: "info", value: mpCost, narrative: `${actor.displayName}消耗${mpCost}点法力`, team: actor.team });
+    }
+
+    const target = this.findCombatant(targetId);
+    const ctx: ActionContext = {
+      actor,
+      action: { type: "gongfa", gongfaIndex, targetId },
+      allies: actor.team === "ally" ? this.state.allies : this.state.enemies,
+      enemies: actor.team === "ally" ? this.state.enemies : this.state.allies,
+      turn: this.state.turn,
+      target,
+      gongfaGrade: gf.grade,
+      gongfaSystem: gf.system as GongfaSystem | undefined,
+    };
+
+    const entries = this.mechanicRegistry.executeComponents(gf.function.components, ctx, this);
+    this.addLogEntries(entries);
+
+    const cooldown = gf.function.cooldown ?? 0;
+    if (cooldown > 0) {
+      actor.cooldowns[gongfaIndex] = cooldown;
+    }
+  }
+
+  private executeElixir(actor: BattleCombatant, elixirIndex: number): void {
+    const elixir = actor.availableElixirs[elixirIndex];
+    if (!elixir || elixir.count <= 0) return;
+
+    elixir.count--;
+
+    const healAmount = elixir.effects.value ?? 0;
+
+    if (elixir.effectType === "恢复血量") {
+      const healed = this.applyHeal(actor, healAmount);
+      this.addLog({ turn: this.state.turn, actorName: actor.displayName, action: "使用丹药", targetName: actor.displayName, type: "heal", value: healed, narrative: `${actor.displayName}使用${elixir.name}，恢复${healed}点生命`, team: actor.team });
+    } else if (elixir.effectType === "恢复法力") {
+      const restored = this.applyMpChange(actor, healAmount);
+      this.addLog({ turn: this.state.turn, actorName: actor.displayName, action: "使用丹药", targetName: actor.displayName, type: "heal", value: restored, narrative: `${actor.displayName}使用${elixir.name}，恢复${restored}点法力`, team: actor.team });
+    } else {
+      this.addLog({ turn: this.state.turn, actorName: actor.displayName, action: "使用丹药", targetName: actor.displayName, type: "info", narrative: `${actor.displayName}使用了${elixir.name}`, team: actor.team });
+    }
+  }
+
+  private executeFlee(actor: BattleCombatant): void {
+    const fleeChance = actor.isProtagonist ? 0.5 : 0.3;
+    if (Math.random() < fleeChance) {
+      this.state.phase = "fled";
+      this.addLog({ turn: this.state.turn, actorName: actor.displayName, action: "逃跑", type: "flee_success", narrative: `${actor.displayName}成功逃离了战斗！`, team: actor.team });
+      this.emitBattleEnd();
+    } else {
+      this.addLog({ turn: this.state.turn, actorName: actor.displayName, action: "逃跑失败", type: "flee_fail", narrative: `${actor.displayName}逃跑失败！`, team: actor.team });
+    }
+  }
+
+  private tickSummons(actor: BattleCombatant): void {
+    for (let i = actor.summons.length - 1; i >= 0; i--) {
+      const summon = actor.summons[i];
+      summon.remainingTurns--;
+      if (summon.remainingTurns <= 0) {
+        actor.summons.splice(i, 1);
+        continue;
+      }
+
+      const enemies = actor.team === "ally" ? this.state.enemies : this.state.allies;
+      const aliveEnemies = enemies.filter(e => !e.isDead);
+      if (aliveEnemies.length === 0) continue;
+
+      let target: BattleCombatant;
+      if (summon.targetStrategy === "lowest_hp") {
+        target = aliveEnemies.reduce((a, b) => a.currentHp < b.currentHp ? a : b);
+      } else {
+        target = aliveEnemies[Math.floor(Math.random() * aliveEnemies.length)];
+      }
+
+      const rawDmg = summon.damagePerTurn;
+      const result = this.damagePipeline.execute(
+        { source: actor, target, rawDamage: rawDmg, damageType: "physical", isCrit: false },
+        this.state.turn,
+        this.state.allies,
+        this.state.enemies,
       );
-    }
 
-    results.push({ trigger: pt, owner: combatant, value });
-  }
-
-  return results;
-}
-
-export function processSummons(
-  combatant: BattleCombatant,
-  enemies: BattleCombatant[],
-  turn: number,
-): BattleLogEntry[] {
-  const entries: BattleLogEntry[] = [];
-  const aliveEnemies = getAliveEnemies(enemies);
-  if (aliveEnemies.length === 0) return entries;
-
-  const toRemove: number[] = [];
-
-  for (let i = 0; i < combatant.summons.length; i++) {
-    const summon = combatant.summons[i];
-
-    let target: BattleCombatant;
-    if (summon.targetStrategy === "lowest_hp") {
-      target = aliveEnemies.reduce((a, b) => a.currentHp < b.currentHp ? a : b);
-    } else {
-      target = aliveEnemies[Math.floor(Math.random() * aliveEnemies.length)];
-    }
-
-    const { damageDealt, killed } = applyDamage(target, summon.damagePerTurn);
-    entries.push(buildLogEntry(turn, summon.name, "自动攻击", "damage",
-      `${summon.name}自动攻击${target.displayName}，造成${damageDealt}点伤害`,
-      target.displayName, damageDealt, undefined, combatant.team));
-
-    if (killed) {
-      entries.push(buildLogEntry(turn, target.displayName, "阵亡", "death",
-        `${target.displayName}倒下了！`, undefined, undefined, undefined, target.team));
-    }
-
-    summon.remainingTurns -= 1;
-    if (summon.remainingTurns <= 0) {
-      toRemove.push(i);
+      this.addLog({ turn: this.state.turn, actorName: summon.name, action: "飞剑攻击", targetName: target.displayName, type: "damage", value: result.hpLost, narrative: `${summon.name}对${target.displayName}造成${result.hpLost}点伤害`, team: actor.team });
     }
   }
 
-  for (let i = toRemove.length - 1; i >= 0; i--) {
-    combatant.summons.splice(toRemove[i], 1);
-  }
+  private checkBattleEnd(): boolean {
+    const alliesAlive = this.state.allies.some(a => !a.isDead);
+    const enemiesAlive = this.state.enemies.some(e => !e.isDead);
 
-  return entries;
-}
-
-function buildLogEntry(
-  turn: number,
-  actorName: string,
-  action: string,
-  type: BattleLogType,
-  narrative: string,
-  targetName?: string,
-  value?: number,
-  extra?: string,
-  team?: "ally" | "enemy",
-): BattleLogEntry {
-  return { turn, actorName, action, targetName, type, narrative, value, extra, team };
-}
-
-export function resolveNormalAttack(
-  attacker: BattleCombatant,
-  defender: BattleCombatant,
-  turn: number,
-): BattleLogEntry[] {
-  const entries: BattleLogEntry[] = [];
-
-  if (isFeared(attacker)) {
-    return [buildLogEntry(turn, attacker.displayName, "普通攻击(恐惧)", "info",
-      `${attacker.displayName}陷入恐惧，无法控制行动`, undefined, undefined, undefined, attacker.team)];
-  }
-
-  const { damage, isCrit, isMiss } = calcNormalAttackDamage(attacker, defender);
-
-  if (isMiss) {
-    entries.push(buildLogEntry(turn, attacker.displayName, "普通攻击", "miss",
-      `${attacker.displayName}攻击${defender.displayName}，但被闪避了！`,
-      defender.displayName, undefined, undefined, attacker.team));
-    return entries;
-  }
-
-  const { damageDealt, killed } = applyDamage(defender, damage);
-
-  const critExtra = isCrit ? "暴击！" : undefined;
-  entries.push(buildLogEntry(turn, attacker.displayName, "普通攻击", isCrit ? "crit" : "damage",
-    `${attacker.displayName}攻击${defender.displayName}，造成${damageDealt}点伤害${isCrit ? "（暴击！）" : ""}`,
-    defender.displayName, damageDealt, critExtra, attacker.team));
-
-  const passiveResults = checkPassiveTriggers(attacker, "on_attack", { attacker, target: defender, isCrit });
-  for (const pr of passiveResults) {
-    entries.push(buildLogEntry(turn, pr.trigger.sourceName, pr.trigger.effectName, "info",
-      `${pr.trigger.sourceName}的${pr.trigger.effectName}触发！`, undefined, undefined, undefined, attacker.team));
-  }
-
-  if (killed) {
-    entries.push(buildLogEntry(turn, defender.displayName, "阵亡", "death",
-      `${defender.displayName}倒下了！`, undefined, undefined, undefined, defender.team));
-
-    const killPassives = checkPassiveTriggers(attacker, "on_kill", { attacker, target: defender, killed: true });
-    for (const pr of killPassives) {
-      entries.push(buildLogEntry(turn, pr.trigger.sourceName, pr.trigger.effectName, "info",
-        `${pr.trigger.sourceName}的${pr.trigger.effectName}因击杀触发！`, undefined, undefined, undefined, attacker.team));
+    if (!enemiesAlive) {
+      this.state.phase = "victory";
+      this.emitBattleEnd();
+      return true;
     }
+    if (!alliesAlive) {
+      this.state.phase = "defeat";
+      this.emitBattleEnd();
+      return true;
+    }
+    if (this.state.phase === "fled") {
+      return true;
+    }
+
+    return false;
   }
 
-  return entries;
-}
-
-export function resolveMagicAttack(
-  attacker: BattleCombatant,
-  defender: BattleCombatant,
-  turn: number,
-): BattleLogEntry[] {
-  const entries: BattleLogEntry[] = [];
-  const mpCost = getSpellMpCost(attacker.realm.major);
-  applyMpChange(attacker, -mpCost);
-
-  const { damage, isCrit } = calcMagicAttackDamage(attacker, defender);
-  const { damageDealt, killed } = applyDamage(defender, damage);
-
-  const critExtra = isCrit ? "暴击！" : undefined;
-  entries.push(buildLogEntry(turn, attacker.displayName, "法术攻击", isCrit ? "crit" : "damage",
-    `${attacker.displayName}施展法术攻击${defender.displayName}，造成${damageDealt}点伤害${isCrit ? "（暴击！）" : ""}`,
-    defender.displayName, damageDealt, critExtra, attacker.team));
-
-  if (killed) {
-    entries.push(buildLogEntry(turn, defender.displayName, "阵亡", "death",
-      `${defender.displayName}倒下了！`, undefined, undefined, undefined, defender.team));
+  private emitBattleEnd(): void {
+    this.eventDispatcher.emit("battle_end", {
+      event: "battle_end",
+      allies: this.state.allies,
+      enemies: this.state.enemies,
+      turn: this.state.turn,
+    });
   }
 
-  return entries;
-}
+  getPlayerActionOptions(): {
+    canNormalAttack: boolean;
+    canMagicAttack: boolean;
+    gongfaItems: GongfaActionItem[];
+    elixirItems: ElixirActionItem[];
+    canFlee: boolean;
+  } {
+    const s = this.state;
+    const actor = this.findCombatant(s.currentActorId ?? "");
+    if (!actor || actor.isDead) {
+      return { canNormalAttack: false, canMagicAttack: false, gongfaItems: [], elixirItems: [], canFlee: false };
+    }
 
-export function resolveGongfaAction(
-  actor: BattleCombatant,
-  action: Extract<BattleAction, { type: "gongfa" }>,
-  allies: BattleCombatant[],
-  enemies: BattleCombatant[],
-  turn: number,
-): BattleLogEntry[] {
-  const entries: BattleLogEntry[] = [];
-  const gongfa = actor.gongfaSlots[action.gongfaIndex];
-  if (!gongfa || !gongfa.function) return entries;
+    const canAct = this.effectManager.canAct(actor);
+    if (!canAct.canAct) {
+      return { canNormalAttack: false, canMagicAttack: false, gongfaItems: [], elixirItems: [], canFlee: false };
+    }
 
-  const fn = gongfa.function;
-  const mpCost = fn.mpCost ?? 0;
-  applyMpChange(actor, -mpCost);
+    const canUseSkills = this.effectManager.canUseSkills(actor);
 
-  const effectParts: string[] = [];
-  let mainType: BattleLogType = "info";
-  let totalDamage = 0;
-  let primaryTargetName: string | undefined;
-  const killedNames: string[] = [];
+    const gongfaItems: GongfaActionItem[] = [];
+    if (canUseSkills) {
+      for (let i = 0; i < actor.gongfaSlots.length; i++) {
+        const gf = actor.gongfaSlots[i];
+        if (!gf || !gf.function) continue;
+        if (actor.cooldowns[i] > 0) continue;
+        if ((gf.function.mpCost ?? 0) > actor.currentMp) continue;
 
-  const target = findCombatantById(action.targetId, allies, enemies);
-  if (target) primaryTargetName = target.displayName;
+        const hasOffensive = gf.function.components.some(
+          c => c.mechanic?.startsWith("dmg_") || c.mechanic?.startsWith("debuff_") || c.mechanic?.startsWith("cc_"),
+        );
 
-  for (const component of fn.components) {
-    if (!component.mechanic) continue;
-
-    const meta = MECHANIC_META[component.mechanic];
-    if (!meta) continue;
-
-    const rawValue = calcGongfaEffectValue(component.mechanic, gongfa.grade, gongfa.system, actor);
-
-    switch (meta.category) {
-      case "damage":
-      case "summon": {
-        if (component.mechanic === "summon") {
-          actor.summons.push({
-            id: `${actor.id}_summon_${Date.now()}`,
-            name: `${fn.name}·召唤`,
-            ownerCombatantId: actor.id,
-            damagePerTurn: Math.round(rawValue),
-            remainingTurns: 3,
-            targetStrategy: "random",
-          });
-          effectParts.push(`召唤灵体，每回合造成${Math.round(rawValue)}点伤害`);
-          mainType = "summon";
-        } else if (target && !target.isDead) {
-          const defKey = gongfa.system && SYSTEM_DAMAGE_STAT[gongfa.system] === "matk" ? "mdef" : "pdef";
-          const defValue = getEffectiveStat(target, defKey as keyof PlayerBaseStats);
-          const finalDmg = Math.max(1, Math.round(rawValue - defValue * 0.3));
-          const { damageDealt, killed } = applyDamage(target, finalDmg);
-          totalDamage += damageDealt;
-          effectParts.push(`造成${damageDealt}点伤害`);
-          mainType = "damage";
-          if (killed) killedNames.push(target.displayName);
-        }
-        break;
-      }
-      case "heal": {
-        if (component.mechanic === "heal_aoe" || component.mechanic === "heal_single") {
-          const isAoe = component.mechanic === "heal_aoe";
-          const healTargets = isAoe ? getAliveAllies(allies) : (target ? [target] : []);
-          let totalHealed = 0;
-          for (const ht of healTargets) {
-            const { healed } = applyHeal(ht, Math.round(rawValue));
-            totalHealed += healed;
-          }
-          if (isAoe) {
-            effectParts.push(`为我方全体恢复${totalHealed}点生命`);
-          } else if (healTargets.length > 0) {
-            effectParts.push(`为${healTargets[0].displayName}恢复${totalHealed}点生命`);
-          }
-          if (mainType === "info") mainType = "heal";
-        } else if (component.mechanic === "heal_lifesteal" || component.mechanic === "heal_lifesteal_pct") {
-          if (target && !target.isDead) {
-            const dmgPct = component.mechanic === "heal_lifesteal_pct" ? 0.3 : 0.5;
-            const dmgToTarget = Math.max(1, Math.round(rawValue * dmgPct));
-            const { damageDealt, killed } = applyDamage(target, dmgToTarget);
-            totalDamage += damageDealt;
-            effectParts.push(`吸取${target.displayName}${damageDealt}点生命`);
-            const { healed } = applyHeal(actor, damageDealt);
-            if (healed > 0) {
-              effectParts.push(`自身恢复${healed}点生命`);
-            }
-            mainType = "damage";
-            if (killed) killedNames.push(target.displayName);
-          }
-        }
-        break;
-      }
-      case "buff": {
-        const buffTargets = component.mechanic === "buff_shield"
-          ? (target ? [target] : [actor])
-          : [actor];
-        for (const bt of buffTargets) {
-          if (component.mechanic === "buff_shield") {
-            const shieldAmt = Math.round(rawValue);
-            bt.shield += shieldAmt;
-            effectParts.push(`为${bt.displayName}增加${shieldAmt}点护盾`);
-            if (mainType === "info") mainType = "shield";
-          } else {
-            const pctValue = Math.round(rawValue * 100);
-            const duration = 2 + Math.floor((GRADE_INDEX[gongfa.grade] ?? 0) / 2);
-            addStatusEffect(bt, {
-              id: `eff_${bt.id}_${Date.now()}`,
-              name: meta.label,
-              sourceCombatantId: actor.id,
-              mechanic: component.mechanic,
-              category: "buff",
-              value: pctValue,
-              isPercent: true,
-              remainingTurns: duration,
-              stacks: 1,
-              canStack: false,
-            });
-            effectParts.push(`为${bt.displayName}施加${meta.label}${pctValue}%`);
-            if (mainType === "info") mainType = "buff";
-          }
-        }
-        break;
-      }
-      case "debuff": {
-        const debuffTargets = target ? [target] : [];
-        for (const dt of debuffTargets) {
-          const pctValue = Math.round(rawValue * 100);
-          const duration = 2 + Math.floor((GRADE_INDEX[gongfa.grade] ?? 0) / 2);
-          addStatusEffect(dt, {
-            id: `eff_${dt.id}_${Date.now()}`,
-            name: meta.label,
-            sourceCombatantId: actor.id,
-            mechanic: component.mechanic,
-            category: "debuff",
-            value: -pctValue,
-            isPercent: true,
-            remainingTurns: duration,
-            stacks: 1,
-            canStack: false,
-          });
-          effectParts.push(`对${dt.displayName}施加${meta.label}${pctValue}%`);
-          if (mainType === "info") mainType = "debuff";
-        }
-        break;
-      }
-      case "cc": {
-        const ccTargets = target ? [target] : [];
-        for (const ct of ccTargets) {
-          const chance = rawValue;
-          const hit = Math.random() < chance;
-          if (hit) {
-            const duration = 1 + Math.floor((GRADE_INDEX[gongfa.grade] ?? 0) / 3);
-            addStatusEffect(ct, {
-              id: `eff_${ct.id}_${Date.now()}`,
-              name: meta.label,
-              sourceCombatantId: actor.id,
-              mechanic: component.mechanic,
-              category: "cc",
-              value: chance,
-              isPercent: true,
-              remainingTurns: duration,
-              stacks: 1,
-              canStack: false,
-            });
-            effectParts.push(`对${ct.displayName}施加${meta.label}`);
-            if (mainType === "info") mainType = "cc";
-          } else {
-            effectParts.push(`试图对${ct.displayName}施加${meta.label}，但被抵抗了`);
-          }
-        }
-        break;
-      }
-      case "utility": {
-        if (component.mechanic === "extra_action") {
-          const chance = rawValue;
-          if (Math.random() < chance) {
-            actor.actedThisTurn = false;
-            effectParts.push("获得额外行动");
-          }
-        } else if (component.mechanic === "cleanse") {
-          const ccEffects = actor.activeEffects.filter(e => e.category === "cc" || e.category === "debuff");
-          if (ccEffects.length > 0) {
-            for (const eff of ccEffects) {
-              const idx = actor.activeEffects.indexOf(eff);
-              if (idx >= 0) actor.activeEffects.splice(idx, 1);
-            }
-            effectParts.push(`净化了${ccEffects.length}个负面效果`);
-          }
-        } else if (component.mechanic === "death_ward") {
-          addStatusEffect(actor, {
-            id: `eff_${actor.id}_ward_${Date.now()}`,
-            name: "免死",
-            sourceCombatantId: actor.id,
-            mechanic: "death_ward",
-            category: "buff",
-            value: rawValue,
-            isPercent: true,
-            remainingTurns: 99,
-            stacks: 1,
-            canStack: false,
-          });
-          effectParts.push("获得免死护盾");
-          if (mainType === "info") mainType = "buff";
-        } else if (component.mechanic === "reflect") {
-          addStatusEffect(actor, {
-            id: `eff_${actor.id}_reflect_${Date.now()}`,
-            name: "反弹",
-            sourceCombatantId: actor.id,
-            mechanic: "reflect",
-            category: "buff",
-            value: rawValue * 100,
-            isPercent: true,
-            remainingTurns: 3,
-            stacks: 1,
-            canStack: false,
-          });
-          effectParts.push("开启伤害反弹");
-          if (mainType === "info") mainType = "buff";
-        } else if (component.mechanic === "kill_bonus") {
-          addStatusEffect(actor, {
-            id: `eff_${actor.id}_killbonus_${Date.now()}`,
-            name: "击杀增益",
-            sourceCombatantId: actor.id,
-            mechanic: "kill_bonus",
-            category: "buff",
-            value: rawValue * 100,
-            isPercent: true,
-            remainingTurns: 99,
-            stacks: 1,
-            canStack: true,
-          });
-          effectParts.push("获得击杀增益效果");
-          if (mainType === "info") mainType = "buff";
-        } else if (component.mechanic === "counter") {
-          addStatusEffect(actor, {
-            id: `eff_${actor.id}_counter_${Date.now()}`,
-            name: "反击",
-            sourceCombatantId: actor.id,
-            mechanic: "counter",
-            category: "buff",
-            value: rawValue,
-            isPercent: false,
-            remainingTurns: 2,
-            stacks: 1,
-            canStack: false,
-          });
-          effectParts.push("进入反击姿态");
-          if (mainType === "info") mainType = "buff";
-        }
-        break;
+        gongfaItems.push({
+          gongfaIndex: i,
+          name: gf.name,
+          mpCost: gf.function.mpCost ?? 0,
+          needTarget: hasOffensive,
+          targetTeam: hasOffensive ? "enemy" : "ally",
+          description: gf.function.components.map(c => c.desc ?? "").join("；"),
+          cooldown: actor.cooldowns[i],
+        });
       }
     }
-  }
 
-  let narrative = `${actor.displayName}催动${gongfa.name}·${fn.name}`;
-  if (effectParts.length > 0) {
-    narrative += `，${effectParts.join("，")}`;
-  }
-
-  entries.push(buildLogEntry(turn, actor.displayName, `${gongfa.name}·${fn.name}`, mainType,
-    narrative, primaryTargetName, totalDamage > 0 ? totalDamage : undefined, undefined, actor.team));
-
-  for (const name of killedNames) {
-    const killedCombatant = target;
-    entries.push(buildLogEntry(turn, name, "阵亡", "death",
-      `${name}倒下了！`, undefined, undefined, undefined, killedCombatant?.team));
-  }
-
-  return entries;
-}
-
-export function resolveElixirAction(
-  actor: BattleCombatant,
-  action: Extract<BattleAction, { type: "elixir" }>,
-  turn: number,
-): BattleLogEntry[] {
-  const entries: BattleLogEntry[] = [];
-  const elixir = actor.availableElixirs[action.elixirIndex];
-  if (!elixir) return entries;
-
-  const { effectType, effects } = elixir;
-  const value = effects.value;
-
-  if (effectType === "恢复血量") {
-    if (effects.isPercent) {
-      const healAmt = Math.round(actor.maxHp * value / 100);
-      const { healed } = applyHeal(actor, healAmt);
-      entries.push(buildLogEntry(turn, actor.displayName, `服用${elixir.name}`, "heal",
-        `${actor.displayName}服用${elixir.name}，恢复${healed}点生命`,
-        actor.displayName, healed, undefined, actor.team));
-    } else {
-      const { healed } = applyHeal(actor, value);
-      entries.push(buildLogEntry(turn, actor.displayName, `服用${elixir.name}`, "heal",
-        `${actor.displayName}服用${elixir.name}，恢复${healed}点生命`,
-        actor.displayName, healed, undefined, actor.team));
+    const elixirItems: ElixirActionItem[] = [];
+    for (let i = 0; i < actor.availableElixirs.length; i++) {
+      const el = actor.availableElixirs[i];
+      if (!el || el.count <= 0) continue;
+      elixirItems.push({
+        elixirIndex: i,
+        name: el.name,
+        effectType: el.effectType,
+        count: el.count,
+        description: el.desc ?? "",
+      });
     }
-  } else if (effectType === "恢复法力") {
-    if (effects.isPercent) {
-      const mpAmt = Math.round(actor.maxMp * value / 100);
-      const { changed } = applyMpChange(actor, mpAmt);
-      entries.push(buildLogEntry(turn, actor.displayName, `服用${elixir.name}`, "heal",
-        `${actor.displayName}服用${elixir.name}，恢复${changed}点法力`,
-        actor.displayName, changed, undefined, actor.team));
-    } else {
-      const { changed } = applyMpChange(actor, value);
-      entries.push(buildLogEntry(turn, actor.displayName, `服用${elixir.name}`, "heal",
-        `${actor.displayName}服用${elixir.name}，恢复${changed}点法力`,
-        actor.displayName, changed, undefined, actor.team));
-    }
-  }
 
-  elixir.count -= 1;
-  return entries;
-}
-
-export function resolveFlee(
-  actor: BattleCombatant,
-  enemies: BattleCombatant[],
-  turn: number,
-): { entries: BattleLogEntry[]; success: boolean } {
-  if (isRooted(actor)) {
     return {
-      entries: [buildLogEntry(turn, actor.displayName, "逃跑", "info",
-        `${actor.displayName}被禁锢，无法逃跑！`, undefined, undefined, undefined, actor.team)],
-      success: false,
+      canNormalAttack: true,
+      canMagicAttack: actor.currentMp >= Math.round(actor.maxMp * 0.05),
+      gongfaItems,
+      elixirItems,
+      canFlee: true,
     };
   }
 
-  const entries: BattleLogEntry[] = [];
-  const aliveEnemies = getAliveEnemies(enemies);
-  const actorAgility = actor.primaryStats.agility ?? 0;
+  getEffectiveStat(combatant: BattleCombatant, stat: keyof PlayerBaseStats): number {
+    return this.effectManager.getEffectiveStat(combatant, stat);
+  }
 
-  for (const enemy of aliveEnemies) {
-    const enemyAgility = enemy.primaryStats.agility ?? 0;
-    if (actorAgility <= enemyAgility) {
-      const attackEntries = resolveNormalAttack(enemy, actor, turn);
-      entries.push(...attackEntries);
+  addLog(entry: BattleLogEntry): void {
+    this.state.log.push(entry);
+  }
 
-      if (actor.isDead) {
-        return { entries, success: false };
+  addLogEntries(entries: BattleLogEntry[]): void {
+    this.state.log.push(...entries);
+  }
+
+  findCombatant(id: string): BattleCombatant | undefined {
+    return this.getAllCombatants().find(c => c.id === id);
+  }
+
+  getAllCombatants(): BattleCombatant[] {
+    return [...this.state.allies, ...this.state.enemies];
+  }
+
+  applyMpChange(target: BattleCombatant, delta: number): number {
+    target.currentMp = Math.max(0, Math.min(target.maxMp, target.currentMp + delta));
+    return target.currentMp;
+  }
+
+  applyHeal(target: BattleCombatant, rawHeal: number): number {
+    const deficit = target.maxHp - target.currentHp;
+    const healed = Math.min(deficit, rawHeal);
+    target.currentHp += healed;
+
+    this.eventDispatcher.emit("heal", {
+      event: "heal",
+      target,
+      allies: target.team === "ally" ? this.state.allies : this.state.enemies,
+      enemies: target.team === "ally" ? this.state.enemies : this.state.allies,
+      turn: this.state.turn,
+    });
+
+    return healed;
+  }
+
+  tickCooldowns(combatant: BattleCombatant): void {
+    for (let i = 0; i < combatant.cooldowns.length; i++) {
+      if (combatant.cooldowns[i] > 0) {
+        combatant.cooldowns[i]--;
       }
     }
   }
-
-  entries.push(buildLogEntry(turn, actor.displayName, "逃跑", "flee_success",
-    `${actor.displayName}成功脱离战斗！`, undefined, undefined, undefined, actor.team));
-
-  return { entries, success: true };
-}
-
-export function resolveAction(
-  action: BattleAction,
-  actor: BattleCombatant,
-  allies: BattleCombatant[],
-  enemies: BattleCombatant[],
-  turn: number,
-): { entries: BattleLogEntry[]; fled: boolean } {
-  switch (action.type) {
-    case "normal_attack": {
-      const target = findCombatantById(action.targetId, allies, enemies);
-      if (!target || target.isDead) return { entries: [], fled: false };
-      return { entries: resolveNormalAttack(actor, target, turn), fled: false };
-    }
-    case "magic_attack": {
-      const target = findCombatantById(action.targetId, allies, enemies);
-      if (!target || target.isDead) return { entries: [], fled: false };
-      return { entries: resolveMagicAttack(actor, target, turn), fled: false };
-    }
-    case "gongfa": {
-      return { entries: resolveGongfaAction(actor, action, allies, enemies, turn), fled: false };
-    }
-    case "elixir": {
-      return { entries: resolveElixirAction(actor, action, turn), fled: false };
-    }
-    case "flee": {
-      const result = resolveFlee(actor, enemies, turn);
-      return { entries: result.entries, fled: result.success };
-    }
-  }
-}
-
-export function processTurnStart(
-  allies: BattleCombatant[],
-  enemies: BattleCombatant[],
-  turn: number,
-): BattleLogEntry[] {
-  const entries: BattleLogEntry[] = [];
-  const all = [...allies, ...enemies];
-
-  for (const c of all) {
-    if (c.isDead) continue;
-
-    const startPassives = checkPassiveTriggers(c, "on_turn_start", {});
-    for (const pr of startPassives) {
-      entries.push(buildLogEntry(turn, pr.trigger.sourceName, pr.trigger.effectName, "info",
-        `${c.displayName}的${pr.trigger.sourceName}触发${pr.trigger.effectName}`, undefined, undefined, undefined, c.team));
-    }
-
-    const dotEntries = tickStatusEffects(c, turn);
-    entries.push(...dotEntries);
-
-    const summonEntries = processSummons(c, c.team === "ally" ? enemies : allies, turn);
-    entries.push(...summonEntries);
-  }
-
-  return entries;
-}
-
-export function processTurnEnd(
-  allies: BattleCombatant[],
-  enemies: BattleCombatant[],
-  turn: number,
-): BattleLogEntry[] {
-  const entries: BattleLogEntry[] = [];
-  const all = [...allies, ...enemies];
-
-  for (const c of all) {
-    if (c.isDead) continue;
-
-    c.actedThisTurn = false;
-
-    const endPassives = checkPassiveTriggers(c, "on_turn_end", {});
-    for (const pr of endPassives) {
-      entries.push(buildLogEntry(turn, pr.trigger.sourceName, pr.trigger.effectName, "info",
-        `${c.displayName}的${pr.trigger.sourceName}触发${pr.trigger.effectName}`, undefined, undefined, undefined, c.team));
-    }
-
-    if (c.shield > 0) {
-      const shieldEffects = c.activeEffects.filter(e => e.mechanic === "buff_shield");
-      if (shieldEffects.length === 0) {
-        c.shield = Math.max(0, c.shield - Math.round(c.shield * 0.5));
-      }
-    }
-  }
-
-  return entries;
-}
-
-export function checkBattleEnd(
-  state: BattleState,
-): { ended: boolean; outcome: "victory" | "defeat" | "draw" | null } {
-  const allEnemiesDead = state.enemies.every(e => e.isDead);
-  if (allEnemiesDead) return { ended: true, outcome: "victory" };
-
-  const protagonist = state.allies.find(a => a.isProtagonist);
-  if (protagonist?.isDead) return { ended: true, outcome: "defeat" };
-
-  if (state.turn > state.maxTurns) return { ended: true, outcome: "draw" };
-
-  return { ended: false, outcome: null };
 }

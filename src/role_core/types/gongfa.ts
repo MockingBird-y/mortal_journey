@@ -42,6 +42,7 @@ export interface GongfaSpecialEffect {
   components: readonly EffectComponent[];
   type: GongfaEffectType;
   mpCost?: number;
+  cooldown?: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

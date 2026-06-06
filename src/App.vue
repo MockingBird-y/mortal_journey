@@ -8,7 +8,7 @@ import BattleScreen from "./battle_core/BattleScreen.vue";
 import { gameLog } from "./log/gameLog";
 import type { FateChoiceResult } from "./fate_choice/types";
 import type { BattleTriggerEntry } from "./ai/state_generate";
-import type { BattleResult } from "./battle_core/battleTypes";
+import type { BattleResult } from "./battle_core/types";
 
 const fateChoiceVisible = ref(false);
 const mainScreenVisible = ref(false);

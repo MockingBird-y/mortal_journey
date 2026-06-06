@@ -477,14 +477,15 @@ onUnmounted(() => {
 .mj-npc-stats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0 16px;
+  gap: 4px 16px;
 }
 
 .mj-stat-cell {
   display: flex;
+  justify-content: space-between;
   align-items: baseline;
   gap: 6px;
-  padding: 3px 0;
+  min-width: 0;
 }
 
 .mj-stat-k {

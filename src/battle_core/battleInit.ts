@@ -1,19 +1,21 @@
 import type {
   BattleCombatant,
-  BattleSummon,
   PassiveTrigger,
-  BattleState,
-} from "./battleTypes";
+} from "./types";
 
 import type { BattleTriggerEntry } from "../ai/state_generate";
-import type { PlayerBaseStats, EquippedSlotsState, GongfaSlotsState } from "../role_core/types/playInfo";
+import type { EquippedSlotsState, GongfaSlotsState } from "../role_core/types/playInfo";
 import type { ElixirItemDefinition, InventoryStackItem } from "../role_core/types/itemInfo";
 import type { EffectComponent } from "../role_core/types/combatMechanics";
 import { protagonist } from "../role_core/Protagonist";
 import { Npc } from "../role_core/Npc";
 import { npcStore } from "../role_core/npcStore";
-import { generateCombatantId } from "./battleEngine";
 import { gameLog } from "../log/gameLog";
+import { GONGFA_SLOT_COUNT } from "../role_core/types/gameConstants";
+
+function generateCombatantId(team: "ally" | "enemy", index: number): string {
+  return `${team}_${index}`;
+}
 
 function extractPassiveTriggers(
   equippedSlots: EquippedSlotsState,
@@ -46,7 +48,7 @@ function extractPassiveTriggers(
           effectName: gf.function.name,
           component: comp,
           grade: gf.grade,
-          system: gf.system,
+          system: gf.system as import("../role_core/types/gongfa").GongfaSystem | undefined,
         });
       }
     }
@@ -81,8 +83,10 @@ function createProtagonistCombatant(): BattleCombatant | null {
     displayName: p.displayName,
     team: "ally",
     isProtagonist: true,
+    isPlayerControlled: true,
     stats: { ...stats },
     primaryStats: { ...primaryStats },
+    speed: primaryStats.agility ?? 0,
     currentHp: p.currentHp,
     maxHp: p.maxHp,
     currentMp: p.currentMp,
@@ -93,10 +97,10 @@ function createProtagonistCombatant(): BattleCombatant | null {
     activeEffects: [],
     shield: 0,
     isDead: false,
-    actedThisTurn: false,
     passiveTriggers,
     summons: [],
     realm: { ...p.realm },
+    cooldowns: new Array(GONGFA_SLOT_COUNT).fill(0),
   };
 }
 
@@ -115,8 +119,10 @@ function createNpcCombatant(
     displayName: npc.displayName,
     team,
     isProtagonist: false,
+    isPlayerControlled: false,
     stats: { ...stats },
     primaryStats: { ...primaryStats },
+    speed: primaryStats.agility ?? 0,
     currentHp: npc.currentHp,
     maxHp: npc.maxHp,
     currentMp: npc.currentMp,
@@ -127,17 +133,20 @@ function createNpcCombatant(
     activeEffects: [],
     shield: 0,
     isDead: false,
-    actedThisTurn: false,
     passiveTriggers,
     sourceNpcName: npc.displayName,
     summons: [],
     realm: { ...npc.realm },
     powerTier: npc.powerTier,
     identity: npc.identity,
+    cooldowns: new Array(GONGFA_SLOT_COUNT).fill(0),
   };
 }
 
-export function initBattle(triggerEntry: BattleTriggerEntry): BattleState {
+export function createBattleCombatants(triggerEntry: BattleTriggerEntry): {
+  allies: BattleCombatant[];
+  enemies: BattleCombatant[];
+} {
   const allies: BattleCombatant[] = [];
   const enemies: BattleCombatant[] = [];
 
@@ -163,7 +172,7 @@ export function initBattle(triggerEntry: BattleTriggerEntry): BattleState {
   for (const enemy of triggerEntry.enemies) {
     const npc = npcStore.getNpc(enemy.displayName);
     if (!npc || npc.isDead) {
-      gameLog.warn(`[initBattle] 敌方NPC "${enemy.displayName}" 未在npcStore中找到或已死亡，已有NPC: [${Array.from(npcStore.npcs.value.keys()).join(", ")}]`);
+      gameLog.warn(`[initBattle] 敌方NPC "${enemy.displayName}" 未在npcStore中找到或已死亡`);
       continue;
     }
     if (enemies.length >= 5) break;
@@ -171,16 +180,5 @@ export function initBattle(triggerEntry: BattleTriggerEntry): BattleState {
     enemyIndex++;
   }
 
-  return {
-    phase: "init",
-    turn: 1,
-    allies,
-    enemies,
-    log: [],
-    triggerEntry,
-    pendingAction: null,
-    selectedTargetId: null,
-    actionSubmenu: null,
-    maxTurns: 30,
-  };
+  return { allies, enemies };
 }
