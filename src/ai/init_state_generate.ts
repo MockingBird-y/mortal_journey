@@ -39,6 +39,7 @@ export interface InitStateParsed {
   spiritStones: { op: "add"; name: string; count: number }[];
   nearbyNpcs: NpcNearbyEntry[];
   storySnapshot: string;
+  protagonistAge: number | null;
 }
 
 const DEFAULT_INIT_STATE_TEMPERATURE = 0.55;
@@ -60,6 +61,8 @@ const TAG_NPC_NEARBY_OPEN = "<NPC_NEARBY_TAG>";
 const TAG_NPC_NEARBY_CLOSE = "</NPC_NEARBY_TAG>";
 const TAG_STORY_SNAPSHOT_OPEN = "<mj_story_snapshot>";
 const TAG_STORY_SNAPSHOT_CLOSE = "</mj_story_snapshot>";
+const TAG_AGE_OPEN = "<mj_protagonist_age>";
+const TAG_AGE_CLOSE = "</mj_protagonist_age>";
 
 function safeJsonParse(text: string): unknown {
   try {
@@ -177,7 +180,14 @@ export function parseInitStateAiResponse(raw: string, realmMajor: string, realmM
 
   const storySnapshot = extractTagContent(raw, TAG_STORY_SNAPSHOT_OPEN, TAG_STORY_SNAPSHOT_CLOSE);
 
-  return { equips, gongfas, storage, worldLocation, hpPercent, mpPercent, spiritStones, nearbyNpcs, storySnapshot };
+  const ageText = extractTagContent(raw, TAG_AGE_OPEN, TAG_AGE_CLOSE);
+  let protagonistAge: number | null = null;
+  if (ageText) {
+    const parsed = parseInt(ageText.trim(), 10);
+    if (!isNaN(parsed) && parsed > 0) protagonistAge = parsed;
+  }
+
+  return { equips, gongfas, storage, worldLocation, hpPercent, mpPercent, spiritStones, nearbyNpcs, storySnapshot, protagonistAge };
 }
 
 export function buildEquippedSlotsFromParsed(parsed: InitStateParsed): EquippedSlotsState {

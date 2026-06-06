@@ -73,6 +73,8 @@ import {
   getBaseStats,
   getProtagonistNarrativeAge,
   getShouyuanForRealm,
+  getMinNarrativeAgeForMajor,
+  getMaxNarrativeAgeForMajor,
 } from "./types/playInfo";
 import { getCultivationRequired, getGongfaMasteryExpPerYear, addGongfaMasteryExp } from "./realmUtils";
 
@@ -427,6 +429,14 @@ export class Protagonist extends Character {
     this.maxMp = capM;
     this.currentHp = Math.max(0, Math.min(capH, Math.round(capH * parsed.hpPercent / 100)));
     this.currentMp = Math.max(0, Math.min(capM, Math.round(capM * parsed.mpPercent / 100)));
+
+    if (typeof parsed.protagonistAge === "number" && parsed.protagonistAge > 0) {
+      const minAge = getMinNarrativeAgeForMajor(this.realm.major);
+      const maxAge = Math.min(this.shouyuan - 1, getMaxNarrativeAgeForMajor(this.realm.major));
+      const clampedAge = Math.max(minAge, Math.min(maxAge, parsed.protagonistAge));
+      this.setAge(clampedAge);
+    }
+
     Protagonist.notifyChanged();
   }
 

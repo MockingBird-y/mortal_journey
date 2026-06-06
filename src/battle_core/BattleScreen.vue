@@ -83,10 +83,6 @@ function onNormalAttack() {
   selectAction({ type: "normal_attack", targetId: "" });
 }
 
-function onMagicAttack() {
-  selectAction({ type: "magic_attack", targetId: "" });
-}
-
 function onGongfaSelect(item: GongfaActionItem) {
   if (item.needTarget) {
     selectAction({ type: "gongfa", gongfaIndex: item.gongfaIndex, targetId: "" });
@@ -143,6 +139,12 @@ function hpBarClass(combatant: BattleCombatant): string {
 
 function mpBarClass(): string {
   return "battle__mp-bar";
+}
+
+function logAlignClass(team?: string): string {
+  if (team === "ally") return "battle__log-entry--ally";
+  if (team === "enemy") return "battle__log-entry--enemy";
+  return "";
 }
 
 function logTypeClass(type: string): string {
@@ -228,9 +230,6 @@ function closeSubmenus() {
                   <button class="battle__action-btn" @click="onNormalAttack" :disabled="!actionOptions.canNormalAttack">
                     ⚔ 普通攻击
                   </button>
-                  <button class="battle__action-btn" @click="onMagicAttack" :disabled="!actionOptions.canMagicAttack">
-                    ✦ 法术攻击
-                  </button>
                   <div class="battle__action-group">
                     <button class="battle__action-btn" @click="toggleGongfaSubmenu" :disabled="actionOptions.gongfaItems.length === 0">
                       📜 功法攻击 {{ gongfaSubmenuOpen ? '▲' : '▼' }}
@@ -308,7 +307,7 @@ function closeSubmenus() {
               </aside>
 
               <main class="battle__log-area" ref="logContainer">
-                <div v-for="(entry, idx) in state.log" :key="idx" class="battle__log-entry" :class="logTypeClass(entry.type)">
+                <div v-for="(entry, idx) in state.log" :key="idx" class="battle__log-entry" :class="[logTypeClass(entry.type), logAlignClass(entry.team)]">
                   <span class="battle__log-icon">{{ logIcon(entry.type) }}</span>
                   <span class="battle__log-text">{{ entry.narrative }}</span>
                 </div>

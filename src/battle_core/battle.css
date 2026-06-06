@@ -292,6 +292,16 @@
   line-height: 1.5;
 }
 
+.battle__log-entry--ally {
+  justify-content: flex-start;
+}
+
+.battle__log-entry--enemy {
+  justify-content: flex-end;
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
 .battle__log-icon {
   flex-shrink: 0;
   width: 16px;

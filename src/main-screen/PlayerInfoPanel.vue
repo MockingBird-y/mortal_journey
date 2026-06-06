@@ -70,7 +70,7 @@ const traitSlots = computed(() => getTraitSlots(props.protagonist));
 const inventoryBagDisplaySlots = computed(() =>
   props.protagonist ? getInventoryBagDisplaySlots(props.protagonist.inventorySlots) : [],
 );
-const shouyuanWarning = computed(() => getShouyuanWarningLevel(props.protagonist));
+const shouyuanWarning = computed(() => getShouyuanWarningLevel(props.protagonist, props.worldTimeBaseline, props.worldTime));
 const breakthroughLabel = computed(() => {
   const p = props.protagonist;
   if (!p || !p.realmComplete) return "";

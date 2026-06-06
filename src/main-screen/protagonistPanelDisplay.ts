@@ -18,6 +18,7 @@ import type {
   BreakthroughStatus,
 } from "../role_core/types/playInfo";
 import { getCultivationSpeed } from "../role_core/realmUtils";
+import { calendarYearsElapsed, type WorldTime } from "../role_core/worldTime";
 
 /** 储物袋展示用网格列数（与 `mainScreenPlayerPanel.css`、`Protagonist.INVENTORY_SLOT_EXPAND_STEP` 一致） */
 export const INVENTORY_BAG_GRID_COLUMNS = 4;
@@ -361,10 +362,16 @@ export function getCultivationSpeedDisplay(p: ProtagonistPlayInfo | null): strin
 
 export type ShouyuanWarningLevel = "danger" | "warning" | "normal";
 
-export function getShouyuanWarningLevel(p: ProtagonistPlayInfo | null): ShouyuanWarningLevel {
+export function getShouyuanWarningLevel(
+  p: ProtagonistPlayInfo | null,
+  worldTimeBaseline: WorldTime,
+  worldTime: WorldTime,
+): ShouyuanWarningLevel {
   if (!p) return "normal";
-  if (p.shouyuan <= 50) return "danger";
-  if (p.shouyuan <= 200) return "warning";
+  const currentAge = p.age + calendarYearsElapsed(worldTimeBaseline, worldTime);
+  const ratio = currentAge / p.shouyuan;
+  if (ratio >= 0.9) return "danger";
+  if (ratio >= 0.8) return "warning";
   return "normal";
 }
 

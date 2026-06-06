@@ -66,6 +66,8 @@ export function buildInitStoryUserContent(protagonist: ProtagonistPlayInfo, user
     narrationPersonLine(p.narrationPerson),
     `境界：${Protagonist.formatRealm(p.realm)}`,
     `灵根：${Protagonist.formatLinggenElements(p.linggen)}`,
+    `灵根数量：${p.linggen.length}`,
+    `寿元：${p.shouyuan}岁`,
     `出身地点：${place}`,
     "",
     "【出身情况】",

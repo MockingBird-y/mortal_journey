@@ -72,6 +72,7 @@ function createProtagonistCombatant(): BattleCombatant | null {
   if (!p) return null;
 
   const stats = p.getDerivedStats();
+  const primaryStats = p.getPrimaryStats();
   const elixirs = extractRecoveryElixirs(p.inventorySlots);
   const passiveTriggers = extractPassiveTriggers(p.equippedSlots, p.gongfaSlots);
 
@@ -81,6 +82,7 @@ function createProtagonistCombatant(): BattleCombatant | null {
     team: "ally",
     isProtagonist: true,
     stats: { ...stats },
+    primaryStats: { ...primaryStats },
     currentHp: p.currentHp,
     maxHp: p.maxHp,
     currentMp: p.currentMp,
@@ -104,6 +106,7 @@ function createNpcCombatant(
   index: number,
 ): BattleCombatant {
   const stats = npc.getDerivedStats();
+  const primaryStats = npc.getPrimaryStats();
   const elixirs = extractRecoveryElixirs(npc.inventorySlots);
   const passiveTriggers = extractPassiveTriggers(npc.equippedSlots, npc.gongfaSlots);
 
@@ -113,6 +116,7 @@ function createNpcCombatant(
     team,
     isProtagonist: false,
     stats: { ...stats },
+    primaryStats: { ...primaryStats },
     currentHp: npc.currentHp,
     maxHp: npc.maxHp,
     currentMp: npc.currentMp,

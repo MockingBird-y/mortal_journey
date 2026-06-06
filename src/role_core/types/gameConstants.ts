@@ -226,11 +226,19 @@ export function rollGradeAttriValue(statZh: string, grade: string, table: Readon
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const MIN_NARRATIVE_AGE_BY_MAJOR: Readonly<Record<string, number>> = {
-  练气: 16,
-  筑基: 100,
-  结丹: 200,
-  元婴: 500,
+  练气: 12,
+  筑基: 50,
+  结丹: 100,
+  元婴: 200,
   化神: 1000,
+};
+
+export const MAX_NARRATIVE_AGE_BY_MAJOR: Readonly<Record<string, number>> = {
+  练气: 100,
+  筑基: 200,
+  结丹: 300,
+  元婴: 500,
+  化神: 2000,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

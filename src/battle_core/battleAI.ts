@@ -7,7 +7,6 @@ import type {
 
 import {
   getAliveEnemies,
-  getSpellMpCost,
   isActionPrevented,
   isSilenced,
 } from "./battleEngine";
@@ -132,12 +131,6 @@ export function chooseNpcAction(
       }
     }
 
-    if (actor.currentMp >= getSpellMpCost(actor.realm.major)) {
-      const target = selectTargetByPowerTier(actor, enemies, allies);
-      if (target) {
-        return { type: "magic_attack", targetId: target.id };
-      }
-    }
   }
 
   const target = selectTargetByPowerTier(actor, enemies, allies);

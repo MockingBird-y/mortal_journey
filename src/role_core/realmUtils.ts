@@ -14,6 +14,7 @@ import {
   SHOUYUAN_VALUES,
   EQUIP_BONUS_RATIOS,
   MIN_NARRATIVE_AGE_BY_MAJOR,
+  MAX_NARRATIVE_AGE_BY_MAJOR,
   CULTIVATION_SPEED_TABLE,
   GONGFA_GRADE_CULTIVATION_MULT,
   LINGGEN_CULTIVATION_MULT,
@@ -178,6 +179,15 @@ export function getMinNarrativeAgeForMajor(major: string): number {
     return MIN_NARRATIVE_AGE_BY_MAJOR[m]!;
   }
   return MIN_NARRATIVE_AGE_BY_MAJOR.练气;
+}
+
+export function getMaxNarrativeAgeForMajor(major: string): number {
+  let m = major != null ? String(major).trim() : "";
+  if (m.endsWith("期")) m = m.slice(0, -1).trim();
+  if (Object.prototype.hasOwnProperty.call(MAX_NARRATIVE_AGE_BY_MAJOR, m)) {
+    return MAX_NARRATIVE_AGE_BY_MAJOR[m]!;
+  }
+  return MAX_NARRATIVE_AGE_BY_MAJOR.练气;
 }
 
 /**

@@ -20,7 +20,6 @@ import {
   getAliveAllies,
   isActionPrevented,
   isSilenced,
-  getSpellMpCost,
   findCombatantById,
 } from "./battleEngine";
 import { chooseNpcAction } from "./battleAI";
@@ -62,16 +61,15 @@ export function useBattle() {
 
   function getPlayerActionOptions(): {
     canNormalAttack: boolean;
-    canMagicAttack: boolean;
     gongfaItems: GongfaActionItem[];
     elixirItems: ElixirActionItem[];
     canFlee: boolean;
   } {
     const s = state.value;
-    if (!s) return { canNormalAttack: false, canMagicAttack: false, gongfaItems: [], elixirItems: [], canFlee: false };
+    if (!s) return { canNormalAttack: false, gongfaItems: [], elixirItems: [], canFlee: false };
 
     const p = s.allies.find(a => a.isProtagonist && !a.isDead);
-    if (!p) return { canNormalAttack: false, canMagicAttack: false, gongfaItems: [], elixirItems: [], canFlee: false };
+    if (!p) return { canNormalAttack: false, gongfaItems: [], elixirItems: [], canFlee: false };
 
     const prevent = isActionPrevented(p);
     const silenced = isSilenced(p);
@@ -117,7 +115,6 @@ export function useBattle() {
 
     return {
       canNormalAttack: !prevent.prevented,
-      canMagicAttack: !silenced && !prevent.prevented && p.currentMp >= getSpellMpCost(p.realm.major),
       gongfaItems,
       elixirItems,
       canFlee: !prevent.prevented,

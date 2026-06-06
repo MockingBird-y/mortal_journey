@@ -27,6 +27,7 @@ import {
   GONGFA_GRADE_ATTRI_TABLE,
   TREASURE_GRADE_ATTRI_TABLE,
   MIN_NARRATIVE_AGE_BY_MAJOR,
+  MAX_NARRATIVE_AGE_BY_MAJOR,
   TREASURE_BONUS_COUNT_BY_GRADE,
   rollGradeAttriValue,
   CULTIVATION_SPEED_TABLE,
@@ -51,6 +52,7 @@ export {
   GONGFA_GRADE_ATTRI_TABLE,
   TREASURE_GRADE_ATTRI_TABLE,
   MIN_NARRATIVE_AGE_BY_MAJOR,
+  MAX_NARRATIVE_AGE_BY_MAJOR,
   TREASURE_BONUS_COUNT_BY_GRADE,
   rollGradeAttriValue,
   CULTIVATION_SPEED_TABLE,
@@ -321,6 +323,7 @@ export {
   hasRow,
   getTable,
   getMinNarrativeAgeForMajor,
+  getMaxNarrativeAgeForMajor,
   customBirthBackgroundImpliesAgeException,
   resolveEffectiveMajorForNarrativeAge,
 } from "../realmUtils";

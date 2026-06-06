@@ -4,6 +4,7 @@ import type {
   GongfaSlotsState,
   CultivationRealm,
   PowerTier,
+  PrimaryStatKey,
 } from "../role_core/types/playInfo";
 
 import type {
@@ -87,6 +88,7 @@ export interface BattleCombatant {
   realm: CultivationRealm;
   powerTier?: PowerTier;
   identity?: string;
+  primaryStats: Record<PrimaryStatKey, number>;
 }
 
 export interface GongfaActionItem {
@@ -143,6 +145,7 @@ export interface BattleLogEntry {
   value?: number;
   extra?: string;
   narrative: string;
+  team?: "ally" | "enemy";
 }
 
 export type BattlePhase =
