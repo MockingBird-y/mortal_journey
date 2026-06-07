@@ -31,6 +31,7 @@ function pushSpecialEffectSection(
   statNameGetter?: () => string,
   system?: string,
   derivedStatsGetter?: () => DerivedStatValues,
+  mastery?: number,
 ): void {
   if (!fn) return;
   out.push({
@@ -39,8 +40,8 @@ function pushSpecialEffectSection(
       const stat = primaryStatGetter ? primaryStatGetter() : undefined;
       const name = statNameGetter ? statNameGetter() : undefined;
       const ds = derivedStatsGetter ? derivedStatsGetter() : undefined;
-      const display = resolveEffectDisplay(fn, grade as ItemGrade, stat, name, system, ds);
-      if ("mpCost" in fn && typeof fn.mpCost === "number" && fn.mpCost > 0) {
+      const display = resolveEffectDisplay(fn, grade as ItemGrade, stat, name, system, ds, mastery);
+      if ('mpCost' in fn && fn.mpCost > 0) {
         return display + `\n法力消耗：${fn.mpCost}`;
       }
       return display;
@@ -380,7 +381,7 @@ export function buildGongfaDetailPayload(
       ? formatZhBonusWithMasteryAndRealm(gf.bonus as Record<string, number>, realm, mastery)
       : formatZhBonusWithMastery(gf.bonus as Record<string, number>, mastery);
   if (bonus) pushSec(sections, "修炼加成", bonus);
-  pushSpecialEffectSection(sections, gf.function, gf.grade, primaryStatGetter, statNameGetter, gf.system, derivedStatsGetter);
+  pushSpecialEffectSection(sections, gf.function, gf.grade, primaryStatGetter, statNameGetter, gf.system, derivedStatsGetter, mastery);
 
   const actions: ProtagonistDetailActionButton[] = [];
   if (source?.type === "bar") {

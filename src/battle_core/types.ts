@@ -82,6 +82,7 @@ export interface DamageContext {
   rawDamage: number;
   damageType: DamageType;
   isCrit: boolean;
+  isReflected?: boolean;
 }
 
 export interface DamageResult {
@@ -92,6 +93,18 @@ export interface DamageResult {
   dodged: boolean;
   effectiveDefense: number;
   reductionPercent: number;
+  markBonus: number;
+  deathWardTriggered: boolean;
+  reflectHpLost: number;
+  reflectKilled: boolean;
+  counterHpLost: number;
+  counterKilled: boolean;
+  sharedDamages: Array<{
+    targetId: string;
+    targetName: string;
+    hpLost: number;
+    killed: boolean;
+  }>;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -118,6 +131,8 @@ export interface ActionContext {
   target?: BattleCombatant;
   gongfaGrade?: ItemGrade;
   gongfaSystem?: GongfaSystem;
+  gongfaMastery?: number;
+  currentComponent?: EffectComponent;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -166,6 +181,7 @@ export interface BattleEngineLike {
   getAllCombatants(): BattleCombatant[];
   applyMpChange(target: BattleCombatant, delta: number): number;
   applyHeal(target: BattleCombatant, rawHeal: number): number;
+  addSecondaryDamageLogs(result: DamageResult, source: BattleCombatant, target: BattleCombatant, turn: number): void;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -204,6 +220,7 @@ export interface PassiveTrigger {
   component: EffectComponent;
   grade: ItemGrade;
   system?: GongfaSystem;
+  mastery?: number;
 }
 
 // ═══════════════════════════════════════════════════════════════

@@ -13,12 +13,12 @@ import type {
 } from "../role_core/types/combatMechanics";
 
 import {
-  MECHANIC_META,
-  GRADE_FLAT_POWER,
-  GRADE_SCALING_POWER,
   SYSTEM_DAMAGE_STAT,
-  SYSTEM_POWER_MULT,
-  resolveMechanicRawValue,
+  calcComponentValue,
+} from "../role_core/types/combatMechanics";
+import type {
+  EffectComponent,
+  ScalingStatKey,
 } from "../role_core/types/combatMechanics";
 
 import type { ItemGrade } from "../role_core/types/itemInfo";
@@ -68,29 +68,19 @@ function calcDuration(grade: ItemGrade, base: number = 2): number {
   return base + Math.floor(idx / 2);
 }
 
-function calcRawDamage(
-  mechanic: MechanicId,
-  grade: ItemGrade,
-  system: GongfaSystem | undefined,
-  actor: ActionContext["actor"],
-  engine: BattleEngineLike,
-): number {
-  const meta = MECHANIC_META[mechanic];
-  if (!meta) return 0;
+function calcValue(ctx: ActionContext, engine: BattleEngineLike): number {
+  const comp = ctx.currentComponent;
+  if (!comp) return 0;
+  return calcComponentValue(
+    comp,
+    stat => engine.getEffectiveStat(ctx.actor, stat as keyof PlayerBaseStats),
+    ctx.gongfaMastery,
+  );
+}
 
-  if (meta.noStatScaling) {
-    return GRADE_SCALING_POWER[grade]?.[meta.scalingPowerKey] ?? 0;
-  }
-
-  const derivedStats = {
-    patk: engine.getEffectiveStat(actor, "patk"),
-    matk: engine.getEffectiveStat(actor, "matk"),
-    pdef: engine.getEffectiveStat(actor, "pdef"),
-    mdef: engine.getEffectiveStat(actor, "mdef"),
-  };
-
-  const primaryStat = actor.stats.cultivationSpeed;
-  return resolveMechanicRawValue(mechanic, grade, primaryStat, system, derivedStats);
+function getDuration(ctx: ActionContext, base: number = 2): number {
+  const comp = ctx.currentComponent;
+  return comp?.duration ?? calcDuration(ctx.gongfaGrade ?? "下品", base);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -117,6 +107,8 @@ export class MechanicRegistry {
 
     for (const comp of components) {
       if (!engine.conditionEvaluator.evaluate(comp.condition, ctx)) continue;
+
+      ctx.currentComponent = comp;
 
       if (!comp.mechanic) {
         if (comp.status) {
@@ -255,7 +247,7 @@ const dmgSingleHandler: MechanicHandler = {
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
     if (!ctx.target || ctx.target.isDead) return [];
     const damageType = ctx.gongfaSystem ? getGongfaDamageType(ctx.gongfaSystem) : getDamageType(ctx.actor);
-    const rawDamage = calcRawDamage("dmg_single", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawDamage = calcValue(ctx, engine);
     const isCrit = formulas.checkCrit(engine.getEffectiveStat(ctx.actor, "critRate"));
 
     const result = engine.damagePipeline.execute(
@@ -279,6 +271,7 @@ const dmgSingleHandler: MechanicHandler = {
       entries.push(log(ctx.turn, ctx.target.displayName, "阵亡", "death",
         `${ctx.target.displayName}倒下了！`, ctx.target.team));
     }
+    engine.addSecondaryDamageLogs(result, ctx.actor, ctx.target, ctx.turn);
     return entries;
   },
 };
@@ -289,7 +282,7 @@ const dmgAoeHandler: MechanicHandler = {
     const entries: BattleLogEntry[] = [];
     const targets = ctx.enemies.filter(e => !e.isDead);
     const damageType = ctx.gongfaSystem ? getGongfaDamageType(ctx.gongfaSystem) : "magical";
-    const rawDamage = calcRawDamage("dmg_aoe", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawDamage = calcValue(ctx, engine);
     let totalDamage = 0;
 
     for (const target of targets) {
@@ -308,6 +301,7 @@ const dmgAoeHandler: MechanicHandler = {
         entries.push(log(ctx.turn, target.displayName, "阵亡", "death",
           `${target.displayName}倒下了！`, target.team));
       }
+      engine.addSecondaryDamageLogs(result, ctx.actor, target, ctx.turn);
     }
 
     return entries;
@@ -318,7 +312,7 @@ const dmgDotHandler: MechanicHandler = {
   mechanic: "dmg_dot",
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
     if (!ctx.target) return [];
-    const rawDamage = calcRawDamage("dmg_dot", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawDamage = calcValue(ctx, engine);
 
     engine.effectManager.addEffect(ctx.target, {
       id: generateId(),
@@ -347,7 +341,7 @@ const dmgDotPctHandler: MechanicHandler = {
   mechanic: "dmg_dot_pct",
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
     if (!ctx.target) return [];
-    const rawValue = calcRawDamage("dmg_dot_pct", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawValue = calcValue(ctx, engine);
     const pctPerTurn = Math.round(rawValue * 100);
 
     engine.effectManager.addEffect(ctx.target, {
@@ -378,7 +372,7 @@ const dmgExecuteHandler: MechanicHandler = {
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
     if (!ctx.target || ctx.target.isDead) return [];
     const damageType = ctx.gongfaSystem ? getGongfaDamageType(ctx.gongfaSystem) : getDamageType(ctx.actor);
-    let rawDamage = calcRawDamage("dmg_execute", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    let rawDamage = calcValue(ctx, engine);
 
     const hpRatio = ctx.target.currentHp / ctx.target.maxHp;
     if (hpRatio < 0.5) {
@@ -400,6 +394,7 @@ const dmgExecuteHandler: MechanicHandler = {
       entries.push(log(ctx.turn, ctx.target.displayName, "阵亡", "death",
         `${ctx.target.displayName}倒下了！`, ctx.target.team));
     }
+    engine.addSecondaryDamageLogs(result, ctx.actor, ctx.target, ctx.turn);
     return entries;
   },
 };
@@ -408,7 +403,7 @@ const dmgPierceHandler: MechanicHandler = {
   mechanic: "dmg_pierce",
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
     if (!ctx.target || ctx.target.isDead) return [];
-    const rawDamage = calcRawDamage("dmg_pierce", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawDamage = calcValue(ctx, engine);
     const isCrit = formulas.checkCrit(engine.getEffectiveStat(ctx.actor, "critRate"));
 
     const result = engine.damagePipeline.execute(
@@ -425,6 +420,7 @@ const dmgPierceHandler: MechanicHandler = {
       entries.push(log(ctx.turn, ctx.target.displayName, "阵亡", "death",
         `${ctx.target.displayName}倒下了！`, ctx.target.team));
     }
+    engine.addSecondaryDamageLogs(result, ctx.actor, ctx.target, ctx.turn);
     return entries;
   },
 };
@@ -441,9 +437,9 @@ function makeBuffHandler(
   return {
     mechanic,
     execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
-      const rawValue = calcRawDamage(mechanic, ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+      const rawValue = calcValue(ctx, engine);
       const pctValue = Math.round(rawValue * 100);
-      const duration = calcDuration(ctx.gongfaGrade ?? "下品");
+      const duration = getDuration(ctx);
       const target = ctx.target ?? ctx.actor;
 
       engine.effectManager.addEffect(target, {
@@ -478,7 +474,7 @@ const buffDodgeHandler = makeBuffHandler("buff_dodge", "dodgeRate", "闪避增�
 const buffShieldHandler: MechanicHandler = {
   mechanic: "buff_shield",
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
-    const rawValue = calcRawDamage("buff_shield", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawValue = calcValue(ctx, engine);
     const shieldAmt = Math.round(rawValue);
     const target = ctx.target ?? ctx.actor;
     target.shield += shieldAmt;
@@ -492,8 +488,8 @@ const buffShieldHandler: MechanicHandler = {
 const buffStealthHandler: MechanicHandler = {
   mechanic: "buff_stealth",
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
-    const rawValue = calcRawDamage("buff_stealth", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
-    const duration = calcDuration(ctx.gongfaGrade ?? "下品", 1);
+    const rawValue = calcValue(ctx, engine);
+    const duration = getDuration(ctx, 1);
 
     engine.effectManager.addEffect(ctx.actor, {
       id: generateId(),
@@ -517,9 +513,9 @@ const buffStealthHandler: MechanicHandler = {
 const buffStatHandler: MechanicHandler = {
   mechanic: "buff_stat",
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
-    const rawValue = calcRawDamage("buff_stat", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawValue = calcValue(ctx, engine);
     const pctValue = Math.round(rawValue * 100);
-    const duration = calcDuration(ctx.gongfaGrade ?? "下品");
+    const duration = getDuration(ctx);
     const target = ctx.target ?? ctx.actor;
 
     engine.effectManager.addEffect(target, {
@@ -545,9 +541,9 @@ const buffStatHandler: MechanicHandler = {
 const buffRampHandler: MechanicHandler = {
   mechanic: "buff_ramp",
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
-    const rawValue = calcRawDamage("buff_ramp", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawValue = calcValue(ctx, engine);
     const pctValue = Math.round(rawValue * 100);
-    const duration = calcDuration(ctx.gongfaGrade ?? "下品", 3);
+    const duration = getDuration(ctx, 3);
 
     engine.effectManager.addEffect(ctx.actor, {
       id: generateId(),
@@ -582,9 +578,9 @@ function makeDebuffHandler(
     mechanic,
     execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
       if (!ctx.target) return [];
-      const rawValue = calcRawDamage(mechanic, ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+      const rawValue = calcValue(ctx, engine);
       const pctValue = Math.round(rawValue * 100);
-      const duration = calcDuration(ctx.gongfaGrade ?? "下品");
+      const duration = getDuration(ctx);
 
       engine.effectManager.addEffect(ctx.target, {
         id: generateId(),
@@ -618,9 +614,9 @@ const debuffMarkHandler: MechanicHandler = {
   mechanic: "debuff_mark",
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
     if (!ctx.target) return [];
-    const rawValue = calcRawDamage("debuff_mark", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawValue = calcValue(ctx, engine);
     const pctValue = Math.round(rawValue * 100);
-    const duration = calcDuration(ctx.gongfaGrade ?? "下品", 3);
+    const duration = getDuration(ctx, 3);
 
     engine.effectManager.addEffect(ctx.target, {
       id: generateId(),
@@ -654,7 +650,7 @@ function makeCcHandler(
     mechanic,
     execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
       if (!ctx.target) return [];
-      const rawValue = calcRawDamage(mechanic, ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+      const rawValue = calcValue(ctx, engine);
       const chance = rawValue;
       const hit = Math.random() < chance;
 
@@ -699,7 +695,7 @@ const ccSilenceHandler = makeCcHandler("cc_silence", "沉默");
 const healSingleHandler: MechanicHandler = {
   mechanic: "heal_single",
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
-    const rawValue = calcRawDamage("heal_single", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawValue = calcValue(ctx, engine);
     const target = ctx.target ?? ctx.actor;
     const healed = engine.applyHeal(target, Math.round(rawValue));
 
@@ -713,7 +709,7 @@ const healAoeHandler: MechanicHandler = {
   mechanic: "heal_aoe",
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
     const entries: BattleLogEntry[] = [];
-    const rawValue = calcRawDamage("heal_aoe", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawValue = calcValue(ctx, engine);
     const targets = ctx.allies.filter(a => !a.isDead);
     let totalHealed = 0;
 
@@ -734,7 +730,7 @@ const healLifestealHandler: MechanicHandler = {
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
     if (!ctx.target || ctx.target.isDead) return [];
     const entries: BattleLogEntry[] = [];
-    const rawValue = calcRawDamage("heal_lifesteal", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawValue = calcValue(ctx, engine);
     const damageType = ctx.gongfaSystem ? getGongfaDamageType(ctx.gongfaSystem) : getDamageType(ctx.actor);
     const dmgToTarget = Math.max(1, Math.round(rawValue * 0.5));
 
@@ -757,6 +753,7 @@ const healLifestealHandler: MechanicHandler = {
       entries.push(log(ctx.turn, ctx.target.displayName, "阵亡", "death",
         `${ctx.target.displayName}倒下了！`, ctx.target.team));
     }
+    engine.addSecondaryDamageLogs(result, ctx.actor, ctx.target, ctx.turn);
 
     return entries;
   },
@@ -767,7 +764,7 @@ const healLifestealPctHandler: MechanicHandler = {
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
     if (!ctx.target || ctx.target.isDead) return [];
     const entries: BattleLogEntry[] = [];
-    const rawValue = calcRawDamage("heal_lifesteal_pct", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawValue = calcValue(ctx, engine);
     const damageType = ctx.gongfaSystem ? getGongfaDamageType(ctx.gongfaSystem) : getDamageType(ctx.actor);
     const dmgToTarget = Math.max(1, Math.round(rawValue * 0.3));
 
@@ -790,6 +787,7 @@ const healLifestealPctHandler: MechanicHandler = {
       entries.push(log(ctx.turn, ctx.target.displayName, "阵亡", "death",
         `${ctx.target.displayName}倒下了！`, ctx.target.team));
     }
+    engine.addSecondaryDamageLogs(result, ctx.actor, ctx.target, ctx.turn);
 
     return entries;
   },
@@ -802,7 +800,7 @@ const healLifestealPctHandler: MechanicHandler = {
 const summonHandler: MechanicHandler = {
   mechanic: "summon",
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
-    const rawValue = calcRawDamage("summon", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawValue = calcValue(ctx, engine);
 
     const summon: BattleSummon = {
       id: generateId(),
@@ -847,7 +845,7 @@ const reviveHandler: MechanicHandler = {
         `${target.displayName}未阵亡，无需复活`, ctx.actor.team)];
     }
 
-    const rawValue = calcRawDamage("revive", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawValue = calcValue(ctx, engine);
     target.isDead = false;
     target.currentHp = Math.min(target.maxHp, Math.round(rawValue));
 
@@ -860,7 +858,7 @@ const reviveHandler: MechanicHandler = {
 const killBonusHandler: MechanicHandler = {
   mechanic: "kill_bonus",
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
-    const rawValue = calcRawDamage("kill_bonus", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawValue = calcValue(ctx, engine);
     const pctValue = Math.round(rawValue * 100);
 
     engine.effectManager.addEffect(ctx.actor, {
@@ -885,7 +883,7 @@ const killBonusHandler: MechanicHandler = {
 const deathWardHandler: MechanicHandler = {
   mechanic: "death_ward",
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
-    const rawValue = calcRawDamage("death_ward", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawValue = calcValue(ctx, engine);
 
     engine.effectManager.addEffect(ctx.actor, {
       id: generateId(),
@@ -909,7 +907,7 @@ const deathWardHandler: MechanicHandler = {
 const sacrificeHandler: MechanicHandler = {
   mechanic: "sacrifice",
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
-    const rawValue = calcRawDamage("sacrifice", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawValue = calcValue(ctx, engine);
     const hpCost = Math.round(ctx.actor.currentHp * rawValue);
     ctx.actor.currentHp = Math.max(1, ctx.actor.currentHp - hpCost);
 
@@ -921,9 +919,23 @@ const sacrificeHandler: MechanicHandler = {
 const extraActionHandler: MechanicHandler = {
   mechanic: "extra_action",
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
-    const rawValue = calcRawDamage("extra_action", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawValue = calcValue(ctx, engine);
 
     if (Math.random() < rawValue) {
+      engine.effectManager.addEffect(ctx.actor, {
+        id: generateId(),
+        name: "额外行动",
+        sourceCombatantId: ctx.actor.id,
+        mechanic: "extra_action",
+        category: "special",
+        value: 0,
+        isPercent: false,
+        remainingTurns: 1,
+        stacks: 1,
+        maxStacks: 1,
+        canStack: false,
+      });
+
       return [log(ctx.turn, ctx.actor.displayName, "额外行动", "buff",
         `${ctx.actor.displayName}获得额外行动！`, ctx.actor.team)];
     }
@@ -936,7 +948,7 @@ const extraActionHandler: MechanicHandler = {
 const reflectHandler: MechanicHandler = {
   mechanic: "reflect",
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
-    const rawValue = calcRawDamage("reflect", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawValue = calcValue(ctx, engine);
     const pctValue = Math.round(rawValue * 100);
 
     engine.effectManager.addEffect(ctx.actor, {
@@ -961,7 +973,7 @@ const reflectHandler: MechanicHandler = {
 const counterHandler: MechanicHandler = {
   mechanic: "counter",
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
-    const rawValue = calcRawDamage("counter", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawValue = calcValue(ctx, engine);
 
     engine.effectManager.addEffect(ctx.actor, {
       id: generateId(),
@@ -985,7 +997,7 @@ const counterHandler: MechanicHandler = {
 const damageShareHandler: MechanicHandler = {
   mechanic: "damage_share",
   execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
-    const rawValue = calcRawDamage("damage_share", ctx.gongfaGrade ?? "下品", ctx.gongfaSystem, ctx.actor, engine);
+    const rawValue = calcValue(ctx, engine);
     const pctValue = Math.round(rawValue * 100);
 
     engine.effectManager.addEffect(ctx.actor, {

@@ -146,8 +146,8 @@ export class EffectManager {
   canAct(combatant: BattleCombatant): { canAct: boolean; reason?: string } {
     for (const eff of combatant.activeEffects) {
       if (eff.category !== "cc") continue;
-      if (eff.mechanic === "cc_stun" || eff.mechanic === "cc_freeze") {
-        return { canAct: false, reason: eff.mechanic === "cc_stun" ? "眩晕中" : "冻结中" };
+      if (eff.mechanic === "cc_stun" || eff.mechanic === "cc_freeze" || eff.mechanic === "cc_root") {
+        return { canAct: false, reason: eff.mechanic === "cc_stun" ? "眩晕中" : eff.mechanic === "cc_freeze" ? "冻结中" : "禁锢中" };
       }
     }
     return { canAct: true };
@@ -175,6 +175,25 @@ export class EffectManager {
 
   hasMechanic(combatant: BattleCombatant, mechanic: MechanicId): boolean {
     return combatant.activeEffects.some(e => e.mechanic === mechanic);
+  }
+
+  getMarkAmplification(combatant: BattleCombatant): number {
+    let total = 0;
+    for (const eff of combatant.activeEffects) {
+      if (eff.mechanic === "debuff_mark") {
+        total += eff.value * eff.stacks;
+      }
+    }
+    return total;
+  }
+
+  consumeEffect(combatant: BattleCombatant, mechanic: MechanicId): boolean {
+    const idx = combatant.activeEffects.findIndex(e => e.mechanic === mechanic);
+    if (idx !== -1) {
+      combatant.activeEffects.splice(idx, 1);
+      return true;
+    }
+    return false;
   }
 
   getEffectiveStat(combatant: BattleCombatant, stat: keyof PlayerBaseStats): number {

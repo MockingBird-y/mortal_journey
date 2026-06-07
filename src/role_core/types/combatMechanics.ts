@@ -108,17 +108,36 @@ export type MechanicId = (typeof MECHANIC_IDS)[number];
 // 效果组件
 // ═══════════════════════════════════════════════════════════════════════════
 
+export type ScalingStatKey =
+  | "patk" | "matk" | "pdef" | "mdef"
+  | "maxHp" | "maxMp";
+
 export interface EffectComponent {
-  /** 机制 ID。可选——纯状态施加或纯叙事组件可不设。 */
   mechanic?: MechanicId;
-  /** 施加的状态。与 mechanic 互斥。 */
   status?: StatusId;
-  /** 触发条件 */
   trigger: EffectTrigger;
-  /** 细化条件（文本，如"法力满时"、"敌人生命低于50%"） */
   condition?: string;
-  /** 描述片段。有 mechanic 时必须含 {n} 或 {p} 占位符。 */
   desc: string;
+  baseValue?: number;
+  scalingRatio?: number;
+  scalingStat?: ScalingStatKey;
+  duration?: number;
+  noMasteryScaling?: boolean;
+}
+
+export function calcComponentValue(
+  comp: EffectComponent,
+  getStat: (key: string) => number,
+  mastery?: number,
+): number {
+  if (comp.baseValue == null) return 0;
+  const base = comp.baseValue;
+  const ratio = comp.scalingRatio ?? 0;
+  const stat = comp.scalingStat ? getStat(comp.scalingStat) : 0;
+  const raw = base + ratio * stat;
+  if (comp.noMasteryScaling) return raw;
+  const mult = (mastery && mastery > 1) ? (1 + (mastery - 1) * 0.15) : 1;
+  return raw * mult;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -346,7 +365,9 @@ export function resolveMechanicRawValue(
   primaryStat?: number,
   system?: string,
   derivedStats?: DerivedStatValues,
+  baseOverride?: number,
 ): number {
+  if (baseOverride != null) return baseOverride;
   const meta = MECHANIC_META[mechanic];
   if (primaryStat == null) {
     return GRADE_FLAT_POWER[grade][meta.flatPowerKey];
@@ -392,23 +413,35 @@ export function resolveComponentDesc(
   statName?: string,
   system?: string,
   derivedStats?: DerivedStatValues,
+  mastery?: number,
 ): string {
   if (!component.mechanic) return component.desc;
 
   const meta = MECHANIC_META[component.mechanic];
-  const raw = resolveMechanicRawValue(component.mechanic, grade, primaryStat, system, derivedStats);
-  const powerKey: string = primaryStat != null ? meta.scalingPowerKey : meta.flatPowerKey;
-  const formatted = formatValue(raw, powerKey);
-  const suffix = buildFormulaSuffix(component.mechanic, meta, grade, primaryStat, statName, system, derivedStats);
+  const isPct = PCT_KEYS.has(meta.scalingPowerKey);
 
-  const display = suffix ? formatted + suffix : formatted;
+  let raw: number;
+  if (component.baseValue != null) {
+    const getStat = (key: string) => {
+      if (!derivedStats) return primaryStat ?? 0;
+      const d = derivedStats as unknown as Record<string, number>;
+      return d[key] ?? primaryStat ?? 0;
+    };
+    raw = calcComponentValue(component, getStat, mastery);
+  } else {
+    raw = resolveMechanicRawValue(component.mechanic, grade, primaryStat, system, derivedStats);
+    const masteryMult = (mastery && mastery > 1) ? (1.0 + (mastery - 1) * 0.15) : 1.0;
+    raw = raw * masteryMult;
+  }
+
+  const formatted = isPct ? String(Math.round(raw * 100)) : String(Math.round(raw));
 
   let result = component.desc;
   if (result.includes("{n}")) {
-    result = result.replace(/{n}/g, display);
+    result = result.replace(/{n}/g, formatted);
   }
   if (result.includes("{p}")) {
-    result = result.replace(/{p}/g, display);
+    result = result.replace(/{p}/g, formatted);
   }
   return result;
 }
@@ -420,9 +453,10 @@ export function resolveEffectDisplay(
   statName?: string,
   system?: string,
   derivedStats?: DerivedStatValues,
+  mastery?: number,
 ): string {
   return effect.components
-    .map(c => resolveComponentDesc(c, grade, primaryStat, statName, system, derivedStats))
+    .map(c => resolveComponentDesc(c, grade, primaryStat, statName, system, derivedStats, mastery))
     .join("，");
 }
 

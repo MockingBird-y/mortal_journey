@@ -55,8 +55,23 @@ export function useBattle() {
 
   function selectAction(action: BattleAction): void {
     const s = state.value;
+    const e = engine.value;
     if (!s || s.phase !== "player_action") return;
     s.pendingAction = action;
+
+    if (e && action.type === "normal_attack" && s.currentActorId) {
+      const actor = e.findCombatant(s.currentActorId);
+      if (actor && e.effectManager.isFeared(actor)) {
+        const allTargets = e.getAllCombatants().filter(c => !c.isDead && c.id !== actor.id);
+        if (allTargets.length > 0) {
+          const randomTarget = allTargets[Math.floor(Math.random() * allTargets.length)];
+          s.phase = "target_selection";
+          selectTarget(randomTarget.id);
+          return;
+        }
+      }
+    }
+
     s.phase = "target_selection";
   }
 

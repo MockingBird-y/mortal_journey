@@ -28,10 +28,14 @@ function migrateSpecialEffect(fn: any): any {
     if ("type" in fn) migrated.type = fn.type;
     if (typeof fn.mpCost === "number") migrated.mpCost = fn.mpCost;
     else migrated.mpCost = 0;
+    migrated.cooldown = 0;
     return migrated;
   }
   if (fn && typeof fn === "object" && typeof fn.mpCost !== "number") {
     fn.mpCost = 0;
+  }
+  if (fn && typeof fn === "object" && typeof fn.cooldown !== "number") {
+    fn.cooldown = 0;
   }
   return fn;
 }

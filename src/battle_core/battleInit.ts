@@ -38,21 +38,22 @@ function extractPassiveTriggers(
     }
   }
 
-  for (const gf of gongfaSlots) {
-    if (!gf || !gf.function) continue;
-    for (const comp of gf.function.components) {
-      if (comp.trigger !== "active") {
-        triggers.push({
-          sourceType: "gongfa",
-          sourceName: gf.name,
-          effectName: gf.function.name,
-          component: comp,
-          grade: gf.grade,
-          system: gf.system as import("../role_core/types/gongfa").GongfaSystem | undefined,
-        });
+    for (const gf of gongfaSlots) {
+      if (!gf || !gf.function) continue;
+      for (const comp of gf.function.components) {
+        if (comp.trigger !== "active") {
+          triggers.push({
+            sourceType: "gongfa",
+            sourceName: gf.name,
+            effectName: gf.function.name,
+            component: comp,
+            grade: gf.grade,
+            system: gf.system as import("../role_core/types/gongfa").GongfaSystem | undefined,
+            mastery: gf.mastery ?? 1,
+          });
+        }
       }
     }
-  }
 
   return triggers;
 }
