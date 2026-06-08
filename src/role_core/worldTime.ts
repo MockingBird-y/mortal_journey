@@ -8,14 +8,12 @@ export interface WorldTime {
   year: number;
   month: number;
   day: number;
-  hour: number;
-  minute: number;
 }
 
 /**
  * 世界时间增量。
  * - `years` / `months` / `days` 为**增量**（累加到当前时间）。
- * - `hour` 为**绝对值**（直接覆盖，用于剧情明确指出时辰的场景）。
+ * - `hour` 仅用于内部折算：若 >= 24 则自动加天数（Math.floor(hour / 24)），否则忽略。
  */
 export interface TimeDelta {
   years?: number;
@@ -28,7 +26,7 @@ const DAYS_PER_MONTH = 30;
 const MONTHS_PER_YEAR = 12;
 
 export function createDefaultWorldTime(): WorldTime {
-  return { year: 1, month: 1, day: 1, hour: 9, minute: 0 };
+  return { year: 1, month: 1, day: 1 };
 }
 
 export function cloneWorldTime(t: WorldTime): WorldTime {
@@ -36,8 +34,6 @@ export function cloneWorldTime(t: WorldTime): WorldTime {
     year: t.year,
     month: t.month,
     day: t.day,
-    hour: t.hour,
-    minute: t.minute,
   };
 }
 
@@ -49,9 +45,9 @@ function pad4(n: number): string {
   return Math.max(0, Math.floor(n)).toString().padStart(4, "0");
 }
 
-/** 例：`0001年01月01号 09:00`（仅展示用，不参与业务计算） */
+/** 例：`0001年01月01号`（仅展示用，不参与业务计算） */
 export function formatWorldTimeZhDisplay(t: WorldTime): string {
-  return `${pad4(t.year)}年${pad2(t.month)}月${pad2(t.day)}号 ${pad2(t.hour)}:${pad2(t.minute)}`;
+  return `${pad4(t.year)}年${pad2(t.month)}月${pad2(t.day)}号`;
 }
 
 /**
@@ -69,8 +65,6 @@ export function addYearsToTime(t: WorldTime, years: number): WorldTime {
     year: t.year + Math.floor(years),
     month: t.month,
     day: t.day,
-    hour: t.hour,
-    minute: t.minute,
   });
 }
 
@@ -79,15 +73,7 @@ export function addYearsToTime(t: WorldTime, years: number): WorldTime {
  * 规则：每月 30 天，每年 12 月。
  */
 export function normalizeWorldTime(t: WorldTime): WorldTime {
-  let { year, month, day, hour, minute } = t;
-
-  if (hour >= 24) {
-    const extraDays = Math.floor(hour / 24);
-    hour = hour % 24;
-    day += extraDays;
-  } else if (hour < 0) {
-    hour = 0;
-  }
+  let { year, month, day } = t;
 
   if (day > DAYS_PER_MONTH) {
     const extraMonths = Math.floor((day - 1) / DAYS_PER_MONTH);
@@ -106,34 +92,29 @@ export function normalizeWorldTime(t: WorldTime): WorldTime {
   }
 
   year = Math.max(1, year);
-  minute = Math.max(0, Math.min(59, minute));
 
-  return { year, month, day, hour, minute };
+  return { year, month, day };
 }
 
 /**
  * 增量式推进世界时间。
  * - `delta.years/months/days` 累加到当前时间。
- * - `delta.hour` 覆盖当前小时（用于剧情明确指出时辰）。
+ * - `delta.hour` 仅用于折算额外天数：hour >= 24 时自动加 Math.floor(hour / 24) 天。
  * - 结果自动规范化（溢出进位）。
  */
 export function advanceWorldTime(base: WorldTime, delta: TimeDelta): WorldTime {
   const years = (delta.years ?? 0);
   const months = (delta.months ?? 0);
-  const days = (delta.days ?? 0);
-  const hour = delta.hour;
+  let days = (delta.days ?? 0);
 
-  let extraDay = 0;
-  if (hour !== undefined && hour < base.hour && years === 0 && months === 0 && days === 0) {
-    extraDay = 1;
+  if (delta.hour != null && delta.hour >= 24) {
+    days += Math.floor(delta.hour / 24);
   }
 
   const raw: WorldTime = {
     year: base.year + years,
     month: base.month + months,
-    day: base.day + days + extraDay,
-    hour: hour !== undefined ? hour : base.hour,
-    minute: base.minute,
+    day: base.day + days,
   };
 
   return normalizeWorldTime(raw);

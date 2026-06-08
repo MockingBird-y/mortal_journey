@@ -197,6 +197,7 @@ function onCultivateConfirm(count: number) {
 
   p.removeSpiritStone("灵石", count);
   addGongfaMasteryExp(gf, count * 100);
+  p.addXiuwei(count * 100);
   Protagonist.notifyChanged();
 
   const newTime = advanceWorldTime(props.worldTime, { months: count });
@@ -224,7 +225,6 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
       :open="cultivateOpen"
       :gongfa="cultivateGongfa"
       :spirit-stone-count="spiritStoneCount"
-      :world-time="worldTime"
       @close="closeCultivate"
       @confirm="onCultivateConfirm"
     />

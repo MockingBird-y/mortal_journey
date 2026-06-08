@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import type { GongfaItemDefinition } from "../role_core/types/itemInfo";
-import type { WorldTime } from "../role_core/worldTime";
-import { formatWorldTimeZhDisplay } from "../role_core/worldTime";
 import { getGongfaMasteryProgress } from "./protagonistPanelDisplay";
 import { useScrollLock } from "../composables/useScrollLock";
 
@@ -12,7 +10,6 @@ const props = defineProps<{
   open: boolean;
   gongfa: GongfaItemDefinition | null;
   spiritStoneCount: number;
-  worldTime: WorldTime;
 }>();
 
 const emit = defineEmits<{

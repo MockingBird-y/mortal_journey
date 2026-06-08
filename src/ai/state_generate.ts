@@ -258,7 +258,7 @@ export function parseStateAiResponse(raw: string): StateParsed {
         const years = typeof td.years === "number" ? Math.max(0, Math.floor(td.years)) : undefined;
         const months = typeof td.months === "number" ? Math.max(0, Math.floor(td.months)) : undefined;
         const days = typeof td.days === "number" ? Math.max(0, Math.floor(td.days)) : undefined;
-        const hour = typeof td.hour === "number" ? Math.max(0, Math.min(23, Math.floor(td.hour))) : undefined;
+        const hour = typeof td.hour === "number" ? Math.max(0, Math.floor(td.hour)) : undefined;
         if (years || months || days || hour !== undefined) {
           timeAdvance = { years, months, days, hour };
         }

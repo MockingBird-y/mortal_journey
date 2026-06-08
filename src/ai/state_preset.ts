@@ -45,33 +45,19 @@ export const STATE_SYSTEM_PRESET = `
     - years（整数）：经过的年数。闭关修炼、长途旅行等长时间行为使用。
     - months（整数）：经过的月数。短期闭关、等待事件等使用。
     - days（整数）：经过的天数。日常活动、战斗后休整、短途旅行等使用。
-    - hour（整数，0-23）：当前时刻的绝对小时数。直接覆盖，用于对齐剧情场景。
-  6.2 years/months/days 为增量（累加到当前时间），hour 为绝对值（直接覆盖当前小时）。
+    - hour（整数）：可选，仅用于辅助判断跨天。若 >= 24 则自动折算为额外天数；小于 24 时忽略不计。
+  6.2 years/months/days 为增量（累加到当前时间）。hour 仅在 >= 24 时折算天数，否则不影响时间。
   6.3 每月固定30天，每年12月=360天。
-  6.4 【防回跳硬约束】当剧情暗示的时辰对应的小时数早于当前世界时间的小时数时，必须至少推进 days: 1。时间不可倒流。
-    - 正确示例：当前01月01日18点，剧情为"次日清晨" → {"days":1,"hour":7}
-    - 正确示例：当前01月01日18点，剧情为"当晚深夜" → {"hour":22}（小时数增大，不需要加天）
-    - 错误示例：当前01月01日18点，剧情为"清晨醒来" → {"hour":7}（禁止小时从18→7回跳却没加天，时间倒流了）
-    - 正确做法：当前01月01日18点，剧情为"清晨醒来" → {"days":1,"hour":7}
-  6.5 时间推进与剧情场景的对应关系：
-    - 短暂交谈、商店购物、查看任务：days: 0，hour 设为对应时辰（但须遵守6.4防回跳规则，若时辰早于当前则至少 days:1）。
-    - 战斗场景：days: 0，hour 根据战斗发生时间设置。
-    - 日常修炼（非闭关）：days: 1~7，hour 根据修炼结束时间设置。
-    - 短途旅行/跑腿/探索：days: 1~30，hour 根据到达时间设置。
+  6.4 时间推进与剧情场景的对应关系：
+    - 短暂交谈、商店购物、查看任务：days: 0 或省略。
+    - 战斗场景：days: 0 或 days: 1（视战斗时长）。
+    - 日常修炼（非闭关）：days: 1~7。
+    - 短途旅行/跑腿/探索：days: 1~30。
     - 短期闭关修炼：months: 1~6 或 years: 1~2。
     - 长期闭关修炼：练气期 years: 1~5，筑基期 years: 3~10，结丹期 years: 5~20，元婴期 years: 10~50，化神期 years: 20~100。
     - 等待特定事件（等拍卖会、等秘境开启）：months: 1~6。
-  6.6 hour 必须与剧情描述的场景时间对应：
-    - 剧情提到"清晨/早晨/天刚亮" → hour: 6~8
-    - 剧情提到"上午" → hour: 9~11
-    - 剧情提到"正午/午时" → hour: 12
-    - 剧情提到"下午/午后" → hour: 13~15
-    - 剧情提到"傍晚/黄昏/日落" → hour: 17~18
-    - 剧情提到"入夜/夜晚/入夜后" → hour: 19~21
-    - 剧情提到"深夜/子时/半夜" → hour: 22~23
-    - 剧情提到"凌晨/黎明前" → hour: 0~5
-  6.7 如果剧情没有明确时间变化，至少推进 hour 到剧情隐含的时辰。如果连时辰都无法判断，保持当前时间不变（省略 timeAdvance 或设为空对象 {}）。
-  6.8 注意：timeAdvance 推进的世界时间会影响主角年龄。年龄 = 开局年龄 + 世界时间经过的年数。寿元有限，时间流逝即寿命消耗。闭关修炼多年会消耗大量寿命，请合理判断时间推进量。
+  6.5 如果剧情没有明确时间变化，保持当前时间不变（省略 timeAdvance 或设为空对象 {}）。
+  6.6 注意：timeAdvance 推进的世界时间会影响主角年龄。年龄 = 开局年龄 + 世界时间经过的年数。寿元有限，时间流逝即寿命消耗。闭关修炼多年会消耗大量寿命，请合理判断时间推进量。
 
 7. 功法熟练度提升（仅特殊场景）：闭关修炼时功法熟练度由系统按公式自动积累，不需要AI输出。仅在以下特殊场景输出 gongfaMasteryChanges 数组：
   7.1 顿悟、秘境感悟、战斗突破等特殊事件 → 输出 masteryExpIncrease（正整数，熟练度经验增量）
@@ -84,13 +70,13 @@ export const STATE_SYSTEM_PRESET = `
 8. 灵石修炼消耗参考：根据修炼年数和境界决定灵石消耗（通过 spiritStoneChanges 的 remove 操作体现）。练气期约15~30灵石/年，筑基期60~120灵石/年，结丹期200~450灵石/年，元婴期800~2000灵石/年，化神期4000~12000灵石/年。大量灵石灌注修炼时消耗翻倍。玩家说"用灵石修炼"才消耗灵石，"闭关修炼"不指定灵石则不消耗。
 6. 输出格式：<USER_STATE_TAG> … </USER_STATE_TAG>，内为 JSON 对象，须含键 hpPercent、mpPercent（0-100整数）。可选键 xiuweiIncrease、realmBreakthrough、breakthroughQuestStart、breakthroughFailed、timeAdvance、gongfaMasteryChanges。
 7. 示例：
-7.1 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"timeAdvance":{"hour":10}} </USER_STATE_TAG>
-7.2 <USER_STATE_TAG> {"hpPercent":80,"mpPercent":70,"xiuweiIncrease":150,"timeAdvance":{"days":1,"hour":15}} </USER_STATE_TAG>
-7.3 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"realmBreakthrough":true,"timeAdvance":{"days":3,"hour":8}} </USER_STATE_TAG>
-7.4 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"breakthroughQuestStart":true,"timeAdvance":{"hour":14}} </USER_STATE_TAG>
-7.5 <USER_STATE_TAG> {"hpPercent":30,"mpPercent":10,"breakthroughFailed":true,"timeAdvance":{"days":1,"hour":12}} </USER_STATE_TAG>
-7.6 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"xiuweiIncrease":648,"timeAdvance":{"years":3,"hour":9}} </USER_STATE_TAG>
-7.7 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"gongfaMasteryChanges":[{"gongfaName":"紫阳混元劲","masteryExpIncrease":150}],"timeAdvance":{"days":1,"hour":15}} </USER_STATE_TAG>
+7.1 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100} </USER_STATE_TAG>
+7.2 <USER_STATE_TAG> {"hpPercent":80,"mpPercent":70,"xiuweiIncrease":150,"timeAdvance":{"days":1}} </USER_STATE_TAG>
+7.3 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"realmBreakthrough":true,"timeAdvance":{"days":3}} </USER_STATE_TAG>
+7.4 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"breakthroughQuestStart":true} </USER_STATE_TAG>
+7.5 <USER_STATE_TAG> {"hpPercent":30,"mpPercent":10,"breakthroughFailed":true,"timeAdvance":{"days":1}} </USER_STATE_TAG>
+7.6 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"xiuweiIncrease":648,"timeAdvance":{"years":3}} </USER_STATE_TAG>
+7.7 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"gongfaMasteryChanges":[{"gongfaName":"紫阳混元劲","masteryExpIncrease":150}],"timeAdvance":{"days":1}} </USER_STATE_TAG>
 
 [灵石规则]
 1. 灵石是修仙界通用货币，不区分品阶，统一称为"灵石"。
