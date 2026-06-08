@@ -5,14 +5,13 @@ import type {
   TraitEntry,
   EquippedSlotsState,
   GongfaSlotsState,
-  PlayerBaseStats,
 } from "./types/playInfo";
 import {
   EQUIP_SLOT_COUNT,
   GONGFA_SLOT_COUNT,
 } from "./types/playInfo";
 import { DEFAULT_INVENTORY_SLOT_COUNT } from "./CharacterInventory";
-import { getBaseStats, getShouyuanForRealm } from "./realmUtils";
+import { getRealmPrimaryStats, getShouyuanForRealm } from "./realmUtils";
 import type { InventoryStackItem, TreasureItemDefinition, GongfaItemDefinition } from "./types/itemInfo";
 import type { NpcNearbyEntry } from "../ai/state_generate";
 import { parseEquipObject, parseGongfaObject, parseStorageObject, rollGrade } from "../ai/parseAiItem";
@@ -91,7 +90,7 @@ export class Npc extends Character {
       ...Array.from({ length: Math.max(0, DEFAULT_INVENTORY_SLOT_COUNT - inventoryItems.length) }, () => null),
     ];
 
-    const baseStats = getBaseStats(realmMajor, realmMinor) ?? Character.emptyPlayerBase();
+    const baseStats = getRealmPrimaryStats(realmMajor, realmMinor) ?? Character.emptyPrimaryStats();
     const shouyuan = getShouyuanForRealm(realmMajor, realmMinor) ?? 100;
 
     const npcData: NpcPlayInfo = {
@@ -99,7 +98,7 @@ export class Npc extends Character {
       id: `npc_${entry.displayName}`,
       displayName: entry.displayName,
       realm: { major: realmMajor, minor: realmMinor },
-      playerBase: baseStats,
+      primaryStats: baseStats,
       maxHp: 100,
       maxMp: 50,
       currentHp: 100,
@@ -127,9 +126,7 @@ export class Npc extends Character {
 
     const npc = new Npc(npcData);
 
-    const derived = npc.getDerivedStats();
-    const capH = Math.max(1, Math.round(derived.hp));
-    const capM = Math.max(1, Math.round(derived.mp));
+    const { maxHp: capH, maxMp: capM } = npc.computeMaxHpMp();
     npc.maxHp = capH;
     npc.maxMp = capM;
     const hpPct = typeof entry.hpPercent === "number" && entry.hpPercent >= 0 && entry.hpPercent <= 100 ? entry.hpPercent : 100;
@@ -198,9 +195,9 @@ export class Npc extends Character {
       ];
     }
 
-    const derived = this.getDerivedStats();
-    this.maxHp = Math.max(1, Math.round(derived.hp));
-    this.maxMp = Math.max(1, Math.round(derived.mp));
+    const { maxHp, maxMp } = this.computeMaxHpMp();
+    this.maxHp = maxHp;
+    this.maxMp = maxMp;
     this.currentHp = Math.min(this.currentHp, this.maxHp);
     this.currentMp = Math.min(this.currentMp, this.maxMp);
   }
@@ -264,7 +261,7 @@ export class Npc extends Character {
     const minor = realmRaw && typeof realmRaw === "object" && typeof (realmRaw as Record<string, unknown>).minor === "string"
       ? String((realmRaw as Record<string, unknown>).minor).trim() || "初期" : "初期";
 
-    const baseStats = getBaseStats(major, minor) ?? Character.emptyPlayerBase();
+    const baseStats = getRealmPrimaryStats(major, minor) ?? Character.emptyPrimaryStats();
     const shouyuan = getShouyuanForRealm(major, minor) ?? 100;
 
     const npcData: NpcPlayInfo = {
@@ -272,7 +269,7 @@ export class Npc extends Character {
       id: typeof o.id === "string" ? o.id : `npc_${o.displayName ?? "unknown"}`,
       displayName: typeof o.displayName === "string" ? o.displayName : "未知NPC",
       realm: { major, minor },
-      playerBase: baseStats,
+      primaryStats: baseStats,
       maxHp: typeof o.maxHp === "number" ? o.maxHp : 100,
       maxMp: typeof o.maxMp === "number" ? o.maxMp : 50,
       currentHp: typeof o.currentHp === "number" ? o.currentHp : 100,

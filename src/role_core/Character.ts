@@ -3,29 +3,21 @@ import type {
   CultivationRealm,
   EquippedSlotsState,
   GongfaSlotsState,
-  PlayerBaseStats,
   EquipSlotKey,
   ProtagonistDetailAction,
   PrimaryStatKey,
-  DerivedStatKey,
   CharacterPlayInfoCommon,
 } from "./types/playInfo";
 import {
-  BASE_STAT_KEYS,
-  DERIVED_STAT_DEFAULTS,
-  DERIVED_STAT_KEY_TO_ZH,
   PRIMARY_STAT_KEYS,
   PRIMARY_STAT_KEY_TO_ZH,
-  PRIMARY_TO_DERIVED_MAP,
-  PCT_DERIVED_KEYS,
   EQUIP_SLOT_COUNT,
   GONGFA_SLOT_COUNT,
+  TABLE,
 } from "./types/playInfo";
 import {
-  getBaseStats,
-  getEquipBonusRealmRatio,
+  getRealmPrimaryStats,
 } from "./realmUtils";
-import { PRIMARY_STAT_BASE } from "./types/gameConstants";
 import type { SpiritStoneName } from "./types/spiritStone";
 import {
   DEFAULT_INVENTORY_SLOT_COUNT,
@@ -46,12 +38,15 @@ import {
   applyDetailAction as eqApply,
 } from "./CharacterEquip";
 
+const HP_PER_PHYSIQUE = 10;
+const MP_PER_SPIRIT = 10;
+
 export class Character {
 
   id: string;
   displayName: string;
   realm: CultivationRealm;
-  playerBase: PlayerBaseStats;
+  primaryStats: Record<PrimaryStatKey, number>;
   maxHp: number;
   maxMp: number;
   currentHp: number;
@@ -70,7 +65,7 @@ export class Character {
     this.id = data.id;
     this.displayName = data.displayName;
     this.realm = data.realm;
-    this.playerBase = data.playerBase;
+    this.primaryStats = { ...data.primaryStats };
     this.maxHp = data.maxHp;
     this.maxMp = data.maxMp;
     this.currentHp = data.currentHp;
@@ -102,10 +97,10 @@ export class Character {
   }
 
   // ===================================================================
-  // 派生属性
+  // 主属性计算
   // ===================================================================
 
-  protected static readonly ZH_BONUS_TO_PLAYER_KEY: Readonly<Record<string, PrimaryStatKey>> = (() => {
+  protected static readonly ZH_BONUS_TO_PRIMARY_KEY: Readonly<Record<string, PrimaryStatKey>> = (() => {
     const o: Record<string, PrimaryStatKey> = {};
     for (const en of Object.keys(PRIMARY_STAT_KEY_TO_ZH) as PrimaryStatKey[]) {
       o[PRIMARY_STAT_KEY_TO_ZH[en]] = en;
@@ -113,17 +108,9 @@ export class Character {
     return o;
   })();
 
-  protected static readonly ZH_DERIVED_TO_PLAYER_KEY: Readonly<Record<string, string>> = (() => {
-    const o: Record<string, string> = {};
-    for (const en of Object.keys(DERIVED_STAT_KEY_TO_ZH) as DerivedStatKey[]) {
-      o[DERIVED_STAT_KEY_TO_ZH[en]] = en;
-    }
-    return o;
-  })();
-
-  protected realmTableBaseOrStored(): PlayerBaseStats {
-    const fromTable = getBaseStats(this.realm.major, this.realm.minor);
-    return fromTable ? { ...fromTable } : { ...this.playerBase };
+  protected realmTableBaseOrStored(): Record<PrimaryStatKey, number> {
+    const fromTable = getRealmPrimaryStats(this.realm.major, this.realm.minor);
+    return fromTable ? { ...fromTable } : { ...this.primaryStats };
   }
 
   private static addZhItemBonusInto(
@@ -135,26 +122,29 @@ export class Character {
     const r = typeof realmRatio === "number" && Number.isFinite(realmRatio) && realmRatio > 0 ? realmRatio : 1;
     for (const [zh, v] of Object.entries(bonus)) {
       if (typeof v !== "number" || !Number.isFinite(v)) continue;
-      const key = Character.ZH_BONUS_TO_PLAYER_KEY[zh];
+      const key = Character.ZH_BONUS_TO_PRIMARY_KEY[zh];
       if (!key) continue;
       target[key] = (target[key] ?? 0) + Math.trunc(v * r);
     }
   }
 
   protected collectPrimaryBonuses(): Record<string, number> {
-    const primaryStats: Record<string, number> = { ...PRIMARY_STAT_BASE };
-    const ratio = getEquipBonusRealmRatio(this.realm.major, this.realm.minor);
+    const base = this.realmTableBaseOrStored();
+    const primaryStats: Record<string, number> = {};
+    for (const k of PRIMARY_STAT_KEYS) {
+      primaryStats[k] = base[k] ?? 0;
+    }
     for (const gf of this.gongfaSlots) {
       if (!gf) continue;
       const mastery = gf.mastery ?? 1;
-      const masteryMult = 0.5 + mastery * 0.05;
+      const masteryMult = 0.5 + (mastery - 1) * 0.28;
       const adjusted: Record<string, number> = {};
       for (const [k, v] of Object.entries(gf.bonus as Record<string, number>)) {
         if (typeof v === "number" && Number.isFinite(v)) {
           adjusted[k] = Math.trunc(v * masteryMult);
         }
       }
-      Character.addZhItemBonusInto(primaryStats, adjusted, ratio);
+      Character.addZhItemBonusInto(primaryStats, adjusted);
     }
     for (const [k, v] of Object.entries(this.elixirBonuses)) {
       if (typeof v === "number" && v !== 0) primaryStats[k] = (primaryStats[k] ?? 0) + v;
@@ -162,57 +152,31 @@ export class Character {
     return primaryStats;
   }
 
-  protected applyTreasureBonuses(target: PlayerBaseStats): void {
-    const ratio = getEquipBonusRealmRatio(this.realm.major, this.realm.minor);
-    const t = target as Record<string, number>;
-    for (const tr of this.equippedSlots) {
-      if (!tr) continue;
-      const bonus = tr.bonus;
-      if (!bonus || typeof bonus !== "object") continue;
-      for (const [zh, v] of Object.entries(bonus)) {
-        if (typeof v !== "number" || !Number.isFinite(v)) continue;
-        const key = Character.ZH_DERIVED_TO_PLAYER_KEY[zh];
-        if (!key) continue;
-        t[key] = (t[key] ?? 0) + Math.trunc(v * ratio);
-      }
-    }
-  }
-
-  private static applyPrimaryToDerived(
-    primaryStats: Record<string, number>,
-    target: PlayerBaseStats,
-  ): void {
-    const t = target as Record<string, number>;
-    for (const pk of PRIMARY_STAT_KEYS) {
-      const statValue = primaryStats[pk];
-      if (typeof statValue !== "number" || statValue <= 0) continue;
-      const entries = PRIMARY_TO_DERIVED_MAP[pk];
-      for (const entry of entries) {
-        const factor = (statValue * entry.per100) / 100;
-        if (PCT_DERIVED_KEYS.has(entry.key)) {
-          t[entry.key] = Math.round(t[entry.key] * (1 + factor / 100));
-        } else {
-          t[entry.key] += Math.round(factor);
-        }
-      }
-    }
-  }
-
-  getDerivedStats(): PlayerBaseStats {
-    const merged = this.realmTableBaseOrStored();
-    const primaryStats = this.collectPrimaryBonuses();
-    Character.applyPrimaryToDerived(primaryStats, merged);
-    this.applyTreasureBonuses(merged);
-    return merged;
+  getComputedPrimaryStats(): Readonly<Record<PrimaryStatKey, number>> {
+    return this.collectPrimaryBonuses() as Readonly<Record<PrimaryStatKey, number>>;
   }
 
   getPrimaryStats(): Readonly<Record<PrimaryStatKey, number>> {
-    const bonuses = this.collectPrimaryBonuses();
-    const result: Record<string, number> = {};
-    for (const k of PRIMARY_STAT_KEYS) {
-      result[k] = bonuses[k] ?? 0;
+    return this.getComputedPrimaryStats();
+  }
+
+  computeMaxHpMp(): { maxHp: number; maxMp: number } {
+    const stats = this.getComputedPrimaryStats();
+    const realmRow = this.getRealmRow();
+    const baseHp = realmRow?.hp ?? 200;
+    const baseMp = realmRow?.mp ?? 100;
+    const maxHp = Math.max(1, Math.round(baseHp * (1 + (stats.physique * HP_PER_PHYSIQUE) / 10000)));
+    const maxMp = Math.max(1, Math.round(baseMp * (1 + (stats.spirit * MP_PER_SPIRIT) / 10000)));
+    return { maxHp, maxMp };
+  }
+
+  protected getRealmRow(): { hp: number; mp: number } | null {
+    for (const row of TABLE) {
+      if (row.realm === this.realm.major && row.stage === this.realm.minor) {
+        return row;
+      }
     }
-    return result as Readonly<Record<PrimaryStatKey, number>>;
+    return null;
   }
 
   // ===================================================================
@@ -260,11 +224,11 @@ export class Character {
     this.avatarUrl = url != null ? String(url) : "";
   }
 
-  patchPlayerBase(partial: Partial<PlayerBaseStats>): void {
-    for (const k of BASE_STAT_KEYS) {
+  patchPrimaryStats(partial: Partial<Record<PrimaryStatKey, number>>): void {
+    for (const k of PRIMARY_STAT_KEYS) {
       if (Object.prototype.hasOwnProperty.call(partial, k)) {
         const v = partial[k];
-        if (typeof v === "number" && Number.isFinite(v)) this.playerBase[k] = v;
+        if (typeof v === "number" && Number.isFinite(v)) this.primaryStats[k] = v;
       }
     }
   }
@@ -342,7 +306,7 @@ export class Character {
       id: this.id,
       displayName: this.displayName,
       realm: this.realm,
-      playerBase: this.playerBase,
+      primaryStats: { ...this.primaryStats },
       maxHp: this.maxHp,
       maxMp: this.maxMp,
       currentHp: this.currentHp,
@@ -363,11 +327,11 @@ export class Character {
   // 静态工具方法
   // ===================================================================
 
-  protected static emptyPlayerBase(): PlayerBaseStats {
+  protected static emptyPrimaryStats(): Record<PrimaryStatKey, number> {
     const o: Record<string, number> = {};
-    for (const k of BASE_STAT_KEYS) {
-      o[k] = (DERIVED_STAT_DEFAULTS as Record<string, number | undefined>)[k] ?? 0;
+    for (const k of PRIMARY_STAT_KEYS) {
+      o[k] = 0;
     }
-    return o as PlayerBaseStats;
+    return o as Record<PrimaryStatKey, number>;
   }
 }

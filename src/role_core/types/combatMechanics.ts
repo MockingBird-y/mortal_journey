@@ -109,7 +109,8 @@ export type MechanicId = (typeof MECHANIC_IDS)[number];
 // ═══════════════════════════════════════════════════════════════════════════
 
 export type ScalingStatKey =
-  | "patk" | "matk" | "pdef" | "mdef"
+  | "strength" | "perception" | "guard" | "resistance"
+  | "agility" | "physique" | "spirit"
   | "maxHp" | "maxMp";
 
 export interface EffectComponent {
@@ -169,21 +170,21 @@ export const GRADE_FLAT_POWER: Readonly<Record<ItemGrade, GradeFlatPower>> = {
 // 功法体系 — 伤害属性映射 + 体系倍率
 // ═══════════════════════════════════════════════════════════════════════════
 
-export type DamageStatType = "patk" | "matk";
+export type DamageStatType = "strength" | "perception";
 
 export const SYSTEM_DAMAGE_STAT: Readonly<Record<string, DamageStatType>> = {
-  "剑系": "patk",
-  "体修": "patk",
-  "法修": "matk",
-  "刺客系": "patk",
-  "毒系": "matk",
-  "魔修": "matk",
-  "火系": "matk",
-  "雷系": "matk",
-  "冰系": "matk",
-  "暗系": "patk",
-  "风系": "patk",
-  "木系": "matk",
+  "剑系": "strength",
+  "体修": "strength",
+  "法修": "perception",
+  "刺客系": "strength",
+  "毒系": "perception",
+  "魔修": "perception",
+  "火系": "perception",
+  "雷系": "perception",
+  "冰系": "perception",
+  "暗系": "strength",
+  "风系": "strength",
+  "木系": "perception",
 };
 
 export interface SystemPowerMult {
@@ -208,10 +209,10 @@ export const SYSTEM_POWER_MULT: Readonly<Record<string, SystemPowerMult>> = {
 };
 
 export interface DerivedStatValues {
-  patk: number;
-  matk: number;
-  pdef: number;
-  mdef: number;
+  strength: number;
+  perception: number;
+  guard: number;
+  resistance: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -334,25 +335,25 @@ function pickScalingStat(
   if (system && derivedStats) {
     const sysMult = SYSTEM_POWER_MULT[system];
     if (DAMAGE_CATEGORIES.has(meta.category)) {
-      const dmgStat = SYSTEM_DAMAGE_STAT[system] ?? "patk";
+      const dmgStat = SYSTEM_DAMAGE_STAT[system] ?? "strength";
       return {
         statValue: derivedStats[dmgStat],
         systemMult: sysMult?.dmg ?? 1.0,
-        statLabel: dmgStat === "patk" ? "物攻" : "法攻",
+        statLabel: dmgStat === "strength" ? "劲力" : "神识",
       };
     }
     if (meta.category === "heal") {
       return {
-        statValue: derivedStats.matk,
+        statValue: derivedStats.perception,
         systemMult: sysMult?.heal ?? 1.0,
-        statLabel: "法攻",
+        statLabel: "神识",
       };
     }
     if (mechanic === "buff_shield") {
       return {
-        statValue: derivedStats.pdef,
+        statValue: derivedStats.guard,
         systemMult: sysMult?.shield ?? 1.0,
-        statLabel: "物防",
+        statLabel: "护体",
       };
     }
   }

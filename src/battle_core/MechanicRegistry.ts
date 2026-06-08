@@ -25,8 +25,8 @@ import type { ItemGrade } from "../role_core/types/itemInfo";
 import type { GongfaSystem } from "../role_core/types/gongfa";
 import { GRADE_INDEX } from "../role_core/types/gameConstants";
 import { generateId } from "./formulas";
+import type { BattleStatKey } from "./types";
 import * as formulas from "./formulas";
-import type { PlayerBaseStats } from "../role_core/types/playInfo";
 
 // ═══════════════════════════════════════════════════════════════
 // 辅助函数
@@ -51,7 +51,7 @@ function getDamageType(actor: ActionContext["actor"]): DamageType {
     for (const gf of actor.gongfaSlots) {
       if (gf?.system) {
         const stat = SYSTEM_DAMAGE_STAT[gf.system];
-        if (stat === "matk") return "magical";
+        if (stat === "perception") return "magical";
       }
     }
   }
@@ -60,7 +60,7 @@ function getDamageType(actor: ActionContext["actor"]): DamageType {
 
 function getGongfaDamageType(system?: GongfaSystem): DamageType {
   if (!system) return "physical";
-  return SYSTEM_DAMAGE_STAT[system] === "matk" ? "magical" : "physical";
+  return SYSTEM_DAMAGE_STAT[system] === "perception" ? "magical" : "physical";
 }
 
 function calcDuration(grade: ItemGrade, base: number = 2): number {
@@ -73,7 +73,7 @@ function calcValue(ctx: ActionContext, engine: BattleEngineLike): number {
   if (!comp) return 0;
   return calcComponentValue(
     comp,
-    stat => engine.getEffectiveStat(ctx.actor, stat as keyof PlayerBaseStats),
+    stat => engine.getEffectiveStat(ctx.actor, stat as BattleStatKey),
     ctx.gongfaMastery,
   );
 }
@@ -464,12 +464,12 @@ function makeBuffHandler(
   };
 }
 
-const buffAtkHandler = makeBuffHandler("buff_atk", "patk", "攻击增益");
-const buffDefHandler = makeBuffHandler("buff_def", "pdef", "防御增益");
+const buffAtkHandler = makeBuffHandler("buff_atk", "strength", "攻击增益");
+const buffDefHandler = makeBuffHandler("buff_def", "guard", "防御增益");
 const buffCritHandler = makeBuffHandler("buff_crit", "critRate", "暴击增益");
 const buffCritDmgHandler = makeBuffHandler("buff_crit_dmg", "critDmg", "暴击伤害增益");
 const buffSpeedHandler = makeBuffHandler("buff_speed", "speed", "速度增益");
-const buffDodgeHandler = makeBuffHandler("buff_dodge", "dodgeRate", "闪避增益");
+const buffDodgeHandler = makeBuffHandler("buff_dodge", "agility", "闪避增益");
 
 const buffShieldHandler: MechanicHandler = {
   mechanic: "buff_shield",
@@ -524,7 +524,7 @@ const buffStatHandler: MechanicHandler = {
       sourceCombatantId: ctx.actor.id,
       mechanic: "buff_stat",
       category: "buff",
-      statKey: "patk",
+      statKey: "strength",
       value: pctValue,
       isPercent: true,
       remainingTurns: duration,
@@ -551,7 +551,7 @@ const buffRampHandler: MechanicHandler = {
       sourceCombatantId: ctx.actor.id,
       mechanic: "buff_ramp",
       category: "buff",
-      statKey: "patk",
+      statKey: "strength",
       value: pctValue,
       isPercent: true,
       remainingTurns: duration,
@@ -604,11 +604,70 @@ function makeDebuffHandler(
   };
 }
 
-const debuffDefHandler = makeDebuffHandler("debuff_def", "pdef", "降低防御");
-const debuffAtkHandler = makeDebuffHandler("debuff_atk", "patk", "降低攻击");
+const debuffDefHandler = makeDebuffHandler("debuff_def", "guard", "降低防御");
+const debuffAtkHandler = makeDebuffHandler("debuff_atk", "strength", "降低攻击");
 const debuffSpeedHandler = makeDebuffHandler("debuff_speed", "speed", "降低速度");
-const debuffHealHandler = makeDebuffHandler("debuff_heal", "hpRecovery", "降低恢复");
-const debuffMpHandler = makeDebuffHandler("debuff_mp", "mpRecovery", "削减法力");
+const debuffHealHandler: MechanicHandler = {
+  mechanic: "debuff_heal",
+  execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
+    if (!ctx.target) return [];
+    const rawValue = calcValue(ctx, engine);
+    const tickPct = Math.round(rawValue * 100);
+    const duration = getDuration(ctx);
+
+    engine.effectManager.addEffect(ctx.target, {
+      id: generateId(),
+      name: "禁疗",
+      sourceCombatantId: ctx.actor.id,
+      mechanic: "debuff_heal",
+      category: "debuff",
+      value: tickPct,
+      isPercent: true,
+      remainingTurns: duration,
+      stacks: 1,
+      maxStacks: 1,
+      canStack: false,
+      tickValue: rawValue,
+      tickIsPercent: true,
+      tickStatKey: "currentHp",
+    });
+
+    return [log(ctx.turn, ctx.actor.displayName, "禁疗", "debuff",
+      `${ctx.actor.displayName}对${ctx.target.displayName}施加禁疗，每回合损失${tickPct}%生命`,
+      ctx.actor.team, ctx.target.displayName)];
+  },
+};
+
+const debuffMpHandler: MechanicHandler = {
+  mechanic: "debuff_mp",
+  execute(ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
+    if (!ctx.target) return [];
+    const rawValue = calcValue(ctx, engine);
+    const tickPct = Math.round(rawValue * 100);
+    const duration = getDuration(ctx);
+
+    engine.effectManager.addEffect(ctx.target, {
+      id: generateId(),
+      name: "蚀魔",
+      sourceCombatantId: ctx.actor.id,
+      mechanic: "debuff_mp",
+      category: "debuff",
+      value: tickPct,
+      isPercent: true,
+      remainingTurns: duration,
+      stacks: 1,
+      maxStacks: 1,
+      canStack: false,
+      tickValue: rawValue,
+      tickIsPercent: true,
+      tickStatKey: "currentMp",
+    });
+
+    return [log(ctx.turn, ctx.actor.displayName, "蚀魔", "debuff",
+      `${ctx.actor.displayName}对${ctx.target.displayName}施加蚀魔，每回合损失${tickPct}%法力`,
+      ctx.actor.team, ctx.target.displayName)];
+  },
+};
 
 const debuffMarkHandler: MechanicHandler = {
   mechanic: "debuff_mark",

@@ -2,50 +2,48 @@
  * 游戏数值总表：将散布在 types 各文件中的具体数值集中管理。
  *
  * 分类：
- *   1. 境界基础属性表参数
+ *   1. 境界主属性表参数
  *   2. 修为需求表参数
  *   3. 寿元表
  *   4. 装备倍率表
  *   5. 灵根契合加成
- *   6. 派生属性默认值
- *   7. 主属性 → 派生属性映射
- *   8. 游戏常量（槽位数等）
- *   9. 品阶属性表
- *  10. 叙事年龄下限
- *  11. 品阶掉落概率表
- *  12. 特效数值体系（品阶索引、效果基数、触发倍率、持续因子、消耗倍率、消耗基数）
- *  13. 修炼速度基础表
- *  14. 功法品阶修炼速度倍率
- *  15. 灵根类型修炼速度倍率
- *  16. 功法熟练度阈值
- *  16a. 功法熟练度基础获取速率
- *  17. 灵石修炼消耗（灵石/年）
- *  18. 灵石加速修炼倍率
+ *   6. 游戏常量（槽位数等）
+ *   7. 品阶属性表
+ *   8. 叙事年龄下限
+ *   9. 品阶掉落概率表
+ *  10. 特效数值体系（品阶索引、效果基数、触发倍率、消耗倍率、消耗基数）
+ *  11. 修炼速度基础表
+ *  12. 功法品阶修炼速度倍率
+ *  13. 灵根类型修炼速度倍率
+ *  14. 功法熟练度阈值
+ *  14a. 功法熟练度基础获取速率
+ *  15. 灵石修炼消耗（灵石/年）
+ *  16. 灵石加速修炼倍率
  */
 
-import type { PrimaryStatKey, DerivedStatKey } from "./playInfo";
 import type { GradeDropRate } from "./itemInfo";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 1. 境界基础属性表（按阶段索引：练气初期~化神后期，共 15 行）
+// 1. 境界主属性表（按阶段索引：练气初期~化神后期，共 15 行）
+//    hp/mp 为该境界基础血量/法力；8个主属性为基础值
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const REALM_BASE_STATS_TABLE = [
-  { hp: 200,    mp: 100,   patk: 10,  matk: 10,  pdef: 5,   mdef: 5 },
-  { hp: 300,    mp: 150,   patk: 15,  matk: 15,  pdef: 8,   mdef: 8 },
-  { hp: 500,    mp: 250,   patk: 25,  matk: 25,  pdef: 15,  mdef: 15 },
-  { hp: 1000,   mp: 500,   patk: 50,  matk: 50,  pdef: 30,  mdef: 30 },  // 筑基
-  { hp: 1500,   mp: 750,   patk: 75,  matk: 75,  pdef: 45,  mdef: 45 },
-  { hp: 2000,   mp: 1000,  patk: 100, matk: 100, pdef: 60,  mdef: 60 },
-  { hp: 3000, mp: 1500,  patk: 150, matk: 150, pdef: 27,   mdef: 27 },  // 结丹
-  { hp: 4000, mp: 2000,  patk: 200, matk: 200, pdef: 36,   mdef: 36 },
-  { hp: 5000, mp: 2500,  patk: 250, matk: 250, pdef: 45,   mdef: 45 },
-  { hp: 10000,  mp: 5000,  patk: 500, matk: 500, pdef: 90,  mdef: 90 },  // 元婴
-  { hp: 13000,  mp: 6500,  patk: 650, matk: 650, pdef: 117, mdef: 117 },
-  { hp: 15000,  mp: 7500,  patk: 750, matk: 750, pdef: 135, mdef: 135 },
-  { hp: 20000,  mp: 10000, patk: 1000, matk: 1000, pdef: 180, mdef: 180 }, // 化神
-  { hp: 25000,  mp: 12500, patk: 1250, matk: 1250, pdef: 225, mdef: 225 },
-  { hp: 30000,  mp: 15000, patk: 1500, matk: 1500, pdef: 270, mdef: 270 },
+export const REALM_PRIMARY_STATS_TABLE = [
+  { hp: 200,    mp: 100,   physique: 10, spirit: 10, strength: 10, perception: 10, guard: 5,   resistance: 5,   agility: 8,  insight: 5 },
+  { hp: 300,    mp: 150,   physique: 15, spirit: 15, strength: 15, perception: 15, guard: 8,   resistance: 8,   agility: 12, insight: 8 },
+  { hp: 500,    mp: 250,   physique: 25, spirit: 25, strength: 25, perception: 25, guard: 15,  resistance: 15,  agility: 20, insight: 12 },
+  { hp: 1000,   mp: 500,   physique: 50, spirit: 50, strength: 50, perception: 50, guard: 30,  resistance: 30,  agility: 40, insight: 20 },
+  { hp: 1500,   mp: 750,   physique: 75, spirit: 75, strength: 75, perception: 75, guard: 45,  resistance: 45,  agility: 60, insight: 30 },
+  { hp: 2000,   mp: 1000,  physique: 100,spirit: 100,strength: 100,perception: 100,guard: 60,  resistance: 60,  agility: 80, insight: 40 },
+  { hp: 3000,   mp: 1500,  physique: 150,spirit: 150,strength: 150,perception: 150,guard: 80,  resistance: 80,  agility: 120,insight: 60 },
+  { hp: 4000,   mp: 2000,  physique: 200,spirit: 200,strength: 200,perception: 200,guard: 110, resistance: 110, agility: 160,insight: 80 },
+  { hp: 5000,   mp: 2500,  physique: 250,spirit: 250,strength: 250,perception: 250,guard: 140, resistance: 140, agility: 200,insight: 100},
+  { hp: 10000,  mp: 5000,  physique: 500,spirit: 500,strength: 500,perception: 500,guard: 220, resistance: 220, agility: 400, insight: 160},
+  { hp: 13000,  mp: 6500,  physique: 650,spirit: 650,strength: 650,perception: 650,guard: 290, resistance: 290, agility: 520, insight: 210},
+  { hp: 15000,  mp: 7500,  physique: 750,spirit: 750,strength: 750,perception: 750,guard: 340, resistance: 340, agility: 600, insight: 250},
+  { hp: 20000,  mp: 10000, physique: 1000,spirit: 1000,strength: 1000,perception: 1000,guard: 450,resistance: 450,agility: 800, insight: 350},
+  { hp: 25000,  mp: 12500, physique: 1250,spirit: 1250,strength: 1250,perception: 1250,guard: 560,resistance: 560,agility: 1000,insight: 450},
+  { hp: 30000,  mp: 15000, physique: 1500,spirit: 1500,strength: 1500,perception: 1500,guard: 680,resistance: 680,agility: 1200,insight: 550},
 ] as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -56,16 +54,16 @@ export const CULTIVATION_VALUES_TABLE = [
   100,
   500,
   1000,
-  2000,  // 筑基
+  2000,
   3000,
   5000,
-  10000, // 结丹
+  10000,
   20000,
   30000,
-  50000, // 元婴
+  50000,
   70000,
   100000,
-  200000, // 化神
+  200000,
   400000,
   500000,
 ] as const;
@@ -99,63 +97,18 @@ export const EQUIP_BONUS_RATIOS = [
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 6. 派生属性默认值
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const DERIVED_STAT_DEFAULTS: Readonly<Partial<Record<DerivedStatKey, number>>> = {
-  hpRecovery: 0,
-  mpRecovery: 0,
-  penetration: 0,
-  magicPenetration: 0,
-  hitRate: 100,
-  dodgeRate: 0,
-  critRate: 0,
-  critDmg: 150,
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 7. 主属性 → 派生属性映射
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * 主属性 → 基础属性映射表。
- * `PCT_DERIVED_KEYS` 内的键按百分比方式计算（基数 × (1 + 主属性 × 比例 ÷ 10000)），
- * 其余键按绝对值加算（主属性 × 比例 ÷ 100 取整）。
- * 例：体魄 100 点 → hp 基数放大 10%。
- */
-export const PRIMARY_STAT_BASE: Readonly<Record<string, number>> = {
-  physique: 10, spirit: 10, strength: 10,
-  perception: 10, guard: 10, agility: 10,
-  insight: 0, fortune: 0,
-};
-
-export const PRIMARY_TO_DERIVED_MAP: Readonly<Record<PrimaryStatKey, ReadonlyArray<{ key: DerivedStatKey; per100: number }>>> = {
-  physique: [{ key: "hp", per100: 10 }],
-  spirit: [{ key: "mp", per100: 10 }],
-  strength: [{ key: "patk", per100: 10 }],
-  perception: [{ key: "matk", per100: 10 }],
-  guard: [{ key: "pdef", per100: 10 }, { key: "mdef", per100: 10 }],
-  agility: [{ key: "dodgeRate", per100: 10 }],
-  insight: [],
-  fortune: [],
-};
-
-/** 按百分比计算的派生属性键（基数来自境界表，主属性对其做乘法放大） */
-export const PCT_DERIVED_KEYS: ReadonlySet<string> = new Set(["hp", "mp", "pdef", "mdef"]);
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 8. 游戏常量
+// 6. 游戏常量
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const EQUIP_SLOT_COUNT = 4;
 export const GONGFA_SLOT_COUNT = 8;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 9. 品阶属性表
+// 7. 品阶属性表
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 9a. 品阶属性表 — 功法主属性（中文名 → 按品阶范围）
+// 7a. 品阶属性表 — 功法主属性（中文名 → 按品阶范围）
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const GONGFA_GRADE_ATTRI_TABLE: Readonly<Record<string, readonly (readonly [number, number])[]>> = {
@@ -164,34 +117,13 @@ export const GONGFA_GRADE_ATTRI_TABLE: Readonly<Record<string, readonly (readonl
   劲力: [[3, 8],   [10, 20],  [28, 52],  [55, 105],  [110, 190],  [210, 350]],
   神识: [[2, 5],   [7, 14],   [18, 33],  [35, 65],   [60, 120],   [115, 225]],
   护体: [[2, 5],   [7, 14],   [20, 40],  [40, 80],   [75, 145],   [140, 260]],
+  灵御: [[2, 5],   [7, 14],   [20, 40],  [40, 80],   [75, 145],   [140, 260]],
   身法: [[2, 5],   [7, 14],   [18, 33],  [35, 65],   [60, 120],   [115, 225]],
   悟性: [[1, 3],   [4, 8],    [10, 20],  [20, 40],   [35, 70],    [60, 120]],
-  气运: [[1, 3],   [4, 8],    [10, 20],  [20, 40],   [35, 70],    [60, 120]],
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 9b. 品阶属性表 — 法宝派生属性（中文名 → 按品阶范围）
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const TREASURE_GRADE_ATTRI_TABLE: Readonly<Record<string, readonly (readonly [number, number])[]>> = {
-  血量:      [[20, 60],   [60, 150],   [150, 350],  [300, 650],  [600, 1300],  [1100, 2400]],
-  法力:      [[10, 30],   [30, 80],    [80, 180],   [160, 340],  [320, 680],   [600, 1200]],
-  生命回复:  [[2, 5],     [5, 12],     [12, 28],    [22, 50],    [42, 90],     [75, 170]],
-  法力回复:  [[1, 3],     [3, 8],      [8, 20],     [15, 35],    [28, 60],     [50, 100]],
-  物攻:      [[3, 8],     [8, 20],     [20, 50],    [40, 90],    [80, 170],    [150, 320]],
-  法攻:      [[3, 8],     [8, 20],     [20, 50],    [40, 90],    [80, 170],    [150, 320]],
-  物防:      [[2, 6],     [6, 15],     [15, 38],    [30, 70],    [60, 130],    [110, 240]],
-  法防:      [[2, 6],     [6, 15],     [15, 38],    [30, 70],    [60, 130],    [110, 240]],
-  物伤穿透:  [[1, 4],     [4, 10],     [10, 25],    [20, 45],    [40, 85],     [70, 160]],
-  法伤穿透:  [[1, 4],     [4, 10],     [10, 25],    [20, 45],    [40, 85],     [70, 160]],
-  命中率:    [[2, 5],     [5, 12],     [12, 28],    [22, 50],    [42, 90],     [75, 170]],
-  闪避率:    [[1, 4],     [4, 10],     [10, 25],    [20, 45],    [40, 85],     [70, 160]],
-  暴击率:    [[1, 4],     [4, 10],     [10, 25],    [20, 45],    [40, 85],     [70, 160]],
-  暴击伤害:  [[3, 8],     [8, 20],     [20, 50],    [40, 90],    [80, 170],    [150, 320]],
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 9c. 品阶属性表 — 丹药效果（效果类型中文名 → 按品阶范围）
+// 7c. 品阶属性表 — 丹药效果（效果类型中文名 → 按品阶范围）
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const ELIXIR_GRADE_EFFECT_TABLE: Readonly<Record<string, readonly (readonly [number, number])[]>> = {
@@ -203,20 +135,13 @@ export const ELIXIR_GRADE_EFFECT_TABLE: Readonly<Record<string, readonly (readon
   "提升灵力": [[1, 3],     [2, 8],      [3, 12],      [5, 20],     [15, 50],     [30, 80]],
   "提升劲力": [[1, 3],     [2, 8],      [3, 12],      [5, 20],     [15, 50],     [30, 80]],
   "提升护体": [[1, 3],     [2, 8],      [3, 12],      [5, 20],     [15, 50],     [30, 80]],
+  "提升灵御": [[1, 3],     [2, 8],      [3, 12],      [5, 20],     [15, 50],     [30, 80]],
   "提升神识": [[1, 3],     [2, 8],      [3, 12],      [5, 20],     [15, 50],     [30, 80]],
   "提升身法": [[1, 3],     [2, 8],      [3, 12],      [5, 20],     [15, 50],     [30, 80]],
   "提升悟性": [[1, 3],     [2, 8],      [3, 12],      [5, 20],     [15, 50],     [30, 80]],
-  "提升气运": [[1, 3],     [2, 8],      [3, 12],      [5, 20],     [15, 50],     [30, 80]],
 };
 
 export const ELIXIR_PERCENT_GRADE_THRESHOLD = 3;
-
-/** 法宝按品阶可提供的基础属性加成个数 */
-export const TREASURE_BONUS_COUNT_BY_GRADE: Readonly<Record<string, number>> = {
-  下品: 1, 中品: 1,
-  上品: 2, 极品: 2,
-  仙品: 3, 神品: 3,
-};
 
 /** 根据属性中文名和品阶从指定表中随机取一个范围值 */
 export function rollGradeAttriValue(statZh: string, grade: string, table: Readonly<Record<string, readonly (readonly [number, number])[]>>): number {
@@ -228,7 +153,7 @@ export function rollGradeAttriValue(statZh: string, grade: string, table: Readon
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 10. 叙事年龄下限
+// 8. 叙事年龄下限
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const MIN_NARRATIVE_AGE_BY_MAJOR: Readonly<Record<string, number>> = {
@@ -248,7 +173,7 @@ export const MAX_NARRATIVE_AGE_BY_MAJOR: Readonly<Record<string, number>> = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 11. 品阶掉落概率表
+// 9. 品阶掉落概率表
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const GRADE_DROP_TABLE: Readonly<Record<string, Readonly<Record<string, GradeDropRate>>>> = {
@@ -280,7 +205,7 @@ export const GRADE_DROP_TABLE: Readonly<Record<string, Readonly<Record<string, G
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 12. 特效数值体系
+// 10. 特效数值体系
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const GRADE_INDEX: Readonly<Record<string, number>> = {
@@ -338,7 +263,7 @@ export const COST_BASE_VALUES: Readonly<Record<string, readonly (readonly [numbe
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 13. 修炼速度基础表（修为/年，按境界阶段索引，共 15 行）
+// 11. 修炼速度基础表（修为/年，按境界阶段索引，共 15 行）
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const CULTIVATION_SPEED_TABLE = [
@@ -350,7 +275,7 @@ export const CULTIVATION_SPEED_TABLE = [
 ] as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 14. 功法品阶修炼速度倍率
+// 12. 功法品阶修炼速度倍率
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const GONGFA_GRADE_CULTIVATION_MULT: Readonly<Record<string, number>> = {
@@ -363,7 +288,7 @@ export const GONGFA_GRADE_CULTIVATION_MULT: Readonly<Record<string, number>> = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 15. 灵根类型修炼速度倍率（按灵根数量索引）
+// 13. 灵根类型修炼速度倍率（按灵根数量索引）
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const LINGGEN_CULTIVATION_MULT: Readonly<Record<number, number>> = {
@@ -375,7 +300,7 @@ export const LINGGEN_CULTIVATION_MULT: Readonly<Record<number, number>> = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 16. 功法熟练度阈值（每层升级所需熟练度经验，索引0=第1→2层，...索引8=第9→10层）
+// 14. 功法熟练度阈值（每层升级所需熟练度经验，索引0=第1→2层，...索引8=第9→10层）
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const GONGFA_MASTERY_THRESHOLDS = [
@@ -383,7 +308,7 @@ export const GONGFA_MASTERY_THRESHOLDS = [
 ] as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 16a. 功法熟练度基础获取速率（熟练度/年，按境界阶段索引，共 15 行）
+// 14a. 功法熟练度基础获取速率（熟练度/年，按境界阶段索引，共 15 行）
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const GONGFA_MASTERY_EXP_PER_YEAR = [
@@ -395,7 +320,7 @@ export const GONGFA_MASTERY_EXP_PER_YEAR = [
 ] as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 17. 灵石修炼消耗（灵石/年，按境界阶段索引）
+// 15. 灵石修炼消耗（灵石/年，按境界阶段索引）
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const LINGSHI_CULTIVATION_COST_PER_YEAR = [
@@ -407,7 +332,7 @@ export const LINGSHI_CULTIVATION_COST_PER_YEAR = [
 ] as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 18. 灵石加速修炼倍率
+// 16. 灵石加速修炼倍率
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const LINGSHI_ACCELERATION_MULT = {

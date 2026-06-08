@@ -14,7 +14,6 @@ import type {
   TreasureItemDefinition,
 } from "../role_core/types/itemInfo";
 import type { CultivationRealm, EquipSlotKey, TraitEntry } from "../role_core/types/playInfo";
-import { BASE_STAT_KEYS, DERIVED_STAT_KEY_TO_ZH, getEquipBonusRealmRatio, type PlayerBaseStats } from "../role_core/types/playInfo";
 import type { TreasureSpecialEffect } from "../role_core/types/treasure";
 import type { GongfaSpecialEffect } from "../role_core/types/gongfa";
 import { gradeToTraitRarity, getGongfaMasteryProgress } from "./protagonistPanelDisplay";
@@ -140,83 +139,20 @@ function pushSec(out: ProtagonistDetailSection[], label: string, text: string | 
  * @param b - 键为属性名、值为加成的记录；无效时返回 `undefined`。
  * @returns 格式化后的文案，无有效项时返回 `undefined`。
  */
-function formatZhBonus(b: Record<string, number> | undefined): string | undefined {
-  if (!b || typeof b !== "object") return undefined;
-  const parts = Object.entries(b).map(([k, v]) => {
-    if (typeof v !== "number" || !Number.isFinite(v)) return null;
-    const sign = v >= 0 ? "+" : "";
-    return `${k} ${sign}${v}`;
-  }).filter(Boolean) as string[];
-  return parts.length ? parts.join("；") : undefined;
-}
-
-function formatZhBonusWithRealmEquip(
-  b: Record<string, number> | undefined,
-  realm: CultivationRealm,
-): string | undefined {
-  if (!b || typeof b !== "object") return undefined;
-  const realmRatio = getEquipBonusRealmRatio(realm.major, realm.minor);
-  const parts = Object.entries(b).map(([k, v]) => {
-    if (typeof v !== "number" || !Number.isFinite(v)) return null;
-    const sign = v >= 0 ? "+" : "";
-    let line = `${k} ${sign}${v}`;
-    const extras: string[] = [];
-    if (realmRatio !== 1) {
-      const realmExtra = Math.trunc(v * (realmRatio - 1));
-      const rs = realmExtra >= 0 ? "+" : "";
-      extras.push(`境界加成 ${rs}${realmExtra}`);
-    }
-    if (extras.length) line += ` (${extras.join("；")})`;
-    return line;
-  }).filter(Boolean) as string[];
-  return parts.length ? parts.join("；") : undefined;
-}
-
-function formatZhBonusWithMasteryAndRealm(
-  b: Record<string, number> | undefined,
-  realm: CultivationRealm | null | undefined,
-  mastery: number,
-): string | undefined {
-  if (!b || typeof b !== "object") return undefined;
-  const masteryMult = 0.5 + mastery * 0.05;
-  const realmRatio = realm ? getEquipBonusRealmRatio(realm.major, realm.minor) : 1;
-  const parts = Object.entries(b).map(([k, v]) => {
-    if (typeof v === "number" && !Number.isFinite(v)) return null;
-    const raw = typeof v === "number" ? v : 0;
-    const afterMastery = Math.trunc(raw * masteryMult);
-    const afterRealm = Math.trunc(afterMastery * realmRatio);
-    const sign = afterRealm >= 0 ? "+" : "";
-    let line = `${k} ${sign}${afterRealm}`;
-    const extras: string[] = [];
-    if (mastery < 10) {
-      const maxVal = Math.trunc(raw * (0.5 + 10 * 0.05) * realmRatio);
-      extras.push(`满层${maxVal}`);
-    }
-    if (realmRatio !== 1) {
-      const realmExtra = afterRealm - afterMastery;
-      const rs = realmExtra >= 0 ? "+" : "";
-      extras.push(`境界加成 ${rs}${realmExtra}`);
-    }
-    if (extras.length) line += ` (${extras.join("；")})`;
-    return line;
-  }).filter(Boolean) as string[];
-  return parts.length ? parts.join("；") : undefined;
-}
-
 function formatZhBonusWithMastery(
   b: Record<string, number> | undefined,
   mastery: number,
 ): string | undefined {
   if (!b || typeof b !== "object") return undefined;
-  const masteryMult = 0.5 + mastery * 0.05;
+  const masteryMult = 0.5 + (mastery - 1) * 0.28;
   const parts = Object.entries(b).map(([k, v]) => {
     if (typeof v === "number" && !Number.isFinite(v)) return null;
     const raw = typeof v === "number" ? v : 0;
-    const afterMastery = Math.trunc(raw * masteryMult);
-    const sign = afterMastery >= 0 ? "+" : "";
-    let line = `${k} ${sign}${afterMastery}`;
+    const val = Math.trunc(raw * masteryMult);
+    const sign = val >= 0 ? "+" : "";
+    let line = `${k} ${sign}${val}`;
     if (mastery < 10) {
-      const maxVal = Math.trunc(raw * (0.5 + 10 * 0.05));
+      const maxVal = Math.trunc(raw * (0.5 + 9 * 0.28));
       line += ` (满层${maxVal})`;
     }
     return line;
@@ -310,11 +246,6 @@ export function buildWearableDetailPayload(
   const sections: ProtagonistDetailSection[] = [];
   pushSec(sections, "简介", it.desc);
   pushSec(sections, "品级", it.grade);
-  const bonus =
-    source?.type === "equipped" && realm
-      ? formatZhBonusWithRealmEquip(it.bonus as Record<string, number>, realm)
-      : formatZhBonus(it.bonus as Record<string, number>);
-  if (bonus) pushSec(sections, "属性加成", bonus);
   pushSpecialEffectSection(sections, it.function, it.grade);
 
   const actions: ProtagonistDetailActionButton[] = [];
@@ -361,7 +292,6 @@ function gongfaSubtitle(gf: GongfaItemDefinition): string {
 export function buildGongfaDetailPayload(
   gf: GongfaItemDefinition,
   source?: GongfaDetailSource,
-  realm?: CultivationRealm | null,
   _playerLinggen?: readonly string[] | null,
   primaryStatGetter?: () => number,
   statNameGetter?: () => string,
@@ -376,10 +306,7 @@ export function buildGongfaDetailPayload(
     sections.push({ label: "熟练等级", text: masteryText, progress: mp.isMax ? undefined : { current: mp.exp, max: mp.threshold, percent: mp.percent, isMax: false } });
   }
   const mastery = gf.mastery ?? 1;
-  const bonus =
-    source?.type === "bar" && realm
-      ? formatZhBonusWithMasteryAndRealm(gf.bonus as Record<string, number>, realm, mastery)
-      : formatZhBonusWithMastery(gf.bonus as Record<string, number>, mastery);
+  const bonus = formatZhBonusWithMastery(gf.bonus as Record<string, number>, mastery);
   if (bonus) pushSec(sections, "修炼加成", bonus);
   pushSpecialEffectSection(sections, gf.function, gf.grade, primaryStatGetter, statNameGetter, gf.system, derivedStatsGetter, mastery);
 
@@ -468,7 +395,6 @@ export function buildInventoryStackDetailPayload(
       return buildGongfaDetailPayload(
         it,
         bagIndex != null ? { type: "bag", inventoryIndex: bagIndex } : undefined,
-        undefined,
         linggen,
         gfg,
         sng,
@@ -532,23 +458,4 @@ export function buildInventoryStackDetailPayload(
   }
 }
 
-/**
- * 构建基础属性详情弹窗数据。
- *
- * @param playerBase 玩家当前基础属性（四维：血量/法力/物攻/防御）。
- * @returns 完整的 `ProtagonistDetailPayload`。
- */
-export function buildBaseStatsPayload(playerBase: PlayerBaseStats): ProtagonistDetailPayload {
-  const sections: ProtagonistDetailSection[] = [];
-  for (const k of BASE_STAT_KEYS) {
-    const zh = DERIVED_STAT_KEY_TO_ZH[k] ?? k;
-    const v = playerBase[k];
-    sections.push({ label: zh, text: String(typeof v === "number" ? Math.round(v) : v) });
-  }
-  return {
-    title: "基础属性",
-    subtitle: "",
-    sections,
-    gridSections: true,
-  };
-}
+

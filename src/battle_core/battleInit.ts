@@ -7,11 +7,13 @@ import type { BattleTriggerEntry } from "../ai/state_generate";
 import type { EquippedSlotsState, GongfaSlotsState } from "../role_core/types/playInfo";
 import type { ElixirItemDefinition, InventoryStackItem } from "../role_core/types/itemInfo";
 import type { EffectComponent } from "../role_core/types/combatMechanics";
+import type { PrimaryStatKey } from "../role_core/types/playInfo";
 import { protagonist } from "../role_core/Protagonist";
 import { Npc } from "../role_core/Npc";
 import { npcStore } from "../role_core/npcStore";
 import { gameLog } from "../log/gameLog";
 import { GONGFA_SLOT_COUNT } from "../role_core/types/gameConstants";
+import { calcDodgeRate } from "./formulas";
 
 function generateCombatantId(team: "ally" | "enemy", index: number): string {
   return `${team}_${index}`;
@@ -74,8 +76,8 @@ function createProtagonistCombatant(): BattleCombatant | null {
   const p = protagonist.value;
   if (!p) return null;
 
-  const stats = p.getDerivedStats();
   const primaryStats = p.getPrimaryStats();
+  const stats: Record<PrimaryStatKey, number> = { ...primaryStats };
   const elixirs = extractRecoveryElixirs(p.inventorySlots);
   const passiveTriggers = extractPassiveTriggers(p.equippedSlots, p.gongfaSlots);
 
@@ -85,14 +87,14 @@ function createProtagonistCombatant(): BattleCombatant | null {
     team: "ally",
     isProtagonist: true,
     isPlayerControlled: true,
-    stats: { ...stats },
-    primaryStats: { ...primaryStats },
-    speed: primaryStats.agility ?? 0,
+    stats,
+    combatStats: { critRate: 0, critDmg: 150 },
+    speed: stats.agility ?? 0,
     currentHp: p.currentHp,
     maxHp: p.maxHp,
     currentMp: p.currentMp,
     maxMp: p.maxMp,
-    equippedSlots: p.equippedSlots.map(tr => tr ? { ...tr, bonus: { ...tr.bonus }, function: tr.function ? { ...tr.function } : undefined } : null) as EquippedSlotsState,
+    equippedSlots: p.equippedSlots.map(tr => tr ? { ...tr, function: tr.function ? { ...tr.function } : undefined } : null) as EquippedSlotsState,
     gongfaSlots: p.gongfaSlots.map(gf => gf ? { ...gf, bonus: { ...gf.bonus }, function: gf.function ? { ...gf.function } : undefined } : null) as import("../role_core/types/playInfo").GongfaSlotsState,
     availableElixirs: elixirs,
     activeEffects: [],
@@ -110,8 +112,8 @@ function createNpcCombatant(
   team: "ally" | "enemy",
   index: number,
 ): BattleCombatant {
-  const stats = npc.getDerivedStats();
   const primaryStats = npc.getPrimaryStats();
+  const stats: Record<PrimaryStatKey, number> = { ...primaryStats };
   const elixirs = extractRecoveryElixirs(npc.inventorySlots);
   const passiveTriggers = extractPassiveTriggers(npc.equippedSlots, npc.gongfaSlots);
 
@@ -121,14 +123,14 @@ function createNpcCombatant(
     team,
     isProtagonist: false,
     isPlayerControlled: false,
-    stats: { ...stats },
-    primaryStats: { ...primaryStats },
-    speed: primaryStats.agility ?? 0,
+    stats,
+    combatStats: { critRate: 0, critDmg: 150 },
+    speed: stats.agility ?? 0,
     currentHp: npc.currentHp,
     maxHp: npc.maxHp,
     currentMp: npc.currentMp,
     maxMp: npc.maxMp,
-    equippedSlots: npc.equippedSlots.map(tr => tr ? { ...tr, bonus: { ...tr.bonus }, function: tr.function ? { ...tr.function } : undefined } : null) as EquippedSlotsState,
+    equippedSlots: npc.equippedSlots.map(tr => tr ? { ...tr, function: tr.function ? { ...tr.function } : undefined } : null) as EquippedSlotsState,
     gongfaSlots: npc.gongfaSlots.map(gf => gf ? { ...gf, bonus: { ...gf.bonus }, function: gf.function ? { ...gf.function } : undefined } : null) as import("../role_core/types/playInfo").GongfaSlotsState,
     availableElixirs: elixirs,
     activeEffects: [],

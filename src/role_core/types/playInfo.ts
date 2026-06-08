@@ -4,7 +4,7 @@
  * 结构：数据 → 类型 → 再导出
  *
  * - 数据：属性键/映射（具体数值见 gameConstants.ts）
- * - 类型：基础属性、槽位状态、角色卡接口、UI 动作
+ * - 类型：主属性、槽位状态、角色卡接口、UI 动作
  * - 导出：itemInfo 再导出、realmUtils 功能函数再导出、gameConstants 再导出
  */
 
@@ -16,20 +16,15 @@ import type {
 import type { WorldLocation } from "./worldLocation";
 
 import {
-  REALM_BASE_STATS_TABLE,
+  REALM_PRIMARY_STATS_TABLE,
   CULTIVATION_VALUES_TABLE,
   SHOUYUAN_VALUES,
   EQUIP_BONUS_RATIOS,
-  DERIVED_STAT_DEFAULTS,
-  PRIMARY_TO_DERIVED_MAP,
-  PCT_DERIVED_KEYS,
   EQUIP_SLOT_COUNT,
   GONGFA_SLOT_COUNT,
   GONGFA_GRADE_ATTRI_TABLE,
-  TREASURE_GRADE_ATTRI_TABLE,
   MIN_NARRATIVE_AGE_BY_MAJOR,
   MAX_NARRATIVE_AGE_BY_MAJOR,
-  TREASURE_BONUS_COUNT_BY_GRADE,
   rollGradeAttriValue,
   CULTIVATION_SPEED_TABLE,
   GONGFA_GRADE_CULTIVATION_MULT,
@@ -41,20 +36,15 @@ import {
 } from "./gameConstants";
 
 export {
-  REALM_BASE_STATS_TABLE,
+  REALM_PRIMARY_STATS_TABLE,
   CULTIVATION_VALUES_TABLE,
   SHOUYUAN_VALUES,
   EQUIP_BONUS_RATIOS,
-  DERIVED_STAT_DEFAULTS,
-  PRIMARY_TO_DERIVED_MAP,
-  PCT_DERIVED_KEYS,
   EQUIP_SLOT_COUNT,
   GONGFA_SLOT_COUNT,
   GONGFA_GRADE_ATTRI_TABLE,
-  TREASURE_GRADE_ATTRI_TABLE,
   MIN_NARRATIVE_AGE_BY_MAJOR,
   MAX_NARRATIVE_AGE_BY_MAJOR,
-  TREASURE_BONUS_COUNT_BY_GRADE,
   rollGradeAttriValue,
   CULTIVATION_SPEED_TABLE,
   GONGFA_GRADE_CULTIVATION_MULT,
@@ -75,9 +65,9 @@ export const PRIMARY_STAT_KEYS = [
   "strength",
   "perception",
   "guard",
+  "resistance",
   "agility",
   "insight",
-  "fortune",
 ] as const;
 
 export type PrimaryStatKey = (typeof PRIMARY_STAT_KEYS)[number];
@@ -88,56 +78,20 @@ export const PRIMARY_STAT_KEY_TO_ZH: Readonly<Record<PrimaryStatKey, string>> = 
   strength: "劲力",
   perception: "神识",
   guard: "护体",
+  resistance: "灵御",
   agility: "身法",
   insight: "悟性",
-  fortune: "气运",
 };
 
 export const PRIMARY_STAT_KEY_DESC: Readonly<Record<PrimaryStatKey, string>> = {
   physique: "增加血量",
   spirit: "增加法力",
-  strength: "增加物攻",
-  perception: "增加法攻",
-  guard: "增加物防法防",
-  agility: "增加闪避率",
-  insight: "增加修炼速度，修炼功法所需灵石更少",
-  fortune: "增加幸运值，更高概率获取高品阶物品",
-};
-
-export const DERIVED_STAT_KEYS = [
-  "hp",
-  "mp",
-  "hpRecovery",
-  "mpRecovery",
-  "patk",
-  "matk",
-  "pdef",
-  "mdef",
-  "penetration",
-  "magicPenetration",
-  "hitRate",
-  "dodgeRate",
-  "critRate",
-  "critDmg",
-] as const;
-
-export type DerivedStatKey = (typeof DERIVED_STAT_KEYS)[number];
-
-export const DERIVED_STAT_KEY_TO_ZH: Readonly<Record<DerivedStatKey, string>> = {
-  hp: "血量",
-  mp: "法力",
-  hpRecovery: "生命回复",
-  mpRecovery: "法力回复",
-  patk: "物攻",
-  matk: "法攻",
-  pdef: "物防",
-  mdef: "法防",
-  penetration: "物伤穿透",
-  magicPenetration: "法伤穿透",
-  hitRate: "命中率",
-  dodgeRate: "闪避率",
-  critRate: "暴击率",
-  critDmg: "暴击伤害",
+  strength: "提高造成的物伤",
+  perception: "提高造成的法伤",
+  guard: "提高对物伤的抵抗率",
+  resistance: "提高对法伤的抵抗率",
+  agility: "增加闪避的几率，并决定先手和逃跑几率",
+  insight: "增加修炼速度，修炼功法耗时更少",
 };
 
 export type ZhStatBonusMap = Partial<Record<string, number>>;
@@ -145,8 +99,6 @@ export type ZhStatBonusMap = Partial<Record<string, number>>;
 // ═══════════════════════════════════════════════════════════════════════════
 // 一、数据 — 游戏常量（结构部分）
 // ═══════════════════════════════════════════════════════════════════════════
-
-export const BASE_STAT_KEYS = DERIVED_STAT_KEYS;
 
 export const REALM_ORDER = ["练气", "筑基", "结丹", "元婴", "化神"] as const;
 export type RealmMajor = (typeof REALM_ORDER)[number];
@@ -159,18 +111,22 @@ export type NarrationPerson = "first" | "second" | "third";
 export type BreakthroughStatus = "idle" | "ready" | "in_quest";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 一、数据 — 境界基础属性表（指数公式生成）
+// 一、数据 — 境界主属性表
 // ═══════════════════════════════════════════════════════════════════════════
 
-export interface RealmBaseStatsRow {
+export interface RealmPrimaryStatsRow {
   realm: string;
   stage: string;
   hp: number;
   mp: number;
-  patk: number;
-  matk: number;
-  pdef: number;
-  mdef: number;
+  physique: number;
+  spirit: number;
+  strength: number;
+  perception: number;
+  guard: number;
+  resistance: number;
+  agility: number;
+  insight: number;
 }
 
 export function realmStageIndex(realm: string, stage: string): number {
@@ -181,13 +137,20 @@ export function realmStageIndex(realm: string, stage: string): number {
   return majorIdx * SUB_STAGES.length + minorIdx + 1;
 }
 
-export const TABLE: readonly RealmBaseStatsRow[] = (REALM_ORDER as readonly string[]).flatMap(
+export const TABLE: readonly RealmPrimaryStatsRow[] = (REALM_ORDER as readonly string[]).flatMap(
   (realm) =>
     (SUB_STAGES as readonly string[]).map((stage, minorIdx) => {
       const majorIdx = (REALM_ORDER as readonly string[]).indexOf(realm);
       const idx = majorIdx * SUB_STAGES.length + minorIdx;
-      const row = REALM_BASE_STATS_TABLE[Math.min(idx, REALM_BASE_STATS_TABLE.length - 1)];
-      return { realm, stage, hp: row.hp, mp: row.mp, patk: row.patk, matk: row.matk, pdef: row.pdef, mdef: row.mdef };
+      const row = REALM_PRIMARY_STATS_TABLE[Math.min(idx, REALM_PRIMARY_STATS_TABLE.length - 1)];
+      return {
+        realm, stage,
+        hp: row.hp, mp: row.mp,
+        physique: row.physique, spirit: row.spirit,
+        strength: row.strength, perception: row.perception,
+        guard: row.guard, resistance: row.resistance,
+        agility: row.agility, insight: row.insight,
+      };
     }),
 );
 
@@ -196,24 +159,6 @@ export const CULTIVATION_VALUES: readonly number[] = CULTIVATION_VALUES_TABLE;
 // ═══════════════════════════════════════════════════════════════════════════
 // 二、结构 — 类型与接口
 // ═══════════════════════════════════════════════════════════════════════════
-
-export type PlayerBaseStats = {
-  hp: number;
-  mp: number;
-  hpRecovery: number;
-  mpRecovery: number;
-  patk: number;
-  matk: number;
-  pdef: number;
-  mdef: number;
-  penetration: number;
-  magicPenetration: number;
-  hitRate: number;
-  dodgeRate: number;
-  critRate: number;
-  critDmg: number;
-  cultivationSpeed: number;
-};
 
 export interface CultivationRealm {
   major: string;
@@ -239,7 +184,7 @@ export interface CharacterPlayInfoCommon {
   id: string;
   displayName: string;
   realm: CultivationRealm;
-  playerBase: PlayerBaseStats;
+  primaryStats: Record<PrimaryStatKey, number>;
   maxHp: number;
   maxMp: number;
   currentHp: number;
@@ -317,7 +262,7 @@ export type {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export {
-  getBaseStats,
+  getRealmPrimaryStats,
   getEquipBonusRealmRatio,
   getProtagonistNarrativeAge,
   getShouyuanForRealm,

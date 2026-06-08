@@ -9,7 +9,6 @@ import { PRIMARY_STAT_KEY_TO_ZH, PRIMARY_STAT_KEYS, PRIMARY_STAT_KEY_DESC, type 
 import type { GongfaItemDefinition } from "../role_core/types/itemInfo";
 import type { DerivedStatValues } from "../role_core/types/combatMechanics";
 import {
-  buildBaseStatsPayload,
   buildGongfaDetailPayload,
   buildInventoryStackDetailPayload,
   buildTraitDetailPayload,
@@ -62,9 +61,8 @@ const panelAgeForDisplay = computed(() => {
 });
 
 const cultivationUi = computed(() => getCultivationUiState(props.protagonist));
-const derivedStats = computed(() => props.protagonist?.getDerivedStats() ?? null);
 const primaryStats = computed(() => props.protagonist?.getPrimaryStats() ?? null);
-const hpMp = computed(() => getHpMpBarState(props.protagonist, derivedStats.value));
+const hpMp = computed(() => getHpMpBarState(props.protagonist, props.protagonist ? { hp: props.protagonist.maxHp, mp: props.protagonist.maxMp } : null));
 const equipSlots = computed(() => getEquipSlotRows(props.protagonist));
 const traitSlots = computed(() => getTraitSlots(props.protagonist));
 const inventoryBagDisplaySlots = computed(() =>
@@ -113,8 +111,8 @@ function getGongfaScalingStatName(gf: GongfaItemDefinition): string {
 }
 
 function getGongfaDerivedStats(p: Protagonist): DerivedStatValues {
-  const ds = p.getDerivedStats();
-  return { patk: ds.patk, matk: ds.matk, pdef: ds.pdef, mdef: ds.mdef };
+  const ps = p.getPrimaryStats();
+  return { strength: ps.strength, perception: ps.perception, guard: ps.guard, resistance: ps.resistance };
 }
 
 function onTraitSlotClick(index: number) {
@@ -141,7 +139,7 @@ function onGongfaSlotClick(index: number) {
   const statGetter = () => getGongfaScalingStat(p, cell);
   const nameGetter = () => getGongfaScalingStatName(cell);
   const dsGetter = () => getGongfaDerivedStats(p);
-  openDetail(buildGongfaDetailPayload(cell, { type: "bar", gongfaIndex: index }, p.realm, p.linggen, statGetter, nameGetter, dsGetter));
+  openDetail(buildGongfaDetailPayload(cell, { type: "bar", gongfaIndex: index }, p.linggen, statGetter, nameGetter, dsGetter));
 }
 
 function onBagSlotClick(index: number) {
@@ -153,12 +151,6 @@ function onBagSlotClick(index: number) {
   const sng = (gf: GongfaItemDefinition) => getGongfaScalingStatName(gf);
   const dsg = (gf: GongfaItemDefinition) => getGongfaDerivedStats(p);
   openDetail(buildInventoryStackDetailPayload(cell, index, p.linggen, gfg, sng, dsg));
-}
-
-function onBaseStatsClick() {
-  const p = props.protagonist;
-  if (!p) return;
-  openDetail(buildBaseStatsPayload(p.getDerivedStats()));
 }
 
 function onDetailAction(a: ProtagonistDetailAction) {
@@ -281,14 +273,6 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
         <div class="mj-combat-stats">
           <div class="mj-attr-section-header">
             <h3 class="mj-attr-section-title mj-attr-section-title--first">属性</h3>
-            <button
-              type="button"
-              class="mj-base-stats-btn"
-              title="查看完整派生属性详情"
-              @click="onBaseStatsClick"
-            >
-              基础属性
-            </button>
           </div>
           <div v-for="row in Math.ceil(PRIMARY_STAT_KEYS.length / 2)" :key="row" class="mj-stat-pair-row">
             <template v-for="col in [0, 1]" :key="col">

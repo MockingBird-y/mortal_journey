@@ -9,7 +9,7 @@ import type {
 } from "./types";
 
 import type { BattleTriggerEntry } from "../ai/state_generate";
-import { BattleEngine } from "./BattleEngine";
+import { BattleEngine } from "./battleEngine";
 import { createBattleCombatants } from "./battleInit";
 import { settleBattle } from "./battleSettle";
 import { gameLog } from "../log/gameLog";

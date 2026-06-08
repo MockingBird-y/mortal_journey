@@ -8,13 +8,14 @@ import type {
   GongfaActionItem,
   ElixirActionItem,
   DamageType,
+  DamageResult,
   EventContext,
   PassiveTrigger,
   BattleEngineLike,
+  BattleStatKey,
 } from "./types";
 
 import type { BattleTriggerEntry } from "../ai/state_generate";
-import type { PlayerBaseStats } from "../role_core/types/playInfo";
 import type { ItemGrade } from "../role_core/types/itemInfo";
 import type { GongfaSystem } from "../role_core/types/gongfa";
 
@@ -24,7 +25,7 @@ import { EffectManager } from "./EffectManager";
 import { DamagePipeline } from "./DamagePipeline";
 import { ConditionEvaluator } from "./ConditionEvaluator";
 import { MechanicRegistry } from "./MechanicRegistry";
-import { BattleAI } from "./BattleAI";
+import { BattleAI } from "./battleAI";
 import * as formulas from "./formulas";
 
 export class BattleEngine implements BattleEngineLike {
@@ -253,8 +254,8 @@ export class BattleEngine implements BattleEngineLike {
       return;
     }
 
-    const patk = this.getEffectiveStat(actor, "patk");
-    const rawDmg = formulas.calcNormalAttackRaw(patk);
+    const str = this.getEffectiveStat(actor, "strength");
+    const rawDmg = formulas.calcRawDamage(str);
     const critRate = this.getEffectiveStat(actor, "critRate");
     const isCrit = formulas.checkCrit(critRate);
 
@@ -283,8 +284,8 @@ export class BattleEngine implements BattleEngineLike {
       return;
     }
 
-    const matk = this.getEffectiveStat(actor, "matk");
-    const rawDmg = formulas.calcMagicAttackRaw(matk);
+    const perc = this.getEffectiveStat(actor, "perception");
+    const rawDmg = formulas.calcRawDamage(perc, 1.2);
     const critRate = this.getEffectiveStat(actor, "critRate");
     const isCrit = formulas.checkCrit(critRate);
     const mpCost = Math.round(actor.maxMp * 0.05);
@@ -512,7 +513,7 @@ export class BattleEngine implements BattleEngineLike {
     };
   }
 
-  getEffectiveStat(combatant: BattleCombatant, stat: keyof PlayerBaseStats): number {
+  getEffectiveStat(combatant: BattleCombatant, stat: BattleStatKey): number {
     return this.effectManager.getEffectiveStat(combatant, stat);
   }
 
@@ -551,6 +552,29 @@ export class BattleEngine implements BattleEngineLike {
     });
 
     return healed;
+  }
+
+  addSecondaryDamageLogs(result: DamageResult, source: BattleCombatant, target: BattleCombatant, turn: number): void {
+    if (result.reflectHpLost > 0) {
+      this.addLog({ turn, actorName: target.displayName, action: "反伤", targetName: source.displayName, type: "damage", value: result.reflectHpLost, narrative: `${target.displayName}的反伤对${source.displayName}造成${result.reflectHpLost}点伤害`, team: target.team });
+      if (result.reflectKilled) {
+        this.addLog({ turn, actorName: source.displayName, action: "阵亡", type: "death", narrative: `${source.displayName}被反伤击败了！`, team: source.team });
+      }
+    }
+    if (result.counterHpLost > 0) {
+      this.addLog({ turn, actorName: target.displayName, action: "反击", targetName: source.displayName, type: "damage", value: result.counterHpLost, narrative: `${target.displayName}的反击对${source.displayName}造成${result.counterHpLost}点伤害`, team: target.team });
+      if (result.counterKilled) {
+        this.addLog({ turn, actorName: source.displayName, action: "阵亡", type: "death", narrative: `${source.displayName}被反击击败了！`, team: source.team });
+      }
+    }
+    if (result.sharedDamages.length > 0) {
+      for (const sd of result.sharedDamages) {
+        this.addLog({ turn, actorName: source.displayName, action: "分摊伤害", targetName: sd.targetName, type: "damage", value: sd.hpLost, narrative: `${sd.targetName}分摊了${sd.hpLost}点伤害`, team: target.team });
+        if (sd.killed) {
+          this.addLog({ turn, actorName: sd.targetName, action: "阵亡", type: "death", narrative: `${sd.targetName}被分摊伤害击败了！`, team: target.team });
+        }
+      }
+    }
   }
 
   tickCooldowns(combatant: BattleCombatant): void {

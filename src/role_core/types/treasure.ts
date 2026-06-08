@@ -3,7 +3,7 @@
  * 法宝的 function 由系统根据品阶从效果目录中随机分配，不由 AI 生成。
  */
 
-import type { ItemBonusMap, ItemGrade } from "./itemInfo";
+import type { ItemGrade } from "./itemInfo";
 import type { EffectComponent } from "./combatMechanics";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -21,7 +21,7 @@ export interface TreasureSpecialEffect {
 
 export const TREASURE_EFFECT_CATALOG: Readonly<Record<ItemGrade, readonly TreasureSpecialEffect[]>> = {
   "下品": [
-    { name: "碎甲", components: [{ mechanic: "debuff_def", trigger: "on_attack", desc: "攻击时降低敌人{p}%物防" }] },
+    { name: "碎甲", components: [{ mechanic: "debuff_def", trigger: "on_attack", desc: "攻击时降低敌人{p}%护体" }] },
     { name: "追击", components: [{ mechanic: "extra_action", trigger: "on_kill", desc: "击杀敌人后{p}%概率追加一次攻击" }] },
     { name: "韧骨", components: [{ mechanic: "buff_crit_dmg", trigger: "passive", desc: "减少受到的{p}%暴击伤害" }] },
     { name: "灼血", components: [{ mechanic: "dmg_dot", trigger: "on_attack", desc: "普通攻击附带{n}点持续伤害" }] },
@@ -31,13 +31,13 @@ export const TREASURE_EFFECT_CATALOG: Readonly<Record<ItemGrade, readonly Treasu
     { name: "敛息", components: [{ mechanic: "buff_stealth", trigger: "on_battle_start", desc: "第一回合有{p}%概率不会被选为首要攻击对象" }] },
   ],
   "中品": [
-    { name: "养剑", components: [{ mechanic: "buff_ramp", trigger: "on_turn_start", desc: "每回合增加{p}%物攻，直到战斗结束" }] },
+    { name: "养剑", components: [{ mechanic: "buff_ramp", trigger: "on_turn_start", desc: "每回合增加{p}%劲力，直到战斗结束" }] },
     { name: "回春", components: [{ mechanic: "heal_single", trigger: "passive", condition: "每损失一定生命", desc: "恢复{n}点生命" }] },
     { name: "逆脉", components: [{ mechanic: "sacrifice", trigger: "active", condition: "法力不足时", desc: "透支{p}%生命释放技能" }] },
     { name: "灵爆", components: [{ mechanic: "buff_atk", trigger: "passive", condition: "法力满时", desc: "技能伤害提升{p}%" }] },
     { name: "聚灵", components: [{ mechanic: "buff_stat", trigger: "passive", condition: "周围敌人越多", desc: "法力恢复越高，最高{p}%" }] },
     { name: "识破", components: [{ mechanic: "counter", trigger: "on_hit", condition: "重复攻击自己的敌人", desc: "额外造成{n}点伤害" }] },
-    { name: "夺势", components: [{ mechanic: "kill_bonus", trigger: "on_kill", desc: "击杀敌人后，获得其{p}%物攻法攻直到战斗结束" }] },
+    { name: "夺势", components: [{ mechanic: "kill_bonus", trigger: "on_kill", desc: "击杀敌人后，获得其{p}%劲力神识直到战斗结束" }] },
     { name: "封喉", components: [
       { mechanic: "buff_crit", trigger: "on_attack", condition: "低生命敌人", desc: "必定暴击，暴击率提高{p}%" },
       { mechanic: "dmg_execute", trigger: "on_attack", condition: "低生命敌人", desc: "额外造成{n}点伤害" },
@@ -143,6 +143,5 @@ export interface TreasureItemDefinition {
   desc: string;
   grade: ItemGrade;
   count: number;
-  bonus: ItemBonusMap;
   function?: TreasureSpecialEffect;
 }

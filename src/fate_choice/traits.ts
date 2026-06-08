@@ -1,9 +1,9 @@
 /**
- * @fileoverview 逆天改命随机词条池（与命运抉择、PlayerBaseRuntime 中文 bonus 键一致）。
+ * 逆天改命随机词条池（与命运抉择中文 bonus 键一致）。
  *
  * 数据自 `mortal_journey/js/data/trait_samples.js` 的 `global.MjTraitSamples` 迁入。
  *
- * bonus 键：血量、法力、物攻、物防、法攻、法防、神识、脚力、魅力、气运
+ * bonus 键：体魄、灵力、劲力、神识、护体、灵御、身法、悟性
  */
 
 /** 词条稀有度，与主工程随机池一致。 */

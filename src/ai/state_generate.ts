@@ -56,7 +56,6 @@ export interface ItemAddEntry {
   name: string;
   intro: string;
   grade: string;
-  bonus?: string[] | Record<string, number>;
   count: number;
   system?: unknown;
   role?: unknown;
@@ -308,11 +307,8 @@ export function parseStateAiResponse(raw: string): StateParsed {
       const grade = String(o.grade || "下品").trim();
       const count = typeof o.count === "number" ? Math.max(1, Math.floor(o.count)) : 1;
       if (!name) return null;
-      const bonus = Array.isArray(o.bonus) || (typeof o.bonus === "object" && o.bonus !== null)
-        ? o.bonus as string[] | Record<string, number>
-        : undefined;
       return {
-        type, name, intro, grade, bonus, count,
+        type, name, intro, grade, count,
         ...(o.system != null ? { system: o.system } : {}),
         ...(o.role != null ? { role: o.role } : {}),
         ...(o.function != null ? { function: o.function } : {}),
@@ -352,10 +348,7 @@ export function parseStateAiResponse(raw: string): StateParsed {
 
 function formatEquipSlot(label: string, slot: EquippedSlotsState[number]): string {
   if (!slot) return `${label}：无`;
-  const bonusStr = slot.bonus && Object.keys(slot.bonus).length > 0
-    ? "，加成：" + Object.entries(slot.bonus).map(([k, v]) => `${k}+${v}`).join("、")
-    : "";
-  return `${label}：${slot.name}（${slot.grade}）${slot.desc ? "—" + slot.desc : ""}${bonusStr}`;
+  return `${label}：${slot.name}（${slot.grade}）${slot.desc ? "—" + slot.desc : ""}`;
 }
 
 function formatEquippedSlots(slots: EquippedSlotsState): string {

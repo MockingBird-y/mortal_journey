@@ -6,7 +6,6 @@ import type {
 import type { EffectManager } from "./EffectManager";
 import type { EventDispatcher } from "./EventDispatcher";
 import * as formulas from "./formulas";
-import type { PlayerBaseStats } from "../role_core/types/playInfo";
 
 const EMPTY_RESULT: DamageResult = {
   finalDamage: 0,
@@ -41,9 +40,8 @@ export class DamagePipeline {
       enemies,
     });
 
-    const hitRate = this.effectManager.getEffectiveStat(ctx.source, "hitRate");
-    const dodgeRate = this.effectManager.getEffectiveStat(ctx.target, "dodgeRate");
-    const dodged = !formulas.checkHit(hitRate, dodgeRate);
+    const dodgeRate = formulas.calcDodgeRate(this.effectManager.getEffectiveStat(ctx.target, "agility"));
+    const dodged = !formulas.checkHit(100, dodgeRate);
 
     if (dodged) {
       this.dispatcher.emit("dodge", {
@@ -63,15 +61,13 @@ export class DamagePipeline {
       rawDamage = formulas.calcCritDamage(rawDamage, critDmg);
     }
 
-    const defKey: keyof PlayerBaseStats = ctx.damageType === "physical" ? "pdef" : "mdef";
-    const penKey: keyof PlayerBaseStats = ctx.damageType === "physical" ? "penetration" : "magicPenetration";
+    const defKey: "guard" | "resistance" = ctx.damageType === "physical" ? "guard" : "resistance";
     const defense = this.effectManager.getEffectiveStat(ctx.target, defKey);
-    const penRating = this.effectManager.getEffectiveStat(ctx.source, penKey);
 
-    const effDef = formulas.calcEffectiveDefense(defense, penRating);
+    const effDef = formulas.calcEffectiveDefense(defense, 0);
     const reduction = formulas.defenseToReduction(effDef);
 
-    let finalDamage = formulas.calcFinalDamage(rawDamage, defense, penRating, ctx.damageType);
+    let finalDamage = formulas.calcFinalDamage(rawDamage, defense, 0, ctx.damageType);
 
     const markBonus = this.effectManager.getMarkAmplification(ctx.target);
     if (markBonus > 0) {

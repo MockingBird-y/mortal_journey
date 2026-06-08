@@ -2,9 +2,9 @@ import type {
   BattleCombatant,
   ActiveStatusEffect,
   BattleLogEntry,
-  EventContext,
+  BattleStatKey,
 } from "./types";
-import type { PlayerBaseStats } from "../role_core/types/playInfo";
+import type { PrimaryStatKey } from "../role_core/types/playInfo";
 import type { EventDispatcher } from "./EventDispatcher";
 import { generateId } from "./formulas";
 import type { MechanicId } from "../role_core/types/combatMechanics";
@@ -196,8 +196,14 @@ export class EffectManager {
     return false;
   }
 
-  getEffectiveStat(combatant: BattleCombatant, stat: keyof PlayerBaseStats): number {
-    const base = combatant.stats[stat] ?? 0;
+  getEffectiveStat(combatant: BattleCombatant, stat: BattleStatKey): number {
+    const primaryKeys = new Set<string>(["physique", "spirit", "strength", "perception", "guard", "resistance", "agility", "insight"]);
+    let base: number;
+    if (primaryKeys.has(stat)) {
+      base = combatant.stats[stat as PrimaryStatKey] ?? 0;
+    } else {
+      base = combatant.combatStats[stat as keyof typeof combatant.combatStats] ?? 0;
+    }
     let flatMod = 0;
     let pctMod = 0;
 

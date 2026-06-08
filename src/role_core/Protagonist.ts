@@ -47,13 +47,15 @@ import type {
   TraitEntry,
   BreakthroughStatus,
   WorldLocation,
+  PrimaryStatKey,
 } from "./types/playInfo";
 import {
   EQUIP_SLOT_COUNT,
   GONGFA_SLOT_COUNT,
-  BASE_STAT_KEYS,
+  PRIMARY_STAT_KEYS,
   REALM_ORDER,
   SUB_STAGES,
+  TABLE,
   realmStageIndex,
 } from "./types/playInfo";
 import {
@@ -75,7 +77,7 @@ import {
 } from "./CharacterInventory";
 import { isTreasureItem } from "./CharacterEquip";
 import {
-  getBaseStats,
+  getRealmPrimaryStats,
   getProtagonistNarrativeAge,
   getShouyuanForRealm,
   getMinNarrativeAgeForMajor,
@@ -204,14 +206,12 @@ export class Protagonist extends Character {
     this.realmComplete = false;
     this.breakthroughStatus = "idle";
 
-    const newBase = getBaseStats(nextMajor, nextMinor) ?? getBaseStats("练气", "初期") ?? Protagonist.emptyPlayerBase();
-    for (const k of BASE_STAT_KEYS) {
-      this.playerBase[k] = newBase[k];
+    const newBase = getRealmPrimaryStats(nextMajor, nextMinor) ?? getRealmPrimaryStats("练气", "初期") ?? Character.emptyPrimaryStats();
+    for (const k of PRIMARY_STAT_KEYS) {
+      this.primaryStats[k] = newBase[k] ?? 0;
     }
 
-    const derived = this.getDerivedStats();
-    const capH = Math.max(1, Math.round(derived.hp));
-    const capM = Math.max(1, Math.round(derived.mp));
+    const { maxHp: capH, maxMp: capM } = this.computeMaxHpMp();
     this.maxHp = capH;
     this.maxMp = capM;
     this.currentHp = capH;
@@ -263,8 +263,8 @@ export class Protagonist extends Character {
     Protagonist.notifyChanged();
   }
 
-  override patchPlayerBase(partial: Partial<import("./types/playInfo").PlayerBaseStats>): void {
-    super.patchPlayerBase(partial);
+  override patchPrimaryStats(partial: Partial<Record<PrimaryStatKey, number>>): void {
+    super.patchPrimaryStats(partial);
     Protagonist.notifyChanged();
   }
 
@@ -430,9 +430,7 @@ export class Protagonist extends Character {
     this.gongfaSlots = buildGongfaSlotsFromParsed(parsed);
     this.inventorySlots = buildInventoryFromParsed(parsed, this.realm.major, DEFAULT_INVENTORY_SLOT_COUNT);
 
-    const derived = this.getDerivedStats();
-    const capH = Math.max(1, Math.round(derived.hp));
-    const capM = Math.max(1, Math.round(derived.mp));
+    const { maxHp: capH, maxMp: capM } = this.computeMaxHpMp();
     this.maxHp = capH;
     this.maxMp = capM;
     this.currentHp = Math.max(0, Math.min(capH, Math.round(capH * parsed.hpPercent / 100)));
@@ -620,18 +618,18 @@ export class Protagonist extends Character {
         ? String((realmRaw as { minor: string }).minor).trim() || "初期"
         : "初期";
 
-    const pbRaw = o.playerBase;
-    const base = Protagonist.emptyPlayerBase();
-    if (pbRaw && typeof pbRaw === "object") {
-      const pbo = pbRaw as Record<string, number>;
-      for (const k of BASE_STAT_KEYS) {
-        const v = pbo[k];
+    const psRaw = o.primaryStats;
+    const base = Protagonist.emptyPrimaryStats();
+    if (psRaw && typeof psRaw === "object") {
+      const pso = psRaw as Record<string, number>;
+      for (const k of PRIMARY_STAT_KEYS) {
+        const v = pso[k];
         if (typeof v === "number" && Number.isFinite(v)) base[k] = v;
       }
     }
 
-    const maxHp = typeof o.maxHp === "number" && Number.isFinite(o.maxHp) ? Math.max(1, Math.floor(o.maxHp)) : Math.max(1, base.hp);
-    const maxMp = typeof o.maxMp === "number" && Number.isFinite(o.maxMp) ? Math.max(1, Math.floor(o.maxMp)) : Math.max(1, base.mp);
+    const maxHp = typeof o.maxHp === "number" && Number.isFinite(o.maxHp) ? Math.max(1, Math.floor(o.maxHp)) : 100;
+    const maxMp = typeof o.maxMp === "number" && Number.isFinite(o.maxMp) ? Math.max(1, Math.floor(o.maxMp)) : 50;
     const currentHp = typeof o.currentHp === "number" && Number.isFinite(o.currentHp) ? Math.max(0, Math.round(o.currentHp)) : maxHp;
     const currentMp = typeof o.currentMp === "number" && Number.isFinite(o.currentMp) ? Math.max(0, Math.round(o.currentMp)) : maxMp;
 
@@ -675,7 +673,7 @@ export class Protagonist extends Character {
         : (o.birthPlace && typeof o.birthPlace === "object" ? o.birthPlace as WorldLocation : { region: "", country: "", area: "", detail: "" }),
       originStory: typeof o.originStory === "string" ? o.originStory : "",
       realm: { major, minor },
-      playerBase: { ...base },
+      primaryStats: { ...base },
       maxHp,
       maxMp,
       currentHp: Math.min(currentHp, maxHp),
@@ -697,7 +695,7 @@ export class Protagonist extends Character {
 
   /**
    * 根据命运抉择结果构造主角实例：境界、属性、年龄、寿元均从查表推导；槽位初始为空。
-   * HP/MP 上限会再调用 `getDerivedStats` 对齐境界 + 灵根推导值。
+   * HP/MP 上限会再调用 `computeMaxHpMp` 对齐境界 + 主属性推导值。
    *
    * @param fc 命运抉择结果。
    * @returns 新 `Protagonist` 实例。
@@ -709,10 +707,17 @@ export class Protagonist extends Character {
       ? String(basics.realmMinor).trim()
       : "初期") as string;
 
-    const pb = getBaseStats(major, minor) ?? getBaseStats("练气", "初期") ?? Protagonist.emptyPlayerBase();
-    const maxHp = Math.max(1, pb.hp);
-    const maxMp = Math.max(1, pb.mp);
+    const pb = getRealmPrimaryStats(major, minor) ?? getRealmPrimaryStats("练气", "初期") ?? Character.emptyPrimaryStats();
     const sy = getShouyuanForRealm(major, minor) ?? getShouyuanForRealm("练气", "初期") ?? 100;
+
+    const realmRow = (() => {
+      for (const row of TABLE) {
+        if (row.realm === major && row.stage === minor) return row;
+      }
+      return TABLE[0];
+    })();
+    const maxHp = Math.max(1, Math.round(realmRow.hp * (1 + (pb.physique * 10) / 10000)));
+    const maxMp = Math.max(1, Math.round(realmRow.mp * (1 + (pb.spirit * 10) / 10000)));
 
     const age = getProtagonistNarrativeAge(
       { realm: { major }, age: undefined },
@@ -734,7 +739,7 @@ export class Protagonist extends Character {
       birthPlace: basics.birthPlace,
       originStory: basics.originStory.trim(),
       realm: { major, minor },
-      playerBase: { ...pb },
+      primaryStats: { ...pb },
       maxHp,
       maxMp,
       currentHp: maxHp,
@@ -753,9 +758,7 @@ export class Protagonist extends Character {
       breakthroughStatus: "idle",
     });
 
-    const derived = p.getDerivedStats();
-    const capH = Math.max(1, Math.round(derived.hp));
-    const capM = Math.max(1, Math.round(derived.mp));
+    const { maxHp: capH, maxMp: capM } = p.computeMaxHpMp();
     p.maxHp = capH;
     p.maxMp = capM;
     p.currentHp = capH;

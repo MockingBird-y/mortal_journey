@@ -20,16 +20,15 @@ export const INIT_STATE_SYSTEM_PRESET = `
 [法宝开局配置规则]
 1. 主角的法宝开局配置：法宝的名称需要与剧情描述、主角背景一致。
 2. 输出格式：<mj_equip_body> … </mj_equip_body>，内为 JSON 数组。开局法宝一般给到2-3个。
-3. 法宝信息：包含 type（法宝）、name、intro、bonus（1个属性名称字符串）。不需要输出 function 字段，法宝的特殊功能由系统根据品阶自动分配。
-4. bonus 基础属性类型：血量、法力、生命回复、法力回复、物攻、法攻、物防、法防、物伤穿透、法伤穿透、命中率、闪避率、暴击率、暴击伤害。
-5. intro 规则：只描述法宝的外观、材质、来历，不要描述属性加成或功能效果。
-6. 示例：<mj_equip_body> [{"type":"法宝","name":"青钢剑","intro":"外门制式长剑，刃口锋利","bonus":"物攻"},{"type":"法宝","name":"粗布劲装","intro":"厚实耐磨的灰色劲装","bonus":"物防"}] </mj_equip_body>
+3. 法宝信息：包含 type（法宝）、name、intro。不需要输出 function 字段，法宝的特殊功能由系统根据品阶自动分配。
+4. intro 规则：只描述法宝的外观、材质、来历，不要描述功能效果。
+5. 示例：<mj_equip_body> [{"type":"法宝","name":"青钢剑","intro":"外门制式长剑，刃口锋利"},{"type":"法宝","name":"粗布劲装","intro":"厚实耐磨的灰色劲装"}] </mj_equip_body>
 
 [功法开局配置规则]
 1. 主角的功法开局配置：攻击功法和辅助功法各一个，名称需要与剧情描述、主角背景一致。
 2. 输出格式：<mj_magic_body> … </mj_magic_body>，内为 JSON 数组。
 3. 功法信息：包含 type（功法）、name、intro、bonus、system、role。不需要输出 function 字段，功法的特殊功能由系统根据体系、品阶和定位自动分配。
-4. bonus 类型：只能是体魄、灵力、劲力、神识、护体、身法、悟性、气运其中一个。
+4. bonus 类型：只能是体魄、灵力、劲力、神识、护体、灵御、身法、悟性其中一个。
 5. intro 规则：只描述功法的来历、流派、外观特征。
 6. system（体系）字段：只能从以下十二种中选择一个：剑系、体修、法修、刺客系、毒系、魔修、火系、雷系、冰系、暗系、风系、木系。体系须与功法名称和描述契合。
 7. role（定位）字段：只能从"攻击"和"辅助"中选择一个。攻击类功法（如碎石掌、烈火术）必须选择"攻击"，辅助类功法（如吐纳诀、轻身术）选择"辅助"。role 决定系统分配的功法效果类型：攻击→主动效果（造成伤害+附加效果），辅助→被动效果（增益/减益/触发）。功法名称明显是攻击手段时必须选"攻击"。
@@ -44,7 +43,7 @@ export const INIT_STATE_SYSTEM_PRESET = `
 
 [丹药effectType规则]
   1. 丹药不携带 function 字段，改为携带 effectType 字段，表示丹药的唯一效果类型。
-  2. effectType 只能是以下之一：恢复血量、恢复法力、提升修为、提升寿元、提升体魄、提升灵力、提升劲力、提升护体、提升神识、提升身法、提升悟性、提升气运。
+  2. effectType 只能是以下之一：恢复血量、恢复法力、提升修为、提升寿元、提升体魄、提升灵力、提升劲力、提升护体、提升灵御、提升神识、提升身法、提升悟性。
   3. 丹药不含品阶（品阶由系统根据境界自动分配）。
   4. effectType 须与丹药名称和介绍描述契合。
 
@@ -52,8 +51,8 @@ export const INIT_STATE_SYSTEM_PRESET = `
 1. 开局剧情中出现的周围人物，必须在 <NPC_NEARBY_TAG> 中生成对应角色卡。
 2. NPC境界参考剧情：宗门普通弟子一般在练气期，师叔/执事在筑基期，长者在结丹期。大境界从练气、筑基、结丹、元婴、化神中选择，小境界从初期、中期、后期选择。
 3. 好感度初始化：默认落在 -19~19。
-4. NPC的法宝结构：法宝须含 type（法宝）、name、intro、bonus（1个属性名称字符串）。不需要 function 字段。功法结构与主角相同：功法须含 type（功法）、name、intro、bonus、system、role。不需要 function 字段。role 为"攻击"或"辅助"，攻击类功法必须选"攻击"。不含 grade（品阶由系统根据境界自动分配）。NPC储物袋中的丹药须含 effectType，不含 grade。
-5. NPC生成需要包含的信息：displayName（2-4字）、identity、currentStageGoal、longTermGoal、hobby、fear、personality、favorability、gender、age、linggen、realm、equippedSlots（最多4个法宝，须含武器，每个含 bonus）、gongfaSlots（长度8，须含攻击类功法，每个含 bonus 和 system）、inventorySlots（最多12格）、hpPercent/mpPercent（血量/法力百分比，0-100整数，100为满状态）。
+4. NPC的法宝结构：法宝须含 type（法宝）、name、intro。不需要 function 字段。功法结构与主角相同：功法须含 type（功法）、name、intro、bonus、system、role。不需要 function 字段。role 为"攻击"或"辅助"，攻击类功法必须选"攻击"。不含 grade（品阶由系统根据境界自动分配）。NPC储物袋中的丹药须含 effectType，不含 grade。
+5. NPC生成需要包含的信息：displayName（2-4字）、identity、currentStageGoal、longTermGoal、hobby、fear、personality、favorability、gender、age、linggen、realm、equippedSlots（最多4个法宝，须含武器）、gongfaSlots（长度8，须含攻击类功法，每个含 bonus 和 system）、inventorySlots（最多12格）、hpPercent/mpPercent（血量/法力百分比，0-100整数，100为满状态）。
 6. NPC的功法也需要输出 system 和 role 字段。法宝不需要 function，功法不需要 function。丹药使用 effectType，不使用 function。
 7. NPC示例：
 <NPC_NEARBY_TAG>[
@@ -71,8 +70,8 @@ export const INIT_STATE_SYSTEM_PRESET = `
     "linggen": ["水"],
     "realm": { "major": "练气", "minor": "初期" },
     "equippedSlots": [
-      {"type": "法宝", "name": "精刚剑", "intro": "精刚铸就的剑，刃口锋利", "bonus": "物攻"},
-      {"type": "法宝", "name": "布衣", "intro": "普通布衣，厚实耐磨", "bonus": "物防"}
+      {"type": "法宝", "name": "精刚剑", "intro": "精刚铸就的剑，刃口锋利"},
+      {"type": "法宝", "name": "布衣", "intro": "普通布衣，厚实耐磨"}
     ],
     "gongfaSlots": [
       {"type": "功法", "name": "长春功", "intro": "入门功法，调和气机", "bonus": "灵力", "system": "法修", "role": "辅助"},

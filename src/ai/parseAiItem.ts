@@ -1,7 +1,5 @@
 import {
-  TREASURE_BONUS_COUNT_BY_GRADE,
   rollGradeAttriValue,
-  TREASURE_GRADE_ATTRI_TABLE,
   GONGFA_GRADE_ATTRI_TABLE,
 } from "../role_core/types/playInfo";
 import type { InventoryStackItem } from "../role_core/types/playInfo";
@@ -29,32 +27,11 @@ import {
 
 export const VALID_BONUS_NAMES: ReadonlySet<string> = new Set(Object.keys(GONGFA_GRADE_ATTRI_TABLE));
 
-export const VALID_DERIVED_BONUS_NAMES = Object.keys(TREASURE_GRADE_ATTRI_TABLE);
-export const VALID_DERIVED_BONUS_NAMES_ARR: readonly string[] = VALID_DERIVED_BONUS_NAMES;
-
 export function parseBonusField(raw: unknown, grade: string): Record<string, number> {
   if (typeof raw !== "string") return {};
   const name = raw.trim();
   if (!VALID_BONUS_NAMES.has(name)) return {};
   return { [name]: rollGradeAttriValue(name, grade, GONGFA_GRADE_ATTRI_TABLE) };
-}
-
-export function parseTreasureBonusField(raw: unknown, grade: string): Record<string, number> {
-  const totalCount = TREASURE_BONUS_COUNT_BY_GRADE[grade] ?? 1;
-  const names: string[] = [];
-  if (typeof raw === "string") {
-    const trimmed = raw.trim();
-    if (VALID_DERIVED_BONUS_NAMES.includes(trimmed)) names.push(trimmed);
-  }
-  while (names.length < totalCount) {
-    names.push(VALID_DERIVED_BONUS_NAMES_ARR[Math.floor(Math.random() * VALID_DERIVED_BONUS_NAMES_ARR.length)]);
-  }
-  const result: Record<string, number> = {};
-  for (const name of names) {
-    const v = rollGradeAttriValue(name, grade, TREASURE_GRADE_ATTRI_TABLE);
-    result[name] = (result[name] ?? 0) + v;
-  }
-  return result;
 }
 
 export function extractTagContent(raw: string, openTag: string, closeTag: string): string {
@@ -148,7 +125,6 @@ export function parseEquipObject(e: unknown, realmMajor: string, realmMinor: str
     desc: safeStr(obj.intro, ""),
     grade,
     count: 1,
-    bonus: parseTreasureBonusField(obj.bonus, grade),
     function: rollTreasureFunction(grade),
   };
 }
@@ -195,7 +171,7 @@ export function parseStorageObject(e: unknown, realmMajor: string, realmMinor: s
 
   switch (itemType) {
     case "法宝": {
-      return { itemType: "法宝", name, desc, grade, count, bonus: parseTreasureBonusField(obj.bonus, grade), function: rollTreasureFunction(grade) } as TreasureItemDefinition;
+      return { itemType: "法宝", name, desc, grade, count, function: rollTreasureFunction(grade) } as TreasureItemDefinition;
     }
     case "丹药": {
       const effectType = parseElixirEffectType(obj.effectType);

@@ -30,12 +30,12 @@ export function calcFinalDamage(
   return Math.max(1, Math.round(rawDamage * (1 - reduction)));
 }
 
-export function calcNormalAttackRaw(patk: number): number {
-  return Math.max(1, patk);
+export function calcRawDamage(stat: number, multiplier: number = 1): number {
+  return Math.max(1, Math.round(stat * multiplier));
 }
 
-export function calcMagicAttackRaw(matk: number): number {
-  return Math.max(1, matk * 1.2);
+export function calcDodgeRate(agility: number): number {
+  return Math.min(80, agility * 0.3);
 }
 
 export function checkHit(hitRate: number, dodgeRate: number): boolean {

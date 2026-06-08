@@ -12,7 +12,6 @@ import { getGongfaMasteryThreshold } from "../role_core/realmUtils";
 import type {
   EquipSlotKey,
   InventoryStackItem,
-  PlayerBaseStats,
   ProtagonistPlayInfo,
   TraitEntry,
   BreakthroughStatus,
@@ -129,7 +128,7 @@ export interface HpMpBarState {
  */
 export function getHpMpBarState(
   p: ProtagonistPlayInfo | null,
-  derivedCaps?: Pick<PlayerBaseStats, "hp" | "mp"> | null,
+  derivedCaps?: { hp: number; mp: number } | null,
 ): HpMpBarState | null {
   if (!p) return null;
   const maxH =

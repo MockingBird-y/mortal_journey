@@ -1,5 +1,4 @@
 import type {
-  PlayerBaseStats,
   EquippedSlotsState,
   GongfaSlotsState,
   CultivationRealm,
@@ -174,7 +173,7 @@ export interface BattleEngineLike {
   readonly eventDispatcher: import("./EventDispatcher").EventDispatcher;
   readonly conditionEvaluator: import("./ConditionEvaluator").ConditionEvaluator;
   readonly mechanicRegistry: import("./MechanicRegistry").MechanicRegistry;
-  getEffectiveStat(combatant: BattleCombatant, stat: keyof PlayerBaseStats): number;
+  getEffectiveStat(combatant: BattleCombatant, stat: BattleStatKey): number;
   addLog(entry: BattleLogEntry): void;
   addLogEntries(entries: BattleLogEntry[]): void;
   findCombatant(id: string): BattleCombatant | undefined;
@@ -237,6 +236,17 @@ export interface BattleSummon {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// 战斗衍生属性（仅战斗时存在，由主属性推导或默认值）
+// ═══════════════════════════════════════════════════════════════
+
+export interface BattleCombatStats {
+  critRate: number;
+  critDmg: number;
+}
+
+export type BattleStatKey = PrimaryStatKey | keyof BattleCombatStats;
+
+// ═══════════════════════════════════════════════════════════════
 // 战斗者
 // ═══════════════════════════════════════════════════════════════
 
@@ -247,8 +257,8 @@ export interface BattleCombatant {
   isProtagonist: boolean;
   isPlayerControlled: boolean;
 
-  stats: PlayerBaseStats;
-  primaryStats: Record<PrimaryStatKey, number>;
+  stats: Record<PrimaryStatKey, number>;
+  combatStats: BattleCombatStats;
   speed: number;
   currentHp: number;
   maxHp: number;

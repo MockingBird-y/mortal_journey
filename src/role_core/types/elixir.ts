@@ -7,14 +7,14 @@ import {
 export type ElixirEffectType =
   | "恢复血量" | "恢复法力"
   | "提升修为" | "提升寿元"
-  | "提升体魄" | "提升灵力" | "提升劲力" | "提升护体" | "提升神识"
-  | "提升身法" | "提升悟性" | "提升气运";
+  | "提升体魄" | "提升灵力" | "提升劲力" | "提升护体" | "提升灵御" | "提升神识"
+  | "提升身法" | "提升悟性";
 
 export const VALID_ELIXIR_EFFECT_TYPES: readonly ElixirEffectType[] = [
   "恢复血量", "恢复法力",
   "提升修为", "提升寿元",
-  "提升体魄", "提升灵力", "提升劲力", "提升护体", "提升神识",
-  "提升身法", "提升悟性", "提升气运",
+  "提升体魄", "提升灵力", "提升劲力", "提升护体", "提升灵御", "提升神识",
+  "提升身法", "提升悟性",
 ];
 
 export interface ElixirEffects {
@@ -49,9 +49,9 @@ const ELIXIR_EFFECT_TO_STAT_KEY: Readonly<Record<string, string>> = {
   "提升劲力": "strength",
   "提升神识": "perception",
   "提升护体": "guard",
+  "提升灵御": "resistance",
   "提升身法": "agility",
   "提升悟性": "insight",
-  "提升气运": "fortune",
 };
 
 export function elixirEffectToStatKey(effectType: ElixirEffectType): string | null {
