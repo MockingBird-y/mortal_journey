@@ -58,6 +58,7 @@ function onBack() {
           :protagonist="protagonist"
           :world-time="worldTime"
           :world-time-baseline="worldTimeBaseline"
+          @update:world-time="worldTime = $event"
         />
       </aside>
       <main class="main-screen__pane main-screen__pane--chat" aria-label="中栏：剧情">

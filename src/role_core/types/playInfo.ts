@@ -231,7 +231,8 @@ export type ProtagonistDetailAction =
   | { id: "unequipGongfa"; gongfaIndex: number }
   | { id: "equipWearFromBag"; inventoryIndex: number }
   | { id: "equipGongfaFromBag"; inventoryIndex: number }
-  | { id: "consumeElixir"; inventoryIndex: number };
+  | { id: "consumeElixir"; inventoryIndex: number }
+  | { id: "cultivateGongfa"; gongfaIndex: number };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 三、导出 — itemInfo 再导出

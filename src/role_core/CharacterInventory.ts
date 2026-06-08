@@ -64,6 +64,16 @@ export function addToInventory(c: InventoryCarrier, item: InventoryStackItem): n
   return i;
 }
 
+export function getSpiritStoneCount(c: InventoryCarrier): number {
+  let total = 0;
+  for (const cell of c.inventorySlots) {
+    if (cell && "type" in cell && cell.type === "灵石") {
+      total += cell.count;
+    }
+  }
+  return total;
+}
+
 export function addSpiritStone(c: InventoryCarrier, count: number): void {
   for (let i = 0; i < c.inventorySlots.length; i++) {
     const cell = c.inventorySlots[i];

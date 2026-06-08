@@ -36,11 +36,16 @@ import {
   getBreakthroughStatusLabel,
 } from "./protagonistPanelDisplay";
 import ProtagonistDetailModal from "./ProtagonistDetailModal.vue";
+import GongfaCultivateModal from "./GongfaCultivateModal.vue";
 import {
+  advanceWorldTime,
   calendarYearsElapsed,
   formatWorldTimeZhDisplay,
   type WorldTime,
 } from "../role_core/worldTime";
+import { getSpiritStoneCount } from "../role_core/CharacterInventory";
+import { addGongfaMasteryExp } from "../role_core/realmUtils";
+import { triggerRef } from "vue";
 
 const props = defineProps<{
   protagonist: Protagonist | null;
@@ -48,6 +53,9 @@ const props = defineProps<{
   worldTimeBaseline: WorldTime;
 }>();
 
+const emit = defineEmits<{
+  "update:worldTime": [value: WorldTime];
+}>();
 const worldTimeTitle = computed(() => formatWorldTimeZhDisplay(props.worldTime));
 
 /**
@@ -154,8 +162,47 @@ function onBagSlotClick(index: number) {
 }
 
 function onDetailAction(a: ProtagonistDetailAction) {
+  if (a.id === "cultivateGongfa") {
+    cultivateGongfaIndex.value = a.gongfaIndex;
+    closeDetail();
+    cultivateOpen.value = true;
+    return;
+  }
   props.protagonist?.applyDetailAction(a);
   closeDetail();
+}
+
+const cultivateOpen = ref(false);
+const cultivateGongfaIndex = ref(-1);
+
+const cultivateGongfa = computed(() => {
+  const p = props.protagonist;
+  if (!p || cultivateGongfaIndex.value < 0) return null;
+  return p.gongfaSlots[cultivateGongfaIndex.value] ?? null;
+});
+
+const spiritStoneCount = computed(() => {
+  return props.protagonist ? getSpiritStoneCount(props.protagonist) : 0;
+});
+
+function closeCultivate() {
+  cultivateOpen.value = false;
+  cultivateGongfaIndex.value = -1;
+}
+
+function onCultivateConfirm(count: number) {
+  const p = props.protagonist;
+  const gf = cultivateGongfa.value;
+  if (!p || !gf || count <= 0) return;
+
+  p.removeSpiritStone("灵石", count);
+  addGongfaMasteryExp(gf, count * 100);
+  Protagonist.notifyChanged();
+
+  const newTime = advanceWorldTime(props.worldTime, { months: count });
+  emit("update:worldTime", newTime);
+
+  closeCultivate();
 }
 
 function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
@@ -172,6 +219,14 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
       :payload="detailPayload"
       @close="closeDetail"
       @action="onDetailAction"
+    />
+    <GongfaCultivateModal
+      :open="cultivateOpen"
+      :gongfa="cultivateGongfa"
+      :spirit-stone-count="spiritStoneCount"
+      :world-time="worldTime"
+      @close="closeCultivate"
+      @confirm="onCultivateConfirm"
     />
     <header class="main-panel__meta-strip" aria-label="世界时间" :title="worldTimeTitle">
       <p class="main-panel__meta-strip-text">{{ worldTimeTitle }}</p>

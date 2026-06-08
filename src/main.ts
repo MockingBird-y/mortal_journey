@@ -12,6 +12,7 @@ import "./main-screen/mainScreen.css";
 import "./main-screen/worldMapModal.css";
 import "./main-screen/mainScreenPlayerPanel.css";
 import "./main-screen/protagonistDetailModal.css";
+import "./main-screen/gongfaCultivateModal.css";
 import "./battle_core/battle.css";
 
 createApp(App).mount("#app");

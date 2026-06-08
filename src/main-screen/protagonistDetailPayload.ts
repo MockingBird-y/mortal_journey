@@ -56,7 +56,8 @@ export type ProtagonistDetailAction =
   | { id: "unequipGongfa"; gongfaIndex: number }
   | { id: "equipWearFromBag"; inventoryIndex: number }
   | { id: "equipGongfaFromBag"; inventoryIndex: number }
-  | { id: "consumeElixir"; inventoryIndex: number };
+  | { id: "consumeElixir"; inventoryIndex: number }
+  | { id: "cultivateGongfa"; gongfaIndex: number };
 
 /**
  * 详情弹窗底部的一个操作按钮。
@@ -320,9 +321,16 @@ export function buildGongfaDetailPayload(
 
   const actions: ProtagonistDetailActionButton[] = [];
   if (source?.type === "bar") {
+    if (mastery < 10) {
+      actions.push({
+        label: "修炼",
+        primary: true,
+        action: { id: "cultivateGongfa", gongfaIndex: source.gongfaIndex },
+      });
+    }
     actions.push({
       label: "卸下",
-      primary: true,
+      primary: mastery >= 10,
       action: { id: "unequipGongfa", gongfaIndex: source.gongfaIndex },
     });
   } else if (source?.type === "bag") {
