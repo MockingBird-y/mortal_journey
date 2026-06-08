@@ -2,23 +2,22 @@
  * 游戏数值总表：将散布在 types 各文件中的具体数值集中管理。
  *
  * 分类：
- *   1. 境界主属性表参数
- *   2. 修为需求表参数
- *   3. 寿元表
- *   4. 装备倍率表
- *   5. 灵根契合加成
- *   6. 游戏常量（槽位数等）
- *   7. 品阶属性表
- *   8. 叙事年龄下限
- *   9. 品阶掉落概率表
- *  10. 特效数值体系（品阶索引、效果基数、触发倍率、消耗倍率、消耗基数）
- *  11. 修炼速度基础表
- *  12. 功法品阶修炼速度倍率
- *  13. 灵根类型修炼速度倍率
- *  14. 功法熟练度阈值
- *  14a. 功法熟练度基础获取速率
- *  15. 灵石修炼消耗（灵石/年）
- *  16. 灵石加速修炼倍率
+ *   1. 境界主属性表参数 — 各境界阶段的 hp/mp/8主属性基础值
+ *   2. 修为需求表参数 — 各境界阶段突破所需修为值
+ *   3. 寿元表 — 各境界阶段的基础寿元
+ *   4. 装备倍率表 — 各境界阶段的装备属性加成倍率（保留，未用于功法）
+ *   5. 灵根契合加成 — 预留
+ *   6. 游戏常量 — 法宝/功法槽位数
+ *   7a. 功法品阶属性表 — 功法被动加成按品阶的属性范围
+ *   7c. 丹药品阶效果表 — 丹药效果按品阶的数值范围
+ *   8. 叙事年龄表 — 各大境界叙事年龄的上下限
+ *   9. 品阶掉落概率表 — 按境界阶段决定物品品阶的随机权重
+ *   10. 特效数值体系 — 品阶索引、功法法力消耗
+ *   11. 修炼速度基础表 — 各境界阶段的基础修炼速度（修为/年）
+ *   12. 功法品阶修炼速度倍率 — 不同品阶功法对修炼速度的倍率
+ *   13. 灵根类型修炼速度倍率 — 不同灵根数量对修炼速度的倍率
+ *   14. 功法熟练度阈值 — 功法从第N层升到第N+1层所需经验
+ *   14a. 功法熟练度基础获取速率 — 各境界阶段的熟练度经验/年
  */
 
 import type { GradeDropRate } from "./itemInfo";
@@ -48,28 +47,30 @@ export const REALM_PRIMARY_STATS_TABLE = [
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 2. 修为需求表（按阶段索引：练气初期→练气中期 ~ 化神中期→化神后期，共 15 值）
+//    用于判断修为是否圆满，达到即可尝试突破
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const CULTIVATION_VALUES_TABLE = [
-  100,
-  500,
   1000,
-  2000,
-  3000,
   5000,
   10000,
   20000,
   30000,
   50000,
-  70000,
   100000,
   200000,
-  400000,
+  300000,
   500000,
+  700000,
+  1000000,
+  2000000,
+  4000000,
+  5000000,
 ] as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 3. 寿元表（按阶段索引）
+// 3. 寿元表（按阶段索引，单位：岁）
+//    角色当前境界的最大寿命，超过则角色死亡
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const SHOUYUAN_VALUES = [
@@ -82,6 +83,8 @@ export const SHOUYUAN_VALUES = [
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 4. 装备倍率表（按阶段索引）
+//    目前未使用。原先用于功法被动加成的境界乘数，已改为纯熟练度缩放。
+//    保留常量以备未来法宝/装备体系使用。
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const EQUIP_BONUS_RATIOS = [
@@ -98,6 +101,8 @@ export const EQUIP_BONUS_RATIOS = [
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 6. 游戏常量
+//    EQUIP_SLOT_COUNT: 法宝装备栏最大槽位数（4个：武器/防具/饰品/特殊）
+//    GONGFA_SLOT_COUNT: 功法栏最大槽位数（8个）
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const EQUIP_SLOT_COUNT = 4;
@@ -143,7 +148,7 @@ export const ELIXIR_GRADE_EFFECT_TABLE: Readonly<Record<string, readonly (readon
 
 export const ELIXIR_PERCENT_GRADE_THRESHOLD = 3;
 
-/** 根据属性中文名和品阶从指定表中随机取一个范围值 */
+/** 根据属性中文名和品阶从指定表中随机取一个范围值。被 parseAiItem 用于功法/丹药属性随机分配 */
 export function rollGradeAttriValue(statZh: string, grade: string, table: Readonly<Record<string, readonly (readonly [number, number])[]>>): number {
   const arr = table[statZh];
   if (!arr) return 5;
@@ -153,7 +158,9 @@ export function rollGradeAttriValue(statZh: string, grade: string, table: Readon
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 8. 叙事年龄下限
+// 8. 叙事年龄表（各大境界叙事年龄的合理范围，单位：岁）
+//    MIN: 该境界角色的最小叙事年龄，低于此值不合理
+//    MAX: 该境界角色的最大叙事年龄，受限于寿元
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const MIN_NARRATIVE_AGE_BY_MAJOR: Readonly<Record<string, number>> = {
@@ -173,7 +180,9 @@ export const MAX_NARRATIVE_AGE_BY_MAJOR: Readonly<Record<string, number>> = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 9. 品阶掉落概率表
+// 9. 品阶掉落概率表（按 境界大阶×小阶 索引）
+//    决定 AI 生成物品时各品阶的随机权重。高境界更容易出高品阶物品。
+//    被 parseAiItem.rollGrade() 使用。
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const GRADE_DROP_TABLE: Readonly<Record<string, Readonly<Record<string, GradeDropRate>>>> = {
@@ -206,6 +215,8 @@ export const GRADE_DROP_TABLE: Readonly<Record<string, Readonly<Record<string, G
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 10. 特效数值体系
+//     GRADE_INDEX: 品阶中文名→数组索引的映射，用于各类品阶表的查表
+//     GONGFA_MP_COST_BY_GRADE: 法修功法按品阶的法力消耗基础值（体修×0.2）
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const GRADE_INDEX: Readonly<Record<string, number>> = {
@@ -217,50 +228,7 @@ export const GRADE_INDEX: Readonly<Record<string, number>> = {
   "神品": 5,
 };
 
-type EffectValueCategory = "recover" | "boost" | "reduce" | "damage";
-
-export const EFFECT_BASE_VALUES: Readonly<Record<EffectValueCategory, readonly (readonly [number, number])[]>> = {
-  recover: [[20, 40], [40, 80], [80, 160], [140, 260], [250, 460], [420, 780]],
-  damage:  [[10, 20], [20, 40], [40, 80],  [70, 130],  [120, 220], [200, 360]],
-  boost:   [[3, 7],   [7, 13],  [14, 26],  [24, 46],   [38, 72],   [56, 104]],
-  reduce:  [[3, 7],   [7, 13],  [14, 26],  [24, 46],   [38, 72],   [56, 104]],
-};
-
-export const TRIGGER_VALUE_MULTIPLIER: Readonly<Record<string, number>> = {
-  on_attack: 1.0,
-  on_skill_cast: 1.0,
-  on_default: 0.7,
-  on_turn_start: 0.9,
-  on_full_mana: 1.0,
-  on_hit_taken: 1.1,
-  on_crit: 1.2,
-  on_dodge: 1.2,
-  on_kill: 1.2,
-  on_low_hp: 1.3,
-  on_low_mana: 1.3,
-};
-
-export const DURATION_PER_TURN_FACTORS: readonly (readonly [number, number])[] = [
-  [0, 1.00],
-  [1, 0.65],
-  [2, 0.50],
-  [3, 0.40],
-  [5, 0.30],
-  [10, 0.20],
-] as const;
-
-export const COST_VALUE_MULTIPLIER: Readonly<Record<string, number>> = {
-  none: 1.0,
-  mp: 1.3,
-  hp: 1.5,
-};
-
 export const GONGFA_MP_COST_BY_GRADE = [15, 30, 60, 120, 250, 500] as const;
-
-export const COST_BASE_VALUES: Readonly<Record<string, readonly (readonly [number, number])[]>> = {
-  mp: [[5, 15], [12, 28], [25, 55], [45, 95], [80, 160], [140, 260]],
-  hp: [[10, 30], [25, 55], [50, 110], [90, 190], [160, 320], [280, 520]],
-};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 11. 修炼速度基础表（修为/年，按境界阶段索引，共 15 行）
@@ -276,6 +244,8 @@ export const CULTIVATION_SPEED_TABLE = [
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 12. 功法品阶修炼速度倍率
+//     不同品阶功法对修炼速度的加成倍率。被 realmUtils.getCultivationSpeedBreakdown() 使用。
+//     公式：最终速度 = 基础速度 × 此倍率 × 灵根倍率
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const GONGFA_GRADE_CULTIVATION_MULT: Readonly<Record<string, number>> = {
@@ -289,6 +259,7 @@ export const GONGFA_GRADE_CULTIVATION_MULT: Readonly<Record<string, number>> = {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 13. 灵根类型修炼速度倍率（按灵根数量索引）
+//     天灵根(1根)最快，五灵根最慢。被 realmUtils.getCultivationSpeedBreakdown() 使用。
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const LINGGEN_CULTIVATION_MULT: Readonly<Record<number, number>> = {
@@ -304,11 +275,13 @@ export const LINGGEN_CULTIVATION_MULT: Readonly<Record<number, number>> = {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const GONGFA_MASTERY_THRESHOLDS = [
-  50, 120, 300, 700, 1800, 4500, 12000, 30000, 80000,
+  200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000,
 ] as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 14a. 功法熟练度基础获取速率（熟练度/年，按境界阶段索引，共 15 行）
+//      被动闭关修炼时每年自动获得的熟练度经验。高境界获取速率更高。
+//      被 realmUtils.addGongfaMasteryExp() 在时间推进时调用。
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const GONGFA_MASTERY_EXP_PER_YEAR = [
@@ -319,24 +292,3 @@ export const GONGFA_MASTERY_EXP_PER_YEAR = [
   1500, 2500, 4000,
 ] as const;
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 15. 灵石修炼消耗（灵石/年，按境界阶段索引）
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const LINGSHI_CULTIVATION_COST_PER_YEAR = [
-  15, 20, 30,
-  60, 80, 120,
-  200, 300, 450,
-  800, 1200, 2000,
-  4000, 7000, 12000,
-] as const;
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 16. 灵石加速修炼倍率
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const LINGSHI_ACCELERATION_MULT = {
-  none: 0.3,
-  normal: 1.0,
-  heavy: 2.0,
-} as const;

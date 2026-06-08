@@ -121,12 +121,12 @@ export const STATE_SYSTEM_PRESET = `
 7.4 品阶：只能是下品、中品、上品、极品、仙品、神品中的一个。
 7.5 数量：默认1，如果剧情明确提到具体数量，则根据剧情描述确定数量。
 8. 法宝（武器、法器、防具、载具）不需要输出 function 字段和 bonus 字段，法宝的特殊功能由系统根据品阶自动分配。
-9. 功法不需要输出 function 字段，功法的特殊功能由系统根据体系、品阶和定位自动分配。功法须输出 system 字段（体系），只能从以下十二种中选择一个：剑系、体修、法修、刺客系、毒系、魔修、火系、雷系、冰系、暗系、风系、木系。体系须与功法名称和描述契合。功法还须输出 role 字段（定位），只能从"攻击"和"辅助"中选择一个。攻击类功法（如碎石掌、烈火术）必须选"攻击"，辅助类功法（如吐纳诀、轻身术）选"辅助"。功法名称明显是攻击手段时必须选"攻击"。
+9. 功法不需要输出 function 字段，功法的特殊功能由系统根据体系、品阶和定位自动分配。功法须输出 system 字段（体系），只能从以下两种中选择一个：体修、法修。体系须与功法名称和描述契合。功法还须输出 role 字段（定位），只能从"攻击"和"辅助"中选择一个。攻击类功法（如碎石掌、烈火术）必须选"攻击"，辅助类功法（如吐纳诀、轻身术）选"辅助"。功法名称明显是攻击手段时必须选"攻击"。
 10. 储物袋物品添加输出格式：<ITEM_ADD_TAG> … </ITEM_ADD_TAG>，内为 JSON 数组（无物品变更时写 []）。
 11. 示例：
 11.1 <ITEM_ADD_TAG> [{"type":"武器","name":"精刚剑","intro":"剑身以精刚铸就","grade":"中品","count":1}] </ITEM_ADD_TAG>
 11.2 <ITEM_ADD_TAG> [{"type":"丹药","name":"回春丹","intro":"碧绿丹丸","effectType":"恢复血量","count":1}] </ITEM_ADD_TAG>
-11.3 <ITEM_ADD_TAG> [{"type":"功法","name":"青云剑诀","intro":"剑意如青云舒卷","grade":"下品","bonus":"劲力","system":"剑系","role":"攻击","count":1}] </ITEM_ADD_TAG>
+11.3 <ITEM_ADD_TAG> [{"type":"功法","name":"碎石掌","intro":"以力破巧的体修功法","grade":"下品","bonus":"劲力","system":"体修","role":"攻击","count":1}] </ITEM_ADD_TAG>
 
 [储物袋物品减少规则]
 1. 根据剧情描述，给储物袋减少物品。
@@ -139,7 +139,7 @@ export const STATE_SYSTEM_PRESET = `
 3. 好感度分段（按 -99~99 逐步推进，不可无因跳阶）：女 NPC 在 0~99 为 0-19 普通同门、20-39 朋友、40-59 亲密、60-79 爱慕/情侣、80-99 至死不渝；在 -99~0 为 -1~-19 轻度反感、-20~-39 疏离敌视、-40~-59 明显厌恶、-60~-79 强烈仇视、-80~-99 不死不休。男 NPC 在 0~99 为 0-19 普通同门、20-39 朋友、40-59 亲密无间、60-79 手足兄弟、80-99 生死之交；在 -99~0 同上。
 4. 好感度跃迁约束：较大涨跌必须有重大事件支撑。
 5. NPC等级逻辑（powerTier）：小怪有武器和防具即可，功法为 1 门攻击 + 1 门辅助；精英怪四槽装备齐全，功法为 2 门攻击 + 2 门辅助；小boss/大boss 装备和功法品阶更高。
-6. NPC的法宝结构：法宝须含 type（法宝）、name、intro。不需要 function，不需要 bonus。功法结构：功法须含 type（功法）、name、intro、bonus、system、role。不需要 function。system 只能是剑系、体修、法修、刺客系、毒系、魔修、火系、雷系、冰系、暗系、风系、木系中的一个，须与功法名称契合。role 为"攻击"或"辅助"，攻击类功法必须选"攻击"。不含 grade（品阶由系统根据境界自动分配）。NPC储物袋中的丹药须含 effectType，不含 grade。
+6. NPC的法宝结构：法宝须含 type（法宝）、name、intro。不需要 function，不需要 bonus。功法结构：功法须含 type（功法）、name、intro、bonus、system、role。不需要 function。system 只能是体修、法修中的一个，须与功法名称契合。role 为"攻击"或"辅助"，攻击类功法必须选"攻击"。不含 grade（品阶由系统根据境界自动分配）。NPC储物袋中的丹药须含 effectType，不含 grade。
 7. NPC生成需要包含的信息：displayName（名字2-4字）、identity、currentStageGoal、longTermGoal、hobby、fear、personality、favorability（-99~99）、gender、realm、age、linggen（从金木水火土中选择1-4个）、equippedSlots（最多4个法宝，须含武器）、gongfaSlots（长度8，须含攻击类功法，每个含 bonus 和 system）、inventorySlots（最多12格）、hpPercent/mpPercent（血量/法力百分比，0-100整数，100为满状态）。
 8. NPC的功法不需要 function，需要 system 和 role。法宝不需要 function。丹药使用 effectType，不使用 function。
 9. NPC补充约束：
@@ -169,7 +169,7 @@ export const STATE_SYSTEM_PRESET = `
     ],
     "gongfaSlots": [
       {"type": "功法", "name": "长春功", "intro": "入门功法，调和气机", "bonus": "灵力", "system": "法修", "role": "辅助"},
-      {"type": "功法", "name": "眨眼剑法", "intro": "入门剑法，以快制慢", "bonus": "身法", "system": "剑系", "role": "攻击"},
+      {"type": "功法", "name": "碎石掌", "intro": "以力破巧的体修功法", "bonus": "劲力", "system": "体修", "role": "攻击"},
       null, null, null, null, null, null
     ],
     "inventorySlots": [

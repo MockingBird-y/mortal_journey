@@ -30,9 +30,9 @@ export const INIT_STATE_SYSTEM_PRESET = `
 3. 功法信息：包含 type（功法）、name、intro、bonus、system、role。不需要输出 function 字段，功法的特殊功能由系统根据体系、品阶和定位自动分配。
 4. bonus 类型：只能是体魄、灵力、劲力、神识、护体、灵御、身法、悟性其中一个。
 5. intro 规则：只描述功法的来历、流派、外观特征。
-6. system（体系）字段：只能从以下十二种中选择一个：剑系、体修、法修、刺客系、毒系、魔修、火系、雷系、冰系、暗系、风系、木系。体系须与功法名称和描述契合。
+6. system（体系）字段：只能从以下两种中选择一个：体修、法修。体系须与功法名称和描述契合。
 7. role（定位）字段：只能从"攻击"和"辅助"中选择一个。攻击类功法（如碎石掌、烈火术）必须选择"攻击"，辅助类功法（如吐纳诀、轻身术）选择"辅助"。role 决定系统分配的功法效果类型：攻击→主动效果（造成伤害+附加效果），辅助→被动效果（增益/减益/触发）。功法名称明显是攻击手段时必须选"攻击"。
-8. 示例：<mj_magic_body> [{"type":"功法","name":"青云剑诀","intro":"剑意如青云舒卷","bonus":"劲力","system":"剑系","role":"攻击"},{"type":"功法","name":"吐纳诀","intro":"调和气机、固本培元","bonus":"灵力","system":"法修","role":"辅助"}] </mj_magic_body>
+8. 示例：<mj_magic_body> [{"type":"功法","name":"碎石掌","intro":"以力破巧的体修功法","bonus":"劲力","system":"体修","role":"攻击"},{"type":"功法","name":"吐纳诀","intro":"调和气机、固本培元","bonus":"灵力","system":"法修","role":"辅助"}] </mj_magic_body>
 
 [储物袋开局配置规则]
 1. 主角储物袋开局配置：可以生成灵石、丹药、材料、杂物等。
@@ -75,7 +75,7 @@ export const INIT_STATE_SYSTEM_PRESET = `
     ],
     "gongfaSlots": [
       {"type": "功法", "name": "长春功", "intro": "入门功法，调和气机", "bonus": "灵力", "system": "法修", "role": "辅助"},
-      {"type": "功法", "name": "眨眼剑法", "intro": "入门剑法，以快制慢", "bonus": "身法", "system": "剑系", "role": "攻击"},
+      {"type": "功法", "name": "碎石掌", "intro": "以力破巧的体修功法", "bonus": "劲力", "system": "体修", "role": "攻击"},
       null, null, null, null, null, null
     ],
     "inventorySlots": [

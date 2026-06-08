@@ -80,6 +80,10 @@ export interface ProtagonistDetailSection {
   text: string;
   /** 可选进度条数据（如功法熟练度进度）。 */
   progress?: { current: number; max: number; percent: number; isMax: boolean };
+  /** 功法熟练度：层数文本（左对齐）。 */
+  masteryLayer?: string;
+  /** 功法熟练度：进度文本（右对齐）。 */
+  masteryProgress?: string;
 }
 
 /**
@@ -151,10 +155,6 @@ function formatZhBonusWithMastery(
     const val = Math.trunc(raw * masteryMult);
     const sign = val >= 0 ? "+" : "";
     let line = `${k} ${sign}${val}`;
-    if (mastery < 10) {
-      const maxVal = Math.trunc(raw * (0.5 + 9 * 0.28));
-      line += ` (满层${maxVal})`;
-    }
     return line;
   }).filter(Boolean) as string[];
   return parts.length ? parts.join("；") : undefined;
@@ -302,8 +302,16 @@ export function buildGongfaDetailPayload(
   pushSec(sections, "品级", gf.grade);
   {
     const mp = getGongfaMasteryProgress(gf);
-    const masteryText = mp.isMax ? "第10/10层（已满）" : `第${mp.mastery}/10层 ${mp.exp}/${mp.threshold}`;
-    sections.push({ label: "熟练等级", text: masteryText, progress: mp.isMax ? undefined : { current: mp.exp, max: mp.threshold, percent: mp.percent, isMax: false } });
+    const masteryText = mp.isMax ? "第10/10层（已满）" : `第${mp.mastery}/10层`;
+    const section: ProtagonistDetailSection = { label: "熟练等级", text: masteryText };
+    if (mp.isMax) {
+      section.text = "第10/10层（已满）";
+    } else {
+      section.masteryLayer = `第${mp.mastery}/10层`;
+      section.masteryProgress = `${mp.exp}/${mp.threshold}`;
+      section.progress = { current: mp.exp, max: mp.threshold, percent: mp.percent, isMax: false };
+    }
+    sections.push(section);
   }
   const mastery = gf.mastery ?? 1;
   const bonus = formatZhBonusWithMastery(gf.bonus as Record<string, number>, mastery);

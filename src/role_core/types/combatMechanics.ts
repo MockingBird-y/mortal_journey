@@ -407,6 +407,18 @@ function buildFormulaSuffix(
   return `(${multStr}${displayStat})`;
 }
 
+const SCALING_STAT_ZH: Record<string, string> = {
+  strength: "劲力",
+  perception: "神识",
+  guard: "护体",
+  resistance: "灵御",
+  agility: "身法",
+  physique: "体魄",
+  spirit: "灵力",
+  maxHp: "血量",
+  maxMp: "法力",
+};
+
 export function resolveComponentDesc(
   component: EffectComponent,
   grade: ItemGrade,
@@ -422,6 +434,7 @@ export function resolveComponentDesc(
   const isPct = PCT_KEYS.has(meta.scalingPowerKey);
 
   let raw: number;
+  let formulaStr: string | undefined;
   if (component.baseValue != null) {
     const getStat = (key: string) => {
       if (!derivedStats) return primaryStat ?? 0;
@@ -429,6 +442,13 @@ export function resolveComponentDesc(
       return d[key] ?? primaryStat ?? 0;
     };
     raw = calcComponentValue(component, getStat, mastery);
+    const ratio = component.scalingRatio ?? 0;
+    const sStat = component.scalingStat;
+    if (sStat && ratio !== 0) {
+      const sZh = SCALING_STAT_ZH[sStat] ?? sStat;
+      const rStr = ratio === 1 ? "" : (Number.isInteger(ratio) ? String(ratio) : String(ratio));
+      formulaStr = `${component.baseValue}+${rStr}×${sZh}`;
+    }
   } else {
     raw = resolveMechanicRawValue(component.mechanic, grade, primaryStat, system, derivedStats);
     const masteryMult = (mastery && mastery > 1) ? (1.0 + (mastery - 1) * 0.15) : 1.0;
@@ -436,13 +456,14 @@ export function resolveComponentDesc(
   }
 
   const formatted = isPct ? String(Math.round(raw * 100)) : String(Math.round(raw));
+  const display = formulaStr ? `${formatted}(${formulaStr})` : formatted;
 
   let result = component.desc;
   if (result.includes("{n}")) {
-    result = result.replace(/{n}/g, formatted);
+    result = result.replace(/{n}/g, display);
   }
   if (result.includes("{p}")) {
-    result = result.replace(/{p}/g, formatted);
+    result = result.replace(/{p}/g, display);
   }
   return result;
 }
