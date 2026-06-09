@@ -8,11 +8,27 @@ const lines = ref<GameLogLine[]>(gameLog.getLines());
 const collapsed = ref(false);
 const autoScroll = ref(true);
 const bodyEl = ref<HTMLElement | null>(null);
+const expandedLines = ref(new Set<number>());
 
 let unsub = () => {};
 
+function isAiLine(text: string): boolean {
+  return text.startsWith("[AI →]") || text.startsWith("[AI ←]");
+}
+
+function toggleExpand(idx: number) {
+  const s = new Set(expandedLines.value);
+  if (s.has(idx)) {
+    s.delete(idx);
+  } else {
+    s.add(idx);
+  }
+  expandedLines.value = s;
+}
+
 function syncLines() {
   lines.value = gameLog.getLines();
+  expandedLines.value = new Set();
   if (autoScroll.value) {
     nextTick(function () {
       const el = bodyEl.value;
@@ -103,10 +119,20 @@ onUnmounted(function () {
         v-for="(row, idx) in lines"
         :key="idx"
         class="mj-log-line"
+        :class="{ 'mj-log-line--ai': isAiLine(row.text), 'mj-log-line--ai-expanded': isAiLine(row.text) && expandedLines.has(idx) }"
       >
         <span class="mj-log-time">{{ row.time }}</span>
         <span class="mj-log-level" :class="'mj-log-level--' + row.level">{{ row.level.toUpperCase() }}</span>
-        <span class="mj-log-msg">{{ row.text }}</span>
+        <template v-if="isAiLine(row.text)">
+          <span class="mj-log-ai-toggle" @click="toggleExpand(idx)">
+            <template v-if="expandedLines.has(idx)">▼ 收起</template>
+            <template v-else>▶ 点击展开</template>
+          </span>
+          <div v-if="expandedLines.has(idx)" class="mj-log-ai-content">{{ row.text }}</div>
+        </template>
+        <template v-else>
+          <span class="mj-log-msg">{{ row.text }}</span>
+        </template>
       </div>
     </div>
   </div>

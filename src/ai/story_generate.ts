@@ -1,4 +1,5 @@
 import { STORY_SYSTEM_PRESET } from "./story_preset";
+import { PRESET } from "./preset";
 import { completeChatWithMessagesJson, type JsonChatRequestPayload, type ChatMessage } from "./openAiChatBridge";
 import { Protagonist } from "../role_core/Protagonist";
 import type { ProtagonistPlayInfo, NarrationPerson, EquippedSlotsState, GongfaSlotsState, InventoryStackItem, TraitEntry } from "../role_core/types/playInfo";
@@ -26,7 +27,7 @@ export interface StoryParsed {
 }
 
 const DEFAULT_TEMPERATURE = 0.55;
-const DEFAULT_MAX_TOKENS = 8192;
+const DEFAULT_MAX_TOKENS = 65535;
 
 const MJ_STORY_BODY_OPEN = "<mj_story_body>";
 const MJ_STORY_BODY_CLOSE = "</mj_story_body>";
@@ -140,15 +141,29 @@ function buildStoryUserContent(p: ProtagonistPlayInfo): string {
 export function buildStoryRequestPayload(input: StoryGenerateInput): JsonChatRequestPayload {
   const messages: ChatMessage[] = [];
 
-  messages.push({ role: "system", content: STORY_SYSTEM_PRESET });
+  const storyParts: string[] = [];
+  let lastUserContent: string | undefined;
+  for (const entry of input.chatHistory) {
+    if (entry.role === "assistant") {
+      storyParts.push(entry.content);
+    } else {
+      lastUserContent = entry.content;
+    }
+  }
+
+  const systemParts = [PRESET, STORY_SYSTEM_PRESET];
+  if (storyParts.length > 0) {
+    systemParts.push("【之前的剧情】\n" + storyParts.join("\n\n---\n\n"));
+  }
+  messages.push({ role: "system", content: systemParts.join("\n\n") });
 
   messages.push({
     role: "user",
     content: buildStoryUserContent(input.protagonist),
   });
 
-  for (const entry of input.chatHistory) {
-    messages.push({ role: entry.role, content: entry.content });
+  if (lastUserContent != null) {
+    messages.push({ role: "user", content: `[格式提醒：请严格将思考过程包裹在<thinking>...</thinking>标签内，正文包裹在 <mj_story_body>...</mj_story_body> 标签内。]\n\n${lastUserContent}` });
   }
 
   return {

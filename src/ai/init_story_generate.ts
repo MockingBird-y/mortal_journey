@@ -1,4 +1,5 @@
 import { INIT_STORY_SYSTEM_PRESET } from "./init_story_preset";
+import { PRESET } from "./preset";
 import { completeChatWithMessagesJson, type JsonChatRequestPayload } from "./openAiChatBridge";
 import { Protagonist } from "../role_core/Protagonist";
 import type { ProtagonistPlayInfo, NarrationPerson, TraitEntry } from "../role_core/types/playInfo";
@@ -25,7 +26,7 @@ export interface InitStoryParsed {
 }
 
 const DEFAULT_INIT_STORY_TEMPERATURE = 0.55;
-const DEFAULT_INIT_STORY_MAX_TOKENS = 8192;
+const DEFAULT_INIT_STORY_MAX_TOKENS = 65535;
 
 const MJ_STORY_BODY_OPEN = "<mj_story_body>";
 const MJ_STORY_BODY_CLOSE = "</mj_story_body>";
@@ -87,7 +88,7 @@ export function buildInitStoryRequestPayload(input: InitStoryGenerateInput): Jso
     apiKey: input.apiKey,
     model: input.model,
     messages: [
-      { role: "system", content: INIT_STORY_SYSTEM_PRESET },
+      { role: "system", content: [PRESET, INIT_STORY_SYSTEM_PRESET].join("\n\n") },
       { role: "user", content: userContent },
     ],
     temperature: DEFAULT_INIT_STORY_TEMPERATURE,
