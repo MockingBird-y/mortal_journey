@@ -33,7 +33,15 @@ const MJ_STORY_BODY_CLOSE = "</mj_story_body>";
 
 export function extractInitStoryBody(raw: string): string {
   const s = raw == null ? "" : String(raw);
-  const i = s.indexOf(MJ_STORY_BODY_OPEN);
+  let searchFrom = 0;
+  const tOpen = s.indexOf("<thinking>");
+  if (tOpen >= 0) {
+    const tClose = s.indexOf("</thinking>", tOpen);
+    if (tClose >= 0) {
+      searchFrom = tClose + "</thinking>".length;
+    }
+  }
+  const i = s.indexOf(MJ_STORY_BODY_OPEN, searchFrom);
   if (i < 0) return s.trim();
   const from = i + MJ_STORY_BODY_OPEN.length;
   const j = s.indexOf(MJ_STORY_BODY_CLOSE, from);

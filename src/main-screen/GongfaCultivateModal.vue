@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import type { GongfaItemDefinition } from "../role_core/types/itemInfo";
+import { GONGFA_GRADE_CULTIVATION_MULT, LINGGEN_CULTIVATION_MULT } from "../role_core/types/gameConstants";
 import { getGongfaMasteryProgress } from "./protagonistPanelDisplay";
 import { useScrollLock } from "../composables/useScrollLock";
 
@@ -10,11 +11,13 @@ const props = defineProps<{
   open: boolean;
   gongfa: GongfaItemDefinition | null;
   spiritStoneCount: number;
+  linggenCount: number;
+  insight: number;
 }>();
 
 const emit = defineEmits<{
   close: [];
-  confirm: [count: number];
+  confirm: [count: number, months: number];
 }>();
 
 const scrollLock = useScrollLock();
@@ -45,7 +48,17 @@ const clampedCount = computed(() => {
 
 const totalExp = computed(() => clampedCount.value * EXP_PER_STONE);
 
-const monthsNeeded = computed(() => clampedCount.value);
+const cultivationTimeMult = computed(() => {
+  const gradeMult = props.gongfa ? (GONGFA_GRADE_CULTIVATION_MULT[props.gongfa.grade] ?? 1.0) : 1.0;
+  const linggenMult = LINGGEN_CULTIVATION_MULT[props.linggenCount] ?? 0.7;
+  const insightMult = 1 + props.insight * 0.01;
+  return gradeMult * linggenMult * insightMult;
+});
+
+const monthsNeeded = computed(() => {
+  if (clampedCount.value <= 0 || cultivationTimeMult.value <= 0) return 0;
+  return Math.ceil(clampedCount.value / cultivationTimeMult.value);
+});
 
 const resultExp = computed(() => {
   const mp = masteryProgress.value;
@@ -117,7 +130,7 @@ function setMax() {
 
 function onConfirm() {
   if (!canConfirm.value) return;
-  emit("confirm", clampedCount.value);
+  emit("confirm", clampedCount.value, monthsNeeded.value);
 }
 
 function onBackdropClick() {

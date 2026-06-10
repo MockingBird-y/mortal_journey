@@ -14,6 +14,7 @@ import {
   EQUIP_SLOT_COUNT,
   GONGFA_SLOT_COUNT,
   TABLE,
+  GONGFA_MASTERY_ATTRI_MULT,
 } from "./types/playInfo";
 import {
   getRealmPrimaryStats,
@@ -137,7 +138,7 @@ export class Character {
     for (const gf of this.gongfaSlots) {
       if (!gf) continue;
       const mastery = gf.mastery ?? 1;
-      const masteryMult = 0.5 + (mastery - 1) * 0.28;
+      const masteryMult = GONGFA_MASTERY_ATTRI_MULT[Math.min(mastery, GONGFA_MASTERY_ATTRI_MULT.length) - 1];
       const adjusted: Record<string, number> = {};
       for (const [k, v] of Object.entries(gf.bonus as Record<string, number>)) {
         if (typeof v === "number" && Number.isFinite(v)) {
@@ -165,8 +166,8 @@ export class Character {
     const realmRow = this.getRealmRow();
     const baseHp = realmRow?.hp ?? 200;
     const baseMp = realmRow?.mp ?? 100;
-    const maxHp = Math.max(1, Math.round(baseHp * (1 + (stats.physique * HP_PER_PHYSIQUE) / 10000)));
-    const maxMp = Math.max(1, Math.round(baseMp * (1 + (stats.spirit * MP_PER_SPIRIT) / 10000)));
+    const maxHp = Math.max(1, Math.round((baseHp + stats.physique * HP_PER_PHYSIQUE) * (1 + stats.physique / 1000)));
+    const maxMp = Math.max(1, Math.round((baseMp + stats.spirit * MP_PER_SPIRIT) * (1 + stats.spirit / 1000)));
     return { maxHp, maxMp };
   }
 

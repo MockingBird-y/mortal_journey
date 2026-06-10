@@ -16,7 +16,6 @@ import type {
   TraitEntry,
   BreakthroughStatus,
 } from "../role_core/types/playInfo";
-import { getCultivationSpeed } from "../role_core/realmUtils";
 import { calendarYearsElapsed, type WorldTime } from "../role_core/worldTime";
 
 /** 储物袋展示用网格列数（与 `mainScreenPlayerPanel.css`、`Protagonist.INVENTORY_SLOT_EXPAND_STEP` 一致） */
@@ -347,16 +346,6 @@ export function gongfaMasteryThresholdText(cell: GongfaItemDefinition): string {
   const mastery = cell.mastery ?? 1;
   if (mastery >= 10) return "—";
   return String(getGongfaMasteryThreshold(mastery));
-}
-
-export function getCultivationSpeedDisplay(p: ProtagonistPlayInfo | null): string {
-  if (!p) return "—";
-  const speed = getCultivationSpeed({
-    realm: p.realm,
-    linggen: p.linggen,
-    gongfaSlots: p.gongfaSlots,
-  });
-  return `约${speed}修为/年`;
 }
 
 export type ShouyuanWarningLevel = "danger" | "warning" | "normal";

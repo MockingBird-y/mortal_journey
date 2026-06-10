@@ -86,7 +86,7 @@ import {
   formatWorldLocationDash,
   isEmptyWorldLocation,
 } from "./types/playInfo";
-import { getCultivationRequired, getGongfaMasteryExpPerYear, addGongfaMasteryExp } from "./realmUtils";
+import { getCultivationRequired, addGongfaMasteryExp } from "./realmUtils";
 
 const VALID_ITEM_TYPES: ReadonlySet<string> = new Set([
   "法宝", "功法", "丹药", "材料", "杂物",
@@ -403,19 +403,6 @@ export class Protagonist extends Character {
     Protagonist.notifyChanged();
   }
 
-  applyAutoGongfaMasteryExp(years: number): void {
-    if (!Number.isFinite(years) || years <= 0) return;
-    const expPerYear = getGongfaMasteryExpPerYear(this.realm.major, this.realm.minor);
-    for (const slot of this.gongfaSlots) {
-      if (!slot) continue;
-      const exp = Math.floor(expPerYear * years);
-      if (exp > 0) {
-        addGongfaMasteryExp(slot, exp);
-      }
-    }
-    Protagonist.notifyChanged();
-  }
-
   // ===================================================================
   // AI 开局状态应用
   // ===================================================================
@@ -716,8 +703,8 @@ export class Protagonist extends Character {
       }
       return TABLE[0];
     })();
-    const maxHp = Math.max(1, Math.round(realmRow.hp * (1 + (pb.physique * 10) / 10000)));
-    const maxMp = Math.max(1, Math.round(realmRow.mp * (1 + (pb.spirit * 10) / 10000)));
+    const maxHp = Math.max(1, Math.round((realmRow.hp + pb.physique * 10) * (1 + pb.physique / 1000)));
+    const maxMp = Math.max(1, Math.round((realmRow.mp + pb.spirit * 10) * (1 + pb.spirit / 1000)));
 
     const age = getProtagonistNarrativeAge(
       { realm: { major }, age: undefined },

@@ -28,21 +28,21 @@ import type { GradeDropRate } from "./itemInfo";
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const REALM_PRIMARY_STATS_TABLE = [
-  { hp: 200,    mp: 100,   physique: 10, spirit: 10, strength: 10, perception: 10, guard: 5,   resistance: 5,   agility: 8,  insight: 5 },
-  { hp: 300,    mp: 150,   physique: 15, spirit: 15, strength: 15, perception: 15, guard: 8,   resistance: 8,   agility: 12, insight: 8 },
-  { hp: 500,    mp: 250,   physique: 25, spirit: 25, strength: 25, perception: 25, guard: 15,  resistance: 15,  agility: 20, insight: 12 },
-  { hp: 1000,   mp: 500,   physique: 50, spirit: 50, strength: 50, perception: 50, guard: 30,  resistance: 30,  agility: 40, insight: 20 },
-  { hp: 1500,   mp: 750,   physique: 75, spirit: 75, strength: 75, perception: 75, guard: 45,  resistance: 45,  agility: 60, insight: 30 },
-  { hp: 2000,   mp: 1000,  physique: 100,spirit: 100,strength: 100,perception: 100,guard: 60,  resistance: 60,  agility: 80, insight: 40 },
-  { hp: 3000,   mp: 1500,  physique: 150,spirit: 150,strength: 150,perception: 150,guard: 80,  resistance: 80,  agility: 120,insight: 60 },
-  { hp: 4000,   mp: 2000,  physique: 200,spirit: 200,strength: 200,perception: 200,guard: 110, resistance: 110, agility: 160,insight: 80 },
-  { hp: 5000,   mp: 2500,  physique: 250,spirit: 250,strength: 250,perception: 250,guard: 140, resistance: 140, agility: 200,insight: 100},
-  { hp: 10000,  mp: 5000,  physique: 500,spirit: 500,strength: 500,perception: 500,guard: 220, resistance: 220, agility: 400, insight: 160},
-  { hp: 13000,  mp: 6500,  physique: 650,spirit: 650,strength: 650,perception: 650,guard: 290, resistance: 290, agility: 520, insight: 210},
-  { hp: 15000,  mp: 7500,  physique: 750,spirit: 750,strength: 750,perception: 750,guard: 340, resistance: 340, agility: 600, insight: 250},
-  { hp: 20000,  mp: 10000, physique: 1000,spirit: 1000,strength: 1000,perception: 1000,guard: 450,resistance: 450,agility: 800, insight: 350},
-  { hp: 25000,  mp: 12500, physique: 1250,spirit: 1250,strength: 1250,perception: 1250,guard: 560,resistance: 560,agility: 1000,insight: 450},
-  { hp: 30000,  mp: 15000, physique: 1500,spirit: 1500,strength: 1500,perception: 1500,guard: 680,resistance: 680,agility: 1200,insight: 550},
+  { hp: 200,    mp: 100,   physique: 5,   spirit: 5,   strength: 5,   perception: 5,   guard: 3,   resistance: 3,   agility: 2,  insight: 2 },
+  { hp: 300,    mp: 150,   physique: 10,  spirit: 10,  strength: 10,  perception: 10,  guard: 5,   resistance: 5,   agility: 3,  insight: 3 },
+  { hp: 500,    mp: 250,   physique: 15,  spirit: 15,  strength: 15,  perception: 15,  guard: 8,   resistance: 8,   agility: 5,  insight: 5 },
+  { hp: 1000,   mp: 500,   physique: 25,  spirit: 25,  strength: 25,  perception: 25,  guard: 13,  resistance: 13,  agility: 7,  insight: 7 },
+  { hp: 1500,   mp: 750,   physique: 35,  spirit: 35,  strength: 35,  perception: 35,  guard: 18,  resistance: 18,  agility: 10, insight: 10 },
+  { hp: 2000,   mp: 1000,  physique: 50,  spirit: 50,  strength: 50,  perception: 50,  guard: 25,  resistance: 25,  agility: 13, insight: 13 },
+  { hp: 3000,   mp: 1500,  physique: 65,  spirit: 65,  strength: 65,  perception: 65,  guard: 33,  resistance: 33,  agility: 17, insight: 17 },
+  { hp: 4000,   mp: 2000,  physique: 85,  spirit: 85,  strength: 85,  perception: 85,  guard: 43,  resistance: 43,  agility: 22, insight: 22 },
+  { hp: 5000,   mp: 2500,  physique: 105, spirit: 105, strength: 105, perception: 105, guard: 53,  resistance: 53,  agility: 27, insight: 27 },
+  { hp: 10000,  mp: 5000,  physique: 125, spirit: 125, strength: 125, perception: 125, guard: 63,  resistance: 63,  agility: 32, insight: 32 },
+  { hp: 13000,  mp: 6500,  physique: 150, spirit: 150, strength: 150, perception: 150, guard: 75,  resistance: 75,  agility: 37, insight: 37 },
+  { hp: 15000,  mp: 7500,  physique: 175, spirit: 175, strength: 175, perception: 175, guard: 88,  resistance: 88,  agility: 43, insight: 43 },
+  { hp: 20000,  mp: 10000, physique: 185, spirit: 185, strength: 185, perception: 185, guard: 93,  resistance: 93,  agility: 46, insight: 46 },
+  { hp: 25000,  mp: 12500, physique: 195, spirit: 195, strength: 195, perception: 195, guard: 97,  resistance: 97,  agility: 48, insight: 48 },
+  { hp: 30000,  mp: 15000, physique: 200, spirit: 200, strength: 200, perception: 200, guard: 100, resistance: 100, agility: 50, insight: 50 },
 ] as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -51,21 +51,21 @@ export const REALM_PRIMARY_STATS_TABLE = [
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const CULTIVATION_VALUES_TABLE = [
-  1000,
-  5000,
-  10000,
-  20000,
-  30000,
-  50000,
+  2000,
+  4000,
+  6000,
+  15000,
+  25000,
+  35000,
+  65000,
   100000,
-  200000,
-  300000,
-  500000,
-  700000,
-  1000000,
-  2000000,
-  4000000,
-  5000000,
+  140000,
+  250000,
+  360000,
+  460000,
+  600000,
+  850000,
+  1100000,
 ] as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -80,24 +80,6 @@ export const SHOUYUAN_VALUES = [
   1000, 1250, 1500,
   2000, 2500, 3000,
 ] as const;
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 4. 装备倍率表（按阶段索引）
-//    目前未使用。原先用于功法被动加成的境界乘数，已改为纯熟练度缩放。
-//    保留常量以备未来法宝/装备体系使用。
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const EQUIP_BONUS_RATIOS = [
-  1.0, 1.2, 1.5,
-  2.0, 2.5, 3.2,
-  4.0, 5.2, 6.5,
-  8.5, 10.5, 13.0,
-  16.0, 20.0, 25.0,
-] as const;
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 5. 灵根契合加成
-// ═══════════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 6. 游戏常量
@@ -117,14 +99,14 @@ export const GONGFA_SLOT_COUNT = 8;
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const GONGFA_GRADE_ATTRI_TABLE: Readonly<Record<string, readonly (readonly [number, number])[]>> = {
-  体魄: [[3, 8],   [10, 20],  [28, 52],  [55, 105],  [110, 190],  [210, 350]],
-  灵力: [[3, 8],   [10, 20],  [28, 52],  [55, 105],  [110, 190],  [210, 350]],
-  劲力: [[3, 8],   [10, 20],  [28, 52],  [55, 105],  [110, 190],  [210, 350]],
-  神识: [[2, 5],   [7, 14],   [18, 33],  [35, 65],   [60, 120],   [115, 225]],
-  护体: [[2, 5],   [7, 14],   [20, 40],  [40, 80],   [75, 145],   [140, 260]],
-  灵御: [[2, 5],   [7, 14],   [20, 40],  [40, 80],   [75, 145],   [140, 260]],
-  身法: [[2, 5],   [7, 14],   [18, 33],  [35, 65],   [60, 120],   [115, 225]],
-  悟性: [[1, 3],   [4, 8],    [10, 20],  [20, 40],   [35, 70],    [60, 120]],
+  体魄: [[5, 10],  [11, 15],  [16, 20],  [21, 23],  [24, 27],  [28, 30]],
+  灵力: [[5, 10],  [11, 15],  [16, 20],  [21, 23],  [24, 27],  [28, 30]],
+  劲力: [[3, 6],   [7, 9],    [10, 12],  [13, 14],  [15, 16],  [17, 18]],
+  神识: [[3, 6],   [7, 9],    [10, 12],  [13, 14],  [15, 16],  [17, 18]],
+  护体: [[3, 6],   [7, 9],    [10, 12],  [13, 14],  [15, 16],  [17, 18]],
+  灵御: [[3, 6],   [7, 9],    [10, 12],  [13, 14],  [15, 16],  [17, 18]],
+  身法: [[2, 4],   [5, 6],    [7, 8],    [9, 9],    [10, 10],  [11, 12]],
+  悟性: [[2, 4],   [5, 6],    [7, 8],    [9, 9],    [10, 10],  [11, 12]],
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -231,43 +213,30 @@ export const GRADE_INDEX: Readonly<Record<string, number>> = {
 export const GONGFA_MP_COST_BY_GRADE = [15, 30, 60, 120, 250, 500] as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 11. 修炼速度基础表（修为/年，按境界阶段索引，共 15 行）
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const CULTIVATION_SPEED_TABLE = [
-  40, 50, 65,
-  160, 200, 260,
-  500, 650, 800,
-  1500, 2000, 2800,
-  4000, 6000, 8000,
-] as const;
-
-// ═══════════════════════════════════════════════════════════════════════════
 // 12. 功法品阶修炼速度倍率
-//     不同品阶功法对修炼速度的加成倍率。被 realmUtils.getCultivationSpeedBreakdown() 使用。
-//     公式：最终速度 = 基础速度 × 此倍率 × 灵根倍率
+//     品阶越高倍率越低，修炼越慢。被 GongfaCultivateModal 使用。
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const GONGFA_GRADE_CULTIVATION_MULT: Readonly<Record<string, number>> = {
   下品: 1.0,
-  中品: 1.2,
-  上品: 1.5,
-  极品: 2.0,
-  仙品: 3.0,
-  神品: 5.0,
+  中品: 1.05,
+  上品: 1.10,
+  极品: 1.15,
+  仙品: 1.2,
+  神品: 1.25,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 13. 灵根类型修炼速度倍率（按灵根数量索引）
-//     天灵根(1根)最快，五灵根最慢。被 realmUtils.getCultivationSpeedBreakdown() 使用。
+//     天灵根(1根)最快，五灵根最慢。被 GongfaCultivateModal 使用。
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const LINGGEN_CULTIVATION_MULT: Readonly<Record<number, number>> = {
-  1: 1.8,
-  2: 1.4,
-  3: 1.1,
-  4: 0.9,
-  5: 0.7,
+  1: 1.0,
+  2: 0.9,
+  3: 0.8,
+  4: 0.7,
+  5: 0.5,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -275,20 +244,20 @@ export const LINGGEN_CULTIVATION_MULT: Readonly<Record<number, number>> = {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const GONGFA_MASTERY_THRESHOLDS = [
-  200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000,
+  500, 1000, 2000, 5000, 20000, 50000, 100000, 170000, 190000,
 ] as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 14a. 功法熟练度基础获取速率（熟练度/年，按境界阶段索引，共 15 行）
-//      被动闭关修炼时每年自动获得的熟练度经验。高境界获取速率更高。
-//      被 realmUtils.addGongfaMasteryExp() 在时间推进时调用。
+// 15. 功法熟练度倍率表（索引0=第1层，索引9=第10层）
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const GONGFA_MASTERY_EXP_PER_YEAR = [
-  12, 15, 20,
-  50, 65, 80,
-  160, 220, 300,
-  500, 700, 1000,
-  1500, 2500, 4000,
+export const GONGFA_MASTERY_ATTRI_MULT = [
+  1.0, 2.0, 3.0, 4.0, 5.0,
+  6.0, 7.0, 8.0, 9.0, 10.0,
+] as const;
+
+export const GONGFA_MASTERY_COMBAT_MULT = [
+  1.0, 1.15, 1.30, 1.45, 1.60,
+  1.75, 1.90, 2.05, 2.20, 2.35,
 ] as const;
 

@@ -114,9 +114,6 @@ function applyStateResult(stateResult: StateParsed, linggen: string[]): void {
       const delta = stateResult.userState.timeAdvance;
       const newTime = advanceWorldTime(props.worldTime, delta);
       emit("update:worldTime", newTime);
-      if (delta.years && delta.years > 0) {
-        current.applyAutoGongfaMasteryExp(delta.years);
-      }
       if (current.isShouyuanExhausted()) {
         gameLog.warn("[StoryChat] 寿元耗尽！");
       }

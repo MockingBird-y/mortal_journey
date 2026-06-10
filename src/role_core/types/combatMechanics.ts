@@ -8,6 +8,7 @@
  */
 
 import type { ItemGrade } from "./itemInfo";
+import { GONGFA_MASTERY_COMBAT_MULT } from "./gameConstants";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 触发条件
@@ -137,7 +138,9 @@ export function calcComponentValue(
   const stat = comp.scalingStat ? getStat(comp.scalingStat) : 0;
   const raw = base + ratio * stat;
   if (comp.noMasteryScaling) return raw;
-  const mult = (mastery && mastery > 1) ? (1 + (mastery - 1) * 0.15) : 1;
+  const mult = mastery != null && mastery >= 1
+    ? GONGFA_MASTERY_COMBAT_MULT[Math.min(mastery, GONGFA_MASTERY_COMBAT_MULT.length) - 1]
+    : 1;
   return raw * mult;
 }
 
@@ -451,7 +454,9 @@ export function resolveComponentDesc(
     }
   } else {
     raw = resolveMechanicRawValue(component.mechanic, grade, primaryStat, system, derivedStats);
-    const masteryMult = (mastery && mastery > 1) ? (1.0 + (mastery - 1) * 0.15) : 1.0;
+    const masteryMult = mastery != null && mastery >= 1
+      ? GONGFA_MASTERY_COMBAT_MULT[Math.min(mastery, GONGFA_MASTERY_COMBAT_MULT.length) - 1]
+      : 1.0;
     raw = raw * masteryMult;
   }
 

@@ -13,7 +13,6 @@ import {
   type InventoryStackItem,
   type WorldLocation,
 } from "../role_core/types/playInfo";
-import { getCultivationSpeed } from "../role_core/realmUtils";
 import { type WorldTime, type TimeDelta, formatWorldTimeZhDisplay } from "../role_core/worldTime";
 import { formatWorldLocationDash, parseWorldLocationFromDash } from "../role_core/types/worldLocation";
 
@@ -411,7 +410,6 @@ function buildStateUserContent(input: StateGenerateInput): string {
     `境界：${p.realm.major}${p.realm.minor}${p.realmComplete ? "·圆满" : ""}`,
     `修为状态：${p.realmComplete ? "修为已圆满" : "修为未圆满"}`,
     `突破状态：${p.realmComplete ? (p.breakthroughStatus === "in_quest" ? "突破任务进行中" : "修为已圆满，可尝试突破") : "修为未圆满"}`,
-    `修炼速度参考（修为/年）：约${getCultivationSpeed({ realm: p.realm, linggen: (p as { linggen?: string[] }).linggen ?? [], gongfaSlots: p.gongfaSlots })}`,
     `当前血量：${p.currentHp}/${p.maxHp}`,
     `当前法力：${p.currentMp}/${p.maxMp}`,
     `灵根：${(p as { linggen?: string[] }).linggen?.join("") || "无"}`,

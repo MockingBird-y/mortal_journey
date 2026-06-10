@@ -190,7 +190,7 @@ function closeCultivate() {
   cultivateGongfaIndex.value = -1;
 }
 
-function onCultivateConfirm(count: number) {
+function onCultivateConfirm(count: number, months: number) {
   const p = props.protagonist;
   const gf = cultivateGongfa.value;
   if (!p || !gf || count <= 0) return;
@@ -200,7 +200,7 @@ function onCultivateConfirm(count: number) {
   p.addXiuwei(count * 100);
   Protagonist.notifyChanged();
 
-  const newTime = advanceWorldTime(props.worldTime, { months: count });
+  const newTime = advanceWorldTime(props.worldTime, { months });
   emit("update:worldTime", newTime);
 
   closeCultivate();
@@ -225,6 +225,8 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
       :open="cultivateOpen"
       :gongfa="cultivateGongfa"
       :spirit-stone-count="spiritStoneCount"
+      :linggen-count="protagonist?.linggen?.length ?? 0"
+      :insight="protagonist?.getPrimaryStats()?.insight ?? 0"
       @close="closeCultivate"
       @confirm="onCultivateConfirm"
     />
