@@ -428,6 +428,11 @@ export class Protagonist extends Character {
       const maxAge = Math.min(this.shouyuan - 1, getMaxNarrativeAgeForMajor(this.realm.major));
       const clampedAge = Math.max(minAge, Math.min(maxAge, parsed.protagonistAge));
       this.setAge(clampedAge);
+      this.ageConfirmed = true;
+    } else {
+      const minAge = getMinNarrativeAgeForMajor(this.realm.major);
+      this.setAge(minAge);
+      this.ageConfirmed = true;
     }
 
     Protagonist.notifyChanged();
@@ -669,6 +674,7 @@ export class Protagonist extends Character {
       gender: typeof o.gender === "string" ? o.gender : "",
       linggen: Array.isArray(o.linggen) ? o.linggen.map((x) => String(x)) : [],
       age: typeof o.age === "number" && Number.isFinite(o.age) ? Math.max(0, Math.floor(o.age)) : 16,
+      ageConfirmed: typeof o.ageConfirmed === "boolean" ? o.ageConfirmed : false,
       shouyuan: typeof o.shouyuan === "number" && Number.isFinite(o.shouyuan) ? Math.max(0, Math.floor(o.shouyuan)) : 100,
       inventorySlots: Protagonist.normalizeInventorySlots(o.inventorySlots),
       gongfaSlots: Protagonist.normalizeGongfaSlots(o.gongfaSlots),
@@ -735,6 +741,7 @@ export class Protagonist extends Character {
       gender: basics.gender,
       linggen: basics.linggen.slice(),
       age,
+      ageConfirmed: false,
       shouyuan: sy,
       inventorySlots: Array.from({ length: DEFAULT_INVENTORY_SLOT_COUNT }, () => null),
       gongfaSlots: [null, null, null, null, null, null, null, null],

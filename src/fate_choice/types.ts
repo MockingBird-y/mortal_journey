@@ -137,12 +137,6 @@ export const LINGGEN_ELEMENT_EFFECTS: Readonly<Record<string, string>> = {
   土: "提升护盾效果",
 };
 
-export const LINGGEN_CULTIVATION_SPEED: Readonly<Record<number, string>> = {
-  1: "100%",
-  2: "75%",
-  3: "50%",
-  4: "30%",
-};
 
 // ---------------------------------------------------------------------------
 // 出身配置

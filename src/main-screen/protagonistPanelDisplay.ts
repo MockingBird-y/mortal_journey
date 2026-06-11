@@ -14,7 +14,6 @@ import type {
   InventoryStackItem,
   ProtagonistPlayInfo,
   TraitEntry,
-  BreakthroughStatus,
 } from "../role_core/types/playInfo";
 import { calendarYearsElapsed, type WorldTime } from "../role_core/worldTime";
 
@@ -361,13 +360,4 @@ export function getShouyuanWarningLevel(
   if (ratio >= 0.9) return "danger";
   if (ratio >= 0.8) return "warning";
   return "normal";
-}
-
-export function getBreakthroughStatusLabel(status: BreakthroughStatus): string {
-  switch (status) {
-    case "in_quest": return "突破中";
-    case "ready": return "可突破";
-    case "idle": 
-    default: return "";
-  }
 }

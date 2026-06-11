@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { LINGGEN_ELEMENT_EFFECTS, LINGGEN_CULTIVATION_SPEED } from "./types";
+import { LINGGEN_ELEMENT_EFFECTS } from "./types";
+import { LINGGEN_CULTIVATION_MULT } from "../role_core/types/gameConstants";
 
 const props = defineProps<{
   open: boolean;
@@ -12,7 +13,10 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-const cultivationSpeed = computed(() => LINGGEN_CULTIVATION_SPEED[props.elements.length] ?? "30%");
+const cultivationSpeed = computed(() => {
+  const mult = LINGGEN_CULTIVATION_MULT[props.elements.length] ?? 0.5;
+  return Math.round(mult * 100) + "%";
+});
 
 const effectEntries = computed(() =>
   props.elements.map((el) => ({ element: el, effect: LINGGEN_ELEMENT_EFFECTS[el] ?? "未知效果" })),

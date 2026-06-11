@@ -18,6 +18,7 @@ import type { TreasureSpecialEffect } from "../role_core/types/treasure";
 import type { GongfaSpecialEffect } from "../role_core/types/gongfa";
 import { gradeToTraitRarity, getGongfaMasteryProgress } from "./protagonistPanelDisplay";
 import { resolveEffectDisplay, type DerivedStatValues } from "../role_core/types/combatMechanics";
+import { GONGFA_MASTERY_ATTRI_MULT } from "../role_core/types/gameConstants";
 import type { ItemGrade } from "../role_core/types/itemInfo";
 
 type ItemSpecialEffect = TreasureSpecialEffect | GongfaSpecialEffect;
@@ -149,7 +150,7 @@ function formatZhBonusWithMastery(
   mastery: number,
 ): string | undefined {
   if (!b || typeof b !== "object") return undefined;
-  const masteryMult = 0.5 + (mastery - 1) * 0.28;
+  const masteryMult = GONGFA_MASTERY_ATTRI_MULT[Math.min(mastery, GONGFA_MASTERY_ATTRI_MULT.length) - 1];
   const parts = Object.entries(b).map(([k, v]) => {
     if (typeof v === "number" && !Number.isFinite(v)) return null;
     const raw = typeof v === "number" ? v : 0;

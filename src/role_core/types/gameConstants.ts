@@ -233,10 +233,10 @@ export const GONGFA_GRADE_CULTIVATION_MULT: Readonly<Record<string, number>> = {
 
 export const LINGGEN_CULTIVATION_MULT: Readonly<Record<number, number>> = {
   1: 1.0,
-  2: 0.9,
-  3: 0.8,
-  4: 0.7,
-  5: 0.5,
+  2: 0.8,
+  3: 0.7,
+  4: 0.5,
+  5: 0.3,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

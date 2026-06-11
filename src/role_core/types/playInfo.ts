@@ -185,6 +185,7 @@ export interface CharacterPlayInfoCommon {
   gender: string;
   linggen: string[];
   age: number;
+  ageConfirmed: boolean;
   shouyuan: number;
   inventorySlots: Array<InventoryStackItem | null>;
   gongfaSlots: GongfaSlotsState;

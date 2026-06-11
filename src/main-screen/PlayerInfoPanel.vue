@@ -33,7 +33,6 @@ import {
   gongfaMasteryLabel,
   gongfaMasteryThresholdText,
   getShouyuanWarningLevel,
-  getBreakthroughStatusLabel,
 } from "./protagonistPanelDisplay";
 import ProtagonistDetailModal from "./ProtagonistDetailModal.vue";
 import GongfaCultivateModal from "./GongfaCultivateModal.vue";
@@ -64,7 +63,7 @@ const worldTimeTitle = computed(() => formatWorldTimeZhDisplay(props.worldTime))
  */
 const panelAgeForDisplay = computed(() => {
   const p = props.protagonist;
-  if (!p) return 0;
+  if (!p || !p.ageConfirmed) return "—";
   return p.age + calendarYearsElapsed(props.worldTimeBaseline, props.worldTime);
 });
 
@@ -77,11 +76,6 @@ const inventoryBagDisplaySlots = computed(() =>
   props.protagonist ? getInventoryBagDisplaySlots(props.protagonist.inventorySlots) : [],
 );
 const shouyuanWarning = computed(() => getShouyuanWarningLevel(props.protagonist, props.worldTimeBaseline, props.worldTime));
-const breakthroughLabel = computed(() => {
-  const p = props.protagonist;
-  if (!p || !p.realmComplete) return "";
-  return getBreakthroughStatusLabel(p.breakthroughStatus);
-});
 
 const detailOpen = ref(false);
 const detailPayload = ref<ProtagonistDetailPayload | null>(null);
@@ -249,18 +243,17 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
           <div class="mj-player-name-vertical">{{ protagonist.displayName }}</div>
         </div>
 
-        <p class="mj-realm-line">{{ Protagonist.formatRealm(protagonist.realm) }}<template v-if="protagonist.realmComplete">·圆满</template><template v-if="breakthroughLabel">（{{ breakthroughLabel }}）</template></p>
+        <p class="mj-realm-line">{{ Protagonist.formatRealm(protagonist.realm) }}<template v-if="protagonist.realmComplete">·圆满</template></p>
 
         <div class="mj-resource-row">
           <div class="mj-cultivation-head">
             <div class="mj-resource-label mj-resource-label--cultivation">
               <span>修为</span>
               <span class="mj-resource-nums">
-                <template v-if="cultivationUi.isComplete">圆满</template>
-                <template v-else>{{ cultivationUi.displayCur
+                {{ cultivationUi.displayCur
                 }}<template v-if="cultivationUi.req != null && cultivationUi.req > 0">
                   / {{ cultivationUi.req }}</template
-                ></template>
+                >
               </span>
             </div>
           </div>

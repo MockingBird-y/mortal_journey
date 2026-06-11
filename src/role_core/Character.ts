@@ -56,6 +56,7 @@ export class Character {
   gender: string;
   linggen: string[];
   age: number;
+  ageConfirmed: boolean;
   shouyuan: number;
   equippedSlots: EquippedSlotsState;
   gongfaSlots: GongfaSlotsState;
@@ -75,6 +76,7 @@ export class Character {
     this.gender = data.gender;
     this.linggen = data.linggen;
     this.age = data.age;
+    this.ageConfirmed = data.ageConfirmed;
     this.shouyuan = data.shouyuan;
     this.equippedSlots = data.equippedSlots;
     this.gongfaSlots = data.gongfaSlots;
@@ -316,6 +318,7 @@ export class Character {
       gender: this.gender,
       linggen: this.linggen,
       age: this.age,
+      ageConfirmed: this.ageConfirmed,
       shouyuan: this.shouyuan,
       equippedSlots: this.equippedSlots,
       gongfaSlots: this.gongfaSlots,
