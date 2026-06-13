@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { toRef, computed } from "vue";
+import { toRef, computed, ref } from "vue";
 import { useOpeningStoryFromFateChoice } from "../ai/useOpeningStory";
 import { useApiConfig } from "../ai/useApiConfig";
 import { protagonist } from "../role_core/Protagonist";
 import type { FateChoiceResult } from "../fate_choice/types";
 import type { BattleTriggerEntry } from "../ai/state_generate";
+import type { CultivationInput } from "../ai/cultivation_types";
 import type { BattleResult } from "../battle_core/types";
 import type { WorldLocation } from "../role_core/types/worldLocation";
 import SideToolbarPanel from "./SideToolbarPanel.vue";
@@ -33,7 +34,18 @@ const emit = defineEmits<{
   back: [];
   battleTrigger: [value: BattleTriggerEntry];
   consumeBattleResult: [];
+  cultivate: [value: CultivationInput];
 }>();
+
+const pendingCultivation = ref<CultivationInput | null>(null);
+
+function onCultivate(input: CultivationInput) {
+  pendingCultivation.value = input;
+}
+
+function consumeCultivation() {
+  pendingCultivation.value = null;
+}
 
 function onBack() {
   emit("back");
@@ -59,6 +71,7 @@ function onBack() {
           :world-time="worldTime"
           :world-time-baseline="worldTimeBaseline"
           @update:world-time="worldTime = $event"
+          @cultivate="onCultivate"
         />
       </aside>
       <main class="main-screen__pane main-screen__pane--chat" aria-label="中栏：剧情">
@@ -69,10 +82,12 @@ function onBack() {
           :current-world-location="worldLocation"
           :init-snapshot="initSnapshot"
           :battle-result="props.battleResult"
+          :cultivation-input="pendingCultivation"
           v-model:world-time="worldTime"
           @update:world-location="worldLocation = $event"
           @battle-trigger="emit('battleTrigger', $event)"
           @consume-battle-result="emit('consumeBattleResult')"
+          @consume-cultivation="consumeCultivation"
         />
       </main>
       <aside class="main-screen__pane main-screen__pane--side" aria-label="右栏：功能面板">

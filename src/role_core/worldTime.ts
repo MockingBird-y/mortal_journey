@@ -8,12 +8,13 @@ export interface WorldTime {
   year: number;
   month: number;
   day: number;
+  hour: number;
 }
 
 /**
  * 世界时间增量。
- * - `years` / `months` / `days` 为**增量**（累加到当前时间）。
- * - `hour` 仅用于内部折算：若 >= 24 则自动加天数（Math.floor(hour / 24)），否则忽略。
+ * - `years` / `months` / `days` / `hour` 均为**增量**（累加到当前时间）。
+ * - `hour` 累加到 WorldTime.hour，溢出时自动进位到天。
  */
 export interface TimeDelta {
   years?: number;
@@ -26,7 +27,7 @@ const DAYS_PER_MONTH = 30;
 const MONTHS_PER_YEAR = 12;
 
 export function createDefaultWorldTime(): WorldTime {
-  return { year: 1, month: 1, day: 1 };
+  return { year: 1, month: 1, day: 1, hour: 8 };
 }
 
 export function cloneWorldTime(t: WorldTime): WorldTime {
@@ -34,6 +35,7 @@ export function cloneWorldTime(t: WorldTime): WorldTime {
     year: t.year,
     month: t.month,
     day: t.day,
+    hour: t.hour,
   };
 }
 
@@ -65,6 +67,7 @@ export function addYearsToTime(t: WorldTime, years: number): WorldTime {
     year: t.year + Math.floor(years),
     month: t.month,
     day: t.day,
+    hour: t.hour,
   });
 }
 
@@ -73,7 +76,15 @@ export function addYearsToTime(t: WorldTime, years: number): WorldTime {
  * 规则：每月 30 天，每年 12 月。
  */
 export function normalizeWorldTime(t: WorldTime): WorldTime {
-  let { year, month, day } = t;
+  let { year, month, day, hour } = t;
+
+  if (hour >= 24) {
+    const extraDays = Math.floor(hour / 24);
+    day += extraDays;
+    hour = hour % 24;
+  } else if (hour < 0) {
+    hour = 0;
+  }
 
   if (day > DAYS_PER_MONTH) {
     const extraMonths = Math.floor((day - 1) / DAYS_PER_MONTH);
@@ -93,29 +104,37 @@ export function normalizeWorldTime(t: WorldTime): WorldTime {
 
   year = Math.max(1, year);
 
-  return { year, month, day };
+  return { year, month, day, hour };
 }
 
 /**
  * 增量式推进世界时间。
- * - `delta.years/months/days` 累加到当前时间。
- * - `delta.hour` 仅用于折算额外天数：hour >= 24 时自动加 Math.floor(hour / 24) 天。
+ * - `delta.years/months/days/hour` 累加到当前时间。
+ * - hour 累加到 WorldTime.hour，溢出时自动进位到天。
  * - 结果自动规范化（溢出进位）。
  */
 export function advanceWorldTime(base: WorldTime, delta: TimeDelta): WorldTime {
   const years = (delta.years ?? 0);
   const months = (delta.months ?? 0);
-  let days = (delta.days ?? 0);
-
-  if (delta.hour != null && delta.hour >= 24) {
-    days += Math.floor(delta.hour / 24);
-  }
+  const days = (delta.days ?? 0);
+  const hour = (delta.hour ?? 0);
 
   const raw: WorldTime = {
     year: base.year + years,
     month: base.month + months,
     day: base.day + days,
+    hour: base.hour + hour,
   };
 
   return normalizeWorldTime(raw);
+}
+
+/**
+ * 确保 WorldTime 含 hour 字段（兼容旧存档：无 hour 时默认 8）。
+ */
+export function ensureWorldTime(t: WorldTime): WorldTime {
+  if (t.hour == null || !Number.isFinite(t.hour)) {
+    return { ...t, hour: 8 };
+  }
+  return t;
 }

@@ -4,6 +4,7 @@ import type { GongfaItemDefinition } from "../role_core/types/itemInfo";
 import { GONGFA_GRADE_CULTIVATION_MULT, LINGGEN_CULTIVATION_MULT } from "../role_core/types/gameConstants";
 import { getGongfaMasteryProgress } from "./protagonistPanelDisplay";
 import { useScrollLock } from "../composables/useScrollLock";
+import type { CultivationConfirmPayload } from "../ai/cultivation_types";
 
 const EXP_PER_STONE = 100;
 
@@ -17,7 +18,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: [];
-  confirm: [count: number, months: number];
+  confirm: [payload: CultivationConfirmPayload];
 }>();
 
 const scrollLock = useScrollLock();
@@ -130,7 +131,10 @@ function setMax() {
 
 function onConfirm() {
   if (!canConfirm.value) return;
-  emit("confirm", clampedCount.value, monthsNeeded.value);
+  emit("confirm", {
+    spiritStoneCount: clampedCount.value,
+    estimatedMonths: monthsNeeded.value,
+  });
 }
 
 function onBackdropClick() {

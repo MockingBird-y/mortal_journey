@@ -36,7 +36,7 @@ export const INIT_STATE_SYSTEM_PRESET = `
 
 [储物袋开局配置规则]
 1. 主角储物袋开局配置：可以生成灵石、丹药、材料、杂物等。
-2. 灵石生成规则：灵石不区分品阶，统一为"灵石"，数量与主角身份和境界对应。练气弟子通常几十到数百，筑基修士数百到数千。
+  2. 灵石生成规则：灵石不区分品阶（无上品灵石、中品灵石之分），统一称为"灵石"。数量与主角身份和境界对应：练气弟子约10灵石，筑基修士约30~100灵石，结丹修士约100~500灵石，元婴修士约500~3000灵石，化神修士约3000~10000灵石。
 3. 其他物品根据主角出身和境界适当生成。
 4. 输出格式：<mj_storage_body> … </mj_storage_body>，内为 JSON 数组。
 5. 示例：<mj_storage_body> [{"type":"灵石","name":"灵石","count":10},{"type":"丹药","name":"辟谷丹","intro":"碧绿丹丸，隐有草木清香","effectType":"恢复法力","count":2},{"type":"杂物","name":"宗门令牌","intro":"外门弟子通行木牌","count":1}] </mj_storage_body>
@@ -93,15 +93,14 @@ export const INIT_STATE_SYSTEM_PRESET = `
 4. 示例：<mj_story_snapshot>韩立出身贫寒，为给家人筹钱治病加入七玄门成为外门弟子，初入宗门便被分配到杂务处做杂役，与同门师兄张铁结识。</mj_story_snapshot>
 
 [输出契约·必须遵守]
-你将收到一段开局剧情正文和主角初始状态。你需要根据剧情内容，输出以下九段标签（顺序固定）：
+你将收到一段开局剧情正文和主角初始状态。你需要根据剧情内容，输出以下八段标签（顺序固定）：
 1. <mj_protagonist_age>从开局剧情正文中提取的主角当前年龄（纯整数，单位岁）</mj_protagonist_age>
 2. <mj_world_body>开局主场景专名</mj_world_body>
 3. <mj_equip_body>主角开局法宝配置</mj_equip_body>
 4. <mj_magic_body>主角开局功法配置</mj_magic_body>
-5. <mj_storage_body>主角开局储物袋配置</mj_storage_body>
+5. <mj_storage_body>主角开局储物袋配置（灵石也在此标签内输出）</mj_storage_body>
 6. <USER_STATE_TAG>主角血量法力百分比</USER_STATE_TAG>
-7. <SPIRIT_STONE_TAG>初始灵石</SPIRIT_STONE_TAG>
-8. <NPC_NEARBY_TAG>开局周围人物列表</NPC_NEARBY_TAG>
-9. <mj_story_snapshot>开局剧情快照（开局剧情的2~3句简述）</mj_story_snapshot>
+7. <NPC_NEARBY_TAG>开局周围人物列表</NPC_NEARBY_TAG>
+8. <mj_story_snapshot>开局剧情快照（开局剧情的2~3句简述）</mj_story_snapshot>
 禁止缺少任何一段；禁止改写标签名的大小写或字符；禁止用 Markdown 代码围栏包裹标签。
 `;

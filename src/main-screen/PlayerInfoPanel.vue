@@ -36,15 +36,14 @@ import {
 } from "./protagonistPanelDisplay";
 import ProtagonistDetailModal from "./ProtagonistDetailModal.vue";
 import GongfaCultivateModal from "./GongfaCultivateModal.vue";
+import type { CultivationInput, CultivationConfirmPayload } from "../ai/cultivation_types";
 import {
-  advanceWorldTime,
   calendarYearsElapsed,
   formatWorldTimeZhDisplay,
   type WorldTime,
 } from "../role_core/worldTime";
 import { getSpiritStoneCount } from "../role_core/CharacterInventory";
-import { addGongfaMasteryExp } from "../role_core/realmUtils";
-import { triggerRef } from "vue";
+import { getGongfaMasteryProgress } from "./protagonistPanelDisplay";
 
 const props = defineProps<{
   protagonist: Protagonist | null;
@@ -54,6 +53,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "update:worldTime": [value: WorldTime];
+  "cultivate": [value: CultivationInput];
 }>();
 const worldTimeTitle = computed(() => formatWorldTimeZhDisplay(props.worldTime));
 
@@ -184,18 +184,24 @@ function closeCultivate() {
   cultivateGongfaIndex.value = -1;
 }
 
-function onCultivateConfirm(count: number, months: number) {
+function onCultivateConfirm(payload: CultivationConfirmPayload) {
   const p = props.protagonist;
   const gf = cultivateGongfa.value;
-  if (!p || !gf || count <= 0) return;
+  if (!p || !gf || payload.spiritStoneCount <= 0) return;
 
-  p.removeSpiritStone("灵石", count);
-  addGongfaMasteryExp(gf, count * 100);
-  p.addXiuwei(count * 100);
-  Protagonist.notifyChanged();
+  const mp = getGongfaMasteryProgress(gf);
 
-  const newTime = advanceWorldTime(props.worldTime, { months });
-  emit("update:worldTime", newTime);
+  emit("cultivate", {
+    gongfaIndex: cultivateGongfaIndex.value,
+    gongfaName: gf.name,
+    gongfaGrade: gf.grade,
+    gongfaSystem: gf.system ?? "法修",
+    currentMastery: mp.mastery,
+    currentMasteryExp: mp.exp,
+    masteryThreshold: mp.threshold,
+    spiritStoneCount: payload.spiritStoneCount,
+    estimatedMonths: payload.estimatedMonths,
+  });
 
   closeCultivate();
 }

@@ -19,73 +19,97 @@ export const STATE_SYSTEM_PRESET = `
 3. 需要根据剧情判断是否发生了地点变化来判断是否需要重新生成地点，如果没有发生地点变化，就保持上一次的地点（完整四级格式不变）。
 4. 四级含义：第一级为大区域（如天南、乱星海、大晋），第二级为国家或势力范围（如越国、九国盟），第三级为区域或宗门（如黄枫谷、七玄门），第四级为具体地点（如外门、坊市、洞府）。
 
-[主角状态更新规则]
-1. 血量和法力：根据剧情描述和主角的当前状态，用百分比表示主角的血量和法力。hpPercent 为血量百分比（0-100），mpPercent 为法力百分比（0-100）。100 表示满血/满蓝，80 表示轻微受伤/消耗少量法力，50 表示半血/半蓝，0 表示死亡。受伤/跌落/中毒/被攻击通常降低血量；施展功法/强行催动灵力通常降低法力；休整/疗伤/服丹可恢复。
-2. 修为提升：根据剧情描述输出 xiuweiIncrease（正整数，绝对值）。修炼、服丹、战斗感悟、吸收灵石等剧情增加修为；增加量与剧情强度匹配。
-3. 修为增加量参考：练气期日常修炼约 20~80，服用下品丹药约 50~200，重大机缘约 200~600。境界越高所需修为越多，增加量也应相应提高。修为参考公式（修为/年）：基础速度×功法品阶倍率×灵根系数。练气基础约40，筑基约160，结丹约500，元婴约1500，化神约4000。功法品阶倍率：下品×1.0，中品×1.2，上品×1.5，极品×2.0，仙品×3.0，神品×5.0。灵根系数：天灵根(1灵根)×1.8，双灵根×1.4，三灵根×1.1，四灵根×0.9，五灵根×0.7。无灵石修炼速度仅×0.3（极慢），正常消耗灵石×1.0，大量灵石灌注×2.0。
-4. 修为圆满：当主角摘要中标注"修为已圆满"或突破状态为"ready"或"in_quest"时，不可再输出 xiuweiIncrease；修为未圆满时才可输出。但修为已圆满时仍可输出 gongfaMasteryChanges（功法熟练度可继续提升）。
+[血量法力规则]
+1. 根据剧情描述和主角的当前状态，用百分比表示主角的血量和法力。hpPercent 为血量百分比（0-100），mpPercent 为法力百分比（0-100）。100 表示满血/满蓝，80 表示轻微受伤/消耗少量法力，50 表示半血/半蓝，0 表示死亡。
+2. 受伤/跌落/中毒/被攻击通常降低血量；施展功法/强行催动灵力通常降低法力；休整/疗伤/服丹可恢复。
+3. 输出格式：<MJ_HP_MP_TAG> … </MJ_HP_MP_TAG>，内为 JSON 对象，须含键 hpPercent、mpPercent（0-100整数）。无变化时输出空对象 {}。
+4. 示例：
+  4.1 <MJ_HP_MP_TAG> {"hpPercent":100,"mpPercent":100} </MJ_HP_MP_TAG>
+  4.2 <MJ_HP_MP_TAG> {"hpPercent":80,"mpPercent":70} </MJ_HP_MP_TAG>
+  4.3 <MJ_HP_MP_TAG> {"hpPercent":30,"mpPercent":10} </MJ_HP_MP_TAG>
 
-5. 突破系统（核心机制）：
-  5.1 突破不是自动完成，需要完成与境界匹配的突破任务。突破任务是一段完整的剧情链，不是单次事件。
-  5.2 各境界突破任务参考（严格遵循《凡人修仙传》风格修仙世界观）：
-    - 练气→筑基：参加宗门比试/考核，争夺有限的筑基丹或筑基名额。需要击败同门弟子或通过试炼。宗门弟子众多，名额稀少，竞争激烈。
-    - 筑基→结丹：前往危险秘境寻找结丹所需的天材地宝，或通过拍卖行/交易获取结丹丹药。秘境中危机四伏，宝物伴随杀机。
-    - 结丹→元婴：搜集珍稀材料炼制元婴丹药，或寻找古修遗迹获取突破机缘，最终需要渡天劫。天劫九死一生。
-    - 元婴→化神：需要感悟天地法则，寻找上古传承或天道碎片，最终渡化神天劫。化神天劫威力恐怖，需要充分准备。
-  5.3 突破任务流程：
-    5.3.1 当玩家表示要突破且突破状态为"ready"时，设置 breakthroughQuestStart 为 true，开始生成突破任务剧情。
-    5.3.2 突破任务可能持续多轮交互（准备→执行→结果），期间突破状态为"in_quest"。
-    5.3.3 任务成功可能获得突破所需物品（通过 itemAdds 添加到储物袋），玩家后续使用该物品时才真正突破。
-    5.3.4 任务失败设置 breakthroughFailed 为 true，回到 ready 状态，可重新尝试或寻找其他途径。
-  5.4 仅在以下条件全部满足时设置 realmBreakthrough 为 true：玩家已获得突破所需物品（丹药/灵物等）、剧情明确描述服用丹药/使用灵物/渡过天劫、突破成功。
-  5.5 突破失败不会损失修为，但可能损失血量/法力/灵石/时间。失败后玩家可以继续修炼功法增强实力，或寻找其他突破途径。
-
-6. 世界时间推进（核心机制）：
-  6.1 每次状态更新都必须输出 timeAdvance 字段，表示世界时间的推进。timeAdvance 是一个 JSON 对象，包含以下可选字段：
-    - years（整数）：经过的年数。闭关修炼、长途旅行等长时间行为使用。
-    - months（整数）：经过的月数。短期闭关、等待事件等使用。
-    - days（整数）：经过的天数。日常活动、战斗后休整、短途旅行等使用。
-    - hour（整数）：可选，仅用于辅助判断跨天。若 >= 24 则自动折算为额外天数；小于 24 时忽略不计。
-  6.2 years/months/days 为增量（累加到当前时间）。hour 仅在 >= 24 时折算天数，否则不影响时间。
-  6.3 每月固定30天，每年12月=360天。
-  6.4 时间推进与剧情场景的对应关系：
-    - 短暂交谈、商店购物、查看任务：days: 0 或省略。
-    - 战斗场景：days: 0 或 days: 1（视战斗时长）。
-    - 日常修炼（非闭关）：days: 1~7。
-    - 短途旅行/跑腿/探索：days: 1~30。
-    - 短期闭关修炼：months: 1~6 或 years: 1~2。
-    - 长期闭关修炼：练气期 years: 1~5，筑基期 years: 3~10，结丹期 years: 5~20，元婴期 years: 10~50，化神期 years: 20~100。
-    - 等待特定事件（等拍卖会、等秘境开启）：months: 1~6。
-  6.5 如果剧情没有明确时间变化，保持当前时间不变（省略 timeAdvance 或设为空对象 {}）。
-  6.6 注意：timeAdvance 推进的世界时间会影响主角年龄。年龄 = 开局年龄 + 世界时间经过的年数。寿元有限，时间流逝即寿命消耗。闭关修炼多年会消耗大量寿命，请合理判断时间推进量。
-
-7. 功法熟练度提升（仅特殊场景）：闭关修炼时功法熟练度由系统按公式自动积累，不需要AI输出。仅在以下特殊场景输出 gongfaMasteryChanges 数组：
-  7.1 顿悟、秘境感悟、战斗突破等特殊事件 → 输出 masteryExpIncrease（正整数，熟练度经验增量）
-  7.2 玩家明确提到某功法名 → 主要提升该功法（masteryExpIncrease: 视场景强度，一般50~200，顿悟可达500）
-  7.3 玩家未指定功法 → 根据角色当前功法和修炼情境自动判断最合理的功法提升
-  7.4 角色无功法 → 不输出此字段
-  7.5 普通闭关修炼不需要输出此字段（系统自动计算）
-  7.6 字段名使用 masteryExpIncrease（熟练度经验增量），不要使用 masteryIncrease
-
-8. 灵石修炼消耗参考：根据修炼年数和境界决定灵石消耗（通过 spiritStoneChanges 的 remove 操作体现）。练气期约15~30灵石/年，筑基期60~120灵石/年，结丹期200~450灵石/年，元婴期800~2000灵石/年，化神期4000~12000灵石/年。大量灵石灌注修炼时消耗翻倍。玩家说"用灵石修炼"才消耗灵石，"闭关修炼"不指定灵石则不消耗。
-6. 输出格式：<USER_STATE_TAG> … </USER_STATE_TAG>，内为 JSON 对象，须含键 hpPercent、mpPercent（0-100整数）。可选键 xiuweiIncrease、realmBreakthrough、breakthroughQuestStart、breakthroughFailed、timeAdvance、gongfaMasteryChanges。
+[修为与功法熟练度规则]
+1. 修为提升：根据剧情描述输出 xiuweiIncrease（正整数，绝对值）。修炼、服丹、战斗感悟、吸收灵石等剧情增加修为；增加量与剧情强度匹配。
+2. 修为增加量参考：练气期日常修炼约 20~80，服用下品丹药约 50~200，重大机缘约 200~600。境界越高所需修为越多，增加量也应相应提高。修为参考公式（修为/年）：基础速度×功法品阶倍率×灵根系数。练气基础约40，筑基约160，结丹约500，元婴约1500，化神约4000。功法品阶倍率：下品×1.0，中品×1.2，上品×1.5，极品×2.0，仙品×3.0，神品×5.0。灵根系数：天灵根(1灵根)×1.8，双灵根×1.4，三灵根×1.1，四灵根×0.9，五灵根×0.7。无灵石修炼速度仅×0.3（极慢），正常消耗灵石×1.0，大量灵石灌注×2.0。
+3. 修为圆满：当主角摘要中标注"修为已圆满"或突破状态为"ready"或"in_quest"时，不可再输出 xiuweiIncrease；修为未圆满时才可输出。但修为已圆满时仍可输出 gongfaMasteryChanges（功法熟练度可继续提升）。
+4. 功法熟练度提升规则：
+  4.1 只要剧情涉及主角进行修炼、打坐、闭关、运功等修炼行为，且主角装备了功法，就必须输出 gongfaMasteryChanges 数组。修炼行为不仅限于"专门修炼某门功法"——使用功法运转灵力、以功法辅助吸收灵石灵气、闭关打坐时运转功法等，都属于功法熟练度提升的场景。
+  4.2 修炼熟练度经验参考：每消耗1灵石约100熟练度经验。功法品阶越高、灵根越少，修炼速度越快（所需时间越短），但不影响每颗灵石提供的熟练度经验总量。无灵石修炼（仅吸收天地灵气）的熟练度经验约为有灵石修炼的30%。
+  4.3 顿悟、秘境感悟、修炼奇遇等特殊事件 → 可额外增加 masteryExpIncrease（一般50~200，顿悟可达500）。
+  4.4 走火入魔等负面事件 → 可减少或取消熟练度增加，或降低修为增加量。
+  4.5 玩家未指定功法 → 根据角色当前装备的功法和修炼情境选择最合理的一门或几门功法输出。若剧情提及了具体功法名称，则以该功法为主。
+  4.6 角色无功法 → 不输出此字段。
+  4.7 字段名使用 masteryExpIncrease（熟练度经验增量），不要使用 masteryIncrease。
+  4.8 仅在以下场景不输出 gongfaMasteryChanges：角色无功法、或剧情完全不涉及修炼行为（纯对话、交易、赶路等无灵力运转的场景）。
+5. 灵石修炼消耗参考：根据修炼年数和境界决定灵石消耗（通过 spiritStoneChanges 的 remove 操作体现）。练气期约15~30灵石/年，筑基期60~120灵石/年，结丹期200~450灵石/年，元婴期800~2000灵石/年，化神期4000~12000灵石/年。大量灵石灌注修炼时消耗翻倍。玩家说"用灵石修炼"才消耗灵石，"闭关修炼"不指定灵石则不消耗。
+6. 输出格式：<USER_STATE_TAG> … </USER_STATE_TAG>，内为 JSON 对象。可选键 xiuweiIncrease、gongfaMasteryChanges。无变化时输出空对象 {}。
 7. 示例：
-7.1 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100} </USER_STATE_TAG>
-7.2 <USER_STATE_TAG> {"hpPercent":80,"mpPercent":70,"xiuweiIncrease":150,"timeAdvance":{"days":1}} </USER_STATE_TAG>
-7.3 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"realmBreakthrough":true,"timeAdvance":{"days":3}} </USER_STATE_TAG>
-7.4 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"breakthroughQuestStart":true} </USER_STATE_TAG>
-7.5 <USER_STATE_TAG> {"hpPercent":30,"mpPercent":10,"breakthroughFailed":true,"timeAdvance":{"days":1}} </USER_STATE_TAG>
-7.6 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"xiuweiIncrease":648,"timeAdvance":{"years":3}} </USER_STATE_TAG>
-7.7 <USER_STATE_TAG> {"hpPercent":100,"mpPercent":100,"gongfaMasteryChanges":[{"gongfaName":"紫阳混元劲","masteryExpIncrease":150}],"timeAdvance":{"days":1}} </USER_STATE_TAG>
+  7.1 <USER_STATE_TAG> {} </USER_STATE_TAG>
+  7.2 <USER_STATE_TAG> {"xiuweiIncrease":150} </USER_STATE_TAG>
+  7.3 <USER_STATE_TAG> {"xiuweiIncrease":648} </USER_STATE_TAG>
+  7.4 <USER_STATE_TAG> {"xiuweiIncrease":150,"gongfaMasteryChanges":[{"gongfaName":"紫阳混元劲","masteryExpIncrease":150}]} </USER_STATE_TAG>
+  7.5 <USER_STATE_TAG> {"gongfaMasteryChanges":[{"gongfaName":"紫阳混元劲","masteryExpIncrease":500}]} </USER_STATE_TAG>
+
+[时间推进规则]
+1. 每次状态更新都必须输出 <MJ_TIME_TAG> 标签，表示世界时间的推进。timeAdvance 是一个 JSON 对象，包含以下字段：
+  - hour（整数，必填）：当前剧情花费的小时数。即使短暂交谈也至少消耗 1 小时。
+  - years（整数，可选）：经过的年数。闭关修炼、长途旅行等长时间行为使用。
+  - months（整数，可选）：经过的月数。短期闭关、等待事件等使用。
+  - days（整数，可选）：经过的天数。日常活动、战斗后休整、短途旅行等使用。
+2. hour/years/months/days 均为增量（累加到当前时间）。hour 累加后若 >= 24 则自动进位为额外天数。
+3. 每月固定30天，每年12月=360天。
+4. 时间推进与剧情场景的对应关系：
+  - 短暂交谈、查看任务：hour: 1~2。
+  - 商店购物：hour: 1~3。
+  - 战斗场景：hour: 1~6。
+  - 日常修炼（非闭关）：hour: 4~12。
+  - 短途旅行/跑腿/探索：days: 1~30, hour: 1~8。
+  - 短期闭关修炼：months: 1~6 或 years: 1~2, hour: 1~12。
+  - 长期闭关修炼：练气期 years: 1~5, 筑基期 years: 3~10, 结丹期 years: 5~20, 元婴期 years: 10~50, 化神期 years: 20~100, hour: 1~12。
+  - 等待特定事件（等拍卖会、等秘境开启）：months: 1~6, hour: 1~12。
+5. 注意：timeAdvance 推进的世界时间会影响主角年龄。年龄 = 开局年龄 + 世界时间经过的年数。寿元有限，时间流逝即寿命消耗。闭关修炼多年会消耗大量寿命，请合理判断时间推进量。
+6. 输出格式：<MJ_TIME_TAG> … </MJ_TIME_TAG>，内为 JSON 对象，含 timeAdvance 字段。hour 为必填字段。
+7. 示例：
+  7.1 <MJ_TIME_TAG> {"timeAdvance":{"hour":2}} </MJ_TIME_TAG>
+  7.2 <MJ_TIME_TAG> {"timeAdvance":{"hour":3,"days":1}} </MJ_TIME_TAG>
+  7.3 <MJ_TIME_TAG> {"timeAdvance":{"years":3,"hour":5}} </MJ_TIME_TAG>
+  7.4 <MJ_TIME_TAG> {"timeAdvance":{"months":6,"days":15,"hour":8}} </MJ_TIME_TAG>
+
+[突破规则]
+1. 突破不是自动完成，需要完成与境界匹配的突破任务。突破任务是一段完整的剧情链，不是单次事件。
+2. 各境界突破任务参考（严格遵循《凡人修仙传》风格修仙世界观）：
+  - 练气→筑基：参加宗门比试/考核，争夺有限的筑基丹或筑基名额。需要击败同门弟子或通过试炼。宗门弟子众多，名额稀少，竞争激烈。
+  - 筑基→结丹：前往危险秘境寻找结丹所需的天材地宝，或通过拍卖行/交易获取结丹丹药。秘境中危机四伏，宝物伴随杀机。
+  - 结丹→元婴：搜集珍稀材料炼制元婴丹药，或寻找古修遗迹获取突破机缘，最终需要渡天劫。天劫九死一生。
+  - 元婴→化神：需要感悟天地法则，寻找上古传承或天道碎片，最终渡化神天劫。化神天劫威力恐怖，需要充分准备。
+3. 突破任务流程：
+  3.1 当玩家表示要突破且突破状态为"ready"时，设置 breakthroughQuestStart 为 true，开始生成突破任务剧情。
+  3.2 突破任务可能持续多轮交互（准备→执行→结果），期间突破状态为"in_quest"。
+  3.3 任务成功可能获得突破所需物品（通过 itemAdds 添加到储物袋），玩家后续使用该物品时才真正突破。
+  3.4 任务失败设置 breakthroughFailed 为 true，回到 ready 状态，可重新尝试或寻找其他途径。
+4. 仅在以下条件全部满足时设置 realmBreakthrough 为 true：玩家已获得突破所需物品（丹药/灵物等）、剧情明确描述服用丹药/使用灵物/渡过天劫、突破成功。
+5. 突破失败不会损失修为，但可能损失血量/法力/灵石/时间。失败后玩家可以继续修炼功法增强实力，或寻找其他突破途径。
+6. 输出格式：<MJ_BREAKTHROUGH_TAG> … </MJ_BREAKTHROUGH_TAG>，内为 JSON 对象。可选键 realmBreakthrough（布尔值）、breakthroughQuestStart（布尔值）、breakthroughFailed（布尔值）。无突破相关事件时输出空对象 {}。
+7. 示例：
+  7.1 <MJ_BREAKTHROUGH_TAG> {} </MJ_BREAKTHROUGH_TAG>
+  7.2 <MJ_BREAKTHROUGH_TAG> {"breakthroughQuestStart":true} </MJ_BREAKTHROUGH_TAG>
+  7.3 <MJ_BREAKTHROUGH_TAG> {"breakthroughFailed":true} </MJ_BREAKTHROUGH_TAG>
+  7.4 <MJ_BREAKTHROUGH_TAG> {"realmBreakthrough":true} </MJ_BREAKTHROUGH_TAG>
 
 [灵石规则]
-1. 灵石是修仙界通用货币，不区分品阶，统一称为"灵石"。
-2. 灵石数量参考：练气弟子通常携带几十到数百灵石；筑基修士数百到数千；结丹修士数千到数万；元婴修士数万到数十万。购买普通丹药约需数十灵石，法宝数百到数千灵石，高阶法宝可达上万灵石。
+1. 灵石是修仙界通用货币，不区分品阶（无上品灵石、中品灵石之分），统一称为"灵石"。
+2. 灵石数量参考（必须与主角当前境界严格匹配）：
+  2.1 练气期：典型携带约10灵石。日常交易1~5灵石，丹药2~10灵石，法宝5~30灵石。任务报酬1~20灵石，大任务不超过50灵石。
+  2.2 筑基期：典型携带30~100灵石。日常交易5~20灵石，丹药10~50灵石，法宝30~150灵石。任务报酬10~100灵石，大任务不超过300灵石。
+  2.3 结丹期：典型携带100~500灵石。日常交易20~100灵石，丹药50~200灵石，高阶法宝200~800灵石。任务报酬50~500灵石，秘境探索可达1500灵石。
+  2.4 元婴期：典型携带500~3000灵石。日常交易100~500灵石，珍稀灵物数千灵石，极品法宝数千灵石。任务报酬数百至数千灵石。
+  2.5 化神期：典型携带3000~10000灵石。日常交易数百灵石，仙品至宝上万灵石。单次重大收益可达数万灵石。
+  2.6 硬约束：禁止出现高境界（结丹及以上）修士只获得或消耗个位数灵石的情况，这是严重的数值错误。
 3. 储物袋灵石堆叠（add/remove）规则：根据剧情描述，更新储物袋中的灵石数量。
 3.1 交易结算硬约束：只有剧情出现"已支付/已交付/已收下灵石/扣款完成/交易完成/买卖成交"这类已结算事实时，才允许 remove 灵石。
 3.2 若仅是"报价、悬赏、承诺、愿付、出示灵石、掂量袋子、若成丹另报、先谈条件、准备支付"，都视为未实际支付，本回合灵石必须不变（写 []）。
 4. 储物袋灵石堆叠输出格式：<SPIRIT_STONE_TAG> … </SPIRIT_STONE_TAG>，内为 JSON 数组（无灵石变更时写 []）。
-5. 示例：<SPIRIT_STONE_TAG> [{"op":"add","count":100}] </SPIRIT_STONE_TAG>。
+5. 示例：<SPIRIT_STONE_TAG> [{"op":"add","count":5}] </SPIRIT_STONE_TAG>。
 
 [丹药effectType规则]
   1. 丹药不携带 function 字段，改为携带 effectType 字段，表示丹药的唯一效果类型。
@@ -190,14 +214,17 @@ export const STATE_SYSTEM_PRESET = `
 4. 示例：<mj_story_snapshot>韩立前往坊市丹药铺，以120灵石购得三颗回春丹，并与店主攀谈得知近期秘境即将开启的消息。</mj_story_snapshot>
 
 [输出契约·必须遵守]
-你将收到一段剧情正文和主角当前状态。你需要根据剧情内容，输出以下八段标签（顺序固定）：
+你将收到一段剧情正文和主角当前状态。你需要根据剧情内容，按以下固定顺序输出十一段标签：
 1. <mj_world_body>根据剧情判断是否发生地点变化</mj_world_body>
-2. <USER_STATE_TAG>主角血量法力修为状态</USER_STATE_TAG>
-3. <SPIRIT_STONE_TAG>灵石变动</SPIRIT_STONE_TAG>
-4. <ITEM_ADD_TAG>物品添加</ITEM_ADD_TAG>
-5. <ITEM_REMOVE_TAG>物品减少</ITEM_REMOVE_TAG>
-6. <NPC_NEARBY_TAG>周围人物列表</NPC_NEARBY_TAG>
-7. <BATTLE_TRIGGER_TAG>战斗触发（未满足触发条件时不输出此标签）</BATTLE_TRIGGER_TAG>
-8. <mj_story_snapshot>剧情快照（本轮剧情的2~3句简述）</mj_story_snapshot>
-禁止缺少第1~6段和第8段标签；第7段仅在满足战斗触发条件时输出。禁止改写标签名的大小写或字符；禁止用 Markdown 代码围栏包裹标签。
+2. <MJ_HP_MP_TAG>主角血量法力百分比</MJ_HP_MP_TAG>
+3. <USER_STATE_TAG>修为增加与功法熟练度变化</USER_STATE_TAG>
+4. <MJ_TIME_TAG>世界时间推进</MJ_TIME_TAG>
+5. <MJ_BREAKTHROUGH_TAG>突破相关状态</MJ_BREAKTHROUGH_TAG>
+6. <SPIRIT_STONE_TAG>灵石变动</SPIRIT_STONE_TAG>
+7. <ITEM_ADD_TAG>物品添加</ITEM_ADD_TAG>
+8. <ITEM_REMOVE_TAG>物品减少</ITEM_REMOVE_TAG>
+9. <NPC_NEARBY_TAG>周围人物列表</NPC_NEARBY_TAG>
+10. <BATTLE_TRIGGER_TAG>战斗触发（未满足触发条件时不输出此标签）</BATTLE_TRIGGER_TAG>
+11. <mj_story_snapshot>剧情快照（本轮剧情的2~3句简述）</mj_story_snapshot>
+禁止缺少第1~9段和第11段标签；第10段仅在满足战斗触发条件时输出。无数据的标签输出空对象 {}。禁止改写标签名的大小写或字符；禁止用 Markdown 代码围栏包裹标签。
 `;

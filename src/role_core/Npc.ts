@@ -10,7 +10,7 @@ import {
   EQUIP_SLOT_COUNT,
   GONGFA_SLOT_COUNT,
 } from "./types/playInfo";
-import { DEFAULT_INVENTORY_SLOT_COUNT } from "./CharacterInventory";
+import { DEFAULT_INVENTORY_SLOT_COUNT, compactInventorySlotsInPlace } from "./CharacterInventory";
 import { getRealmPrimaryStats, getShouyuanForRealm } from "./realmUtils";
 import type { InventoryStackItem, TreasureItemDefinition, GongfaItemDefinition } from "./types/itemInfo";
 import type { NpcNearbyEntry } from "../ai/state_generate";
@@ -126,6 +126,7 @@ export class Npc extends Character {
     };
 
     const npc = new Npc(npcData);
+    compactInventorySlotsInPlace(npc);
 
     const { maxHp: capH, maxMp: capM } = npc.computeMaxHpMp();
     npc.maxHp = capH;
@@ -194,6 +195,7 @@ export class Npc extends Character {
         ...items,
         ...Array.from({ length: Math.max(0, DEFAULT_INVENTORY_SLOT_COUNT - items.length) }, () => null),
       ];
+      compactInventorySlotsInPlace(this);
     }
 
     const { maxHp, maxMp } = this.computeMaxHpMp();

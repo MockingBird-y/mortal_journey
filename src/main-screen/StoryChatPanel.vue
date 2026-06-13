@@ -4,6 +4,8 @@ import type { OpeningStoryPhase } from "../ai/useOpeningStory";
 import { useApiConfig } from "../ai/useApiConfig";
 import { generateStory, type StoryChatEntry } from "../ai/story_generate";
 import { generateState, type StateParsed, type BattleTriggerEntry } from "../ai/state_generate";
+import { generateCultivationStory } from "../ai/cultivation_story_generate";
+import type { CultivationInput } from "../ai/cultivation_types";
 import { protagonist } from "../role_core/Protagonist";
 import { npcStore } from "../role_core/npcStore";
 import { worldMapStore } from "../role_core/worldMapStore";
@@ -23,6 +25,7 @@ const props = withDefaults(
     worldTime?: WorldTime;
     battleResult?: BattleResult | null;
     initSnapshot?: string;
+    cultivationInput?: CultivationInput | null;
   }>(),
   {
     storyText: "",
@@ -32,6 +35,7 @@ const props = withDefaults(
     worldTime: undefined,
     battleResult: undefined,
     initSnapshot: "",
+    cultivationInput: null,
   },
 );
 
@@ -42,6 +46,7 @@ const emit = defineEmits<{
   "update:worldTime": [value: WorldTime];
   "battleTrigger": [value: BattleTriggerEntry];
   "consumeBattleResult": [];
+  "consumeCultivation": [];
 }>();
 
 interface ChatMessage {
@@ -110,8 +115,8 @@ function applyStateResult(stateResult: StateParsed, linggen: string[]): void {
   if (current) {
     current.applyStateChanges(stateResult);
 
-    if (stateResult.userState?.timeAdvance && props.worldTime) {
-      const delta = stateResult.userState.timeAdvance;
+    if (stateResult.timeAdvance && props.worldTime) {
+      const delta = stateResult.timeAdvance;
       const newTime = advanceWorldTime(props.worldTime, delta);
       emit("update:worldTime", newTime);
       if (current.isShouyuanExhausted()) {
@@ -167,11 +172,10 @@ async function handleSend(): Promise<void> {
   genError.value = "";
 
   const chatHistory: StoryChatEntry[] = buildChatHistory();
-
   const npcSnapshot = buildNpcSnapshot();
 
   const ac = new AbortController();
-  abortCtl = ac;
+    abortCtl = ac;
 
   try {
     const storyResult = await generateStory({
@@ -253,26 +257,126 @@ function onInputKeydown(e: KeyboardEvent): void {
 
 function formatBattleResultMessage(r: BattleResult): string {
   const outcomeMap: Record<string, string> = {
-    victory: "胜利",
-    defeat: "失败",
+    victory: "胜",
+    defeat: "败",
     fled: "撤退",
-    draw: "平局",
+    draw: "平手",
   };
   const outcomeText = outcomeMap[r.outcome];
-  const killed = r.enemiesKilled.length > 0
-    ? `，击杀了${r.enemiesKilled.join("、")}` : "";
-  const elixir = r.elixirsUsed.length > 0
-    ? `，消耗了${r.elixirsUsed.map(e => `${e.name}×${e.count}`).join("、")}` : "";
-  const kind = r.triggerKind === "active" ? "主动发起" : "被迫迎战";
+  const enemyText = r.enemyNames.join("、");
 
-  return [
-    `[战斗结算]`,
-    `${r.allyNames.join("、")}与${r.enemyNames.join("、")}发生了战斗（${kind}，原因：${r.triggerReason}）。`,
-    `战斗结果：${outcomeText}，共${r.turn}回合。`,
-    `主角HP剩余${r.protagonistHpPercent}%，MP剩余${r.protagonistMpPercent}%${killed}${elixir}。`,
-    `请根据战斗结果继续生成后续剧情。`,
-  ].join("\n");
+  const parts: string[] = [];
+  parts.push(`与${enemyText}的战斗结束，${outcomeText}。`);
+
+  if (r.enemiesKilled.length > 0) {
+    parts.push(`${r.enemiesKilled.join("、")}已被击杀。`);
+  }
+
+  return parts.join("");
 }
+
+function formatCultivationMessage(input: CultivationInput): string {
+  const years = Math.floor(input.estimatedMonths / 12);
+  const months = input.estimatedMonths % 12;
+  const timeParts: string[] = [];
+  if (years > 0) timeParts.push(`${years}年`);
+  if (months > 0) timeParts.push(`${months}个月`);
+  const timeStr = timeParts.join("") || "数日";
+
+  return `取出${input.spiritStoneCount}枚灵石，开始闭关修炼${input.gongfaName}，预计需要${timeStr}。`;
+}
+
+watch(
+  () => props.cultivationInput,
+  async (input) => {
+    if (!input) return;
+
+    const p = protagonist.value;
+    if (!p) return;
+
+    const url = String(apiUrl.value || "").trim();
+    const model = String(apiModel.value || "").trim();
+    if (!url || !model) return;
+
+    const msg = formatCultivationMessage(input);
+    chatMessages.value.push({ type: "user", content: msg });
+
+    emit("consumeCultivation");
+
+    generating.value = true;
+    genError.value = "";
+
+    const npcSnapshot = buildNpcSnapshot();
+    const chatHistory: StoryChatEntry[] = buildChatHistory();
+
+    const ac = new AbortController();
+    abortCtl = ac;
+
+    try {
+      const cultStoryResult = await generateCultivationStory({
+        apiUrl: url,
+        apiKey: String(apiKey.value || "").trim() || undefined,
+        model,
+        gongfaName: input.gongfaName,
+        gongfaGrade: input.gongfaGrade,
+        gongfaSystem: input.gongfaSystem,
+        currentMastery: input.currentMastery,
+        currentMasteryExp: input.currentMasteryExp,
+        masteryThreshold: input.masteryThreshold,
+        spiritStoneCount: input.spiritStoneCount,
+        estimatedMonths: input.estimatedMonths,
+        protagonist: p,
+        currentWorldLocation: props.currentWorldLocation ?? undefined,
+        npcSnapshot: npcSnapshot || undefined,
+        chatHistory,
+        signal: ac.signal,
+      });
+
+      if (abortCtl !== ac) return;
+
+      if (!cultStoryResult.storyBody.trim()) {
+        genError.value = "模型返回的修炼剧情正文为空。";
+        return;
+      }
+
+      chatMessages.value.push({ type: "story", content: cultStoryResult.storyBody.trim() });
+
+      try {
+        const stateResult: StateParsed = await generateState({
+          apiUrl: url,
+          apiKey: String(apiKey.value || "").trim() || undefined,
+          model,
+          storyBody: cultStoryResult.storyBody,
+          protagonist: p,
+          currentWorldLocation: props.currentWorldLocation ?? undefined,
+          currentWorldTime: props.worldTime,
+          npcSnapshot: npcSnapshot || undefined,
+          signal: ac.signal,
+        });
+
+        if (abortCtl !== ac) return;
+
+        applyStateResult(stateResult, p.linggen);
+
+        if (stateResult.storySnapshot.trim()) {
+          const last = chatMessages.value[chatMessages.value.length - 1];
+          if (last && last.type === "story") {
+            last.snapshot = stateResult.storySnapshot.trim();
+          }
+        }
+      } catch (stateErr) {
+        gameLog.error("[StoryChat] 修炼状态更新失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));
+      }
+    } catch (e) {
+      if (ac.signal.aborted) return;
+      genError.value = e instanceof Error ? e.message : String(e);
+      gameLog.error("[StoryChat] " + genError.value);
+    } finally {
+      if (abortCtl === ac) abortCtl = null;
+      generating.value = false;
+    }
+  },
+);
 
 watch(
   () => props.battleResult,

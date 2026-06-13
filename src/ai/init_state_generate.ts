@@ -38,7 +38,6 @@ export interface InitStateParsed {
   worldLocation: WorldLocation | null;
   hpPercent: number;
   mpPercent: number;
-  spiritStones: { op: "add"; name: string; count: number }[];
   nearbyNpcs: NpcNearbyEntry[];
   storySnapshot: string;
   protagonistAge: number | null;
@@ -57,8 +56,6 @@ const MJ_STORAGE_BODY_OPEN = "<mj_storage_body>";
 const MJ_STORAGE_BODY_CLOSE = "</mj_storage_body>";
 const TAG_USER_STATE_OPEN = "<USER_STATE_TAG>";
 const TAG_USER_STATE_CLOSE = "</USER_STATE_TAG>";
-const TAG_SPIRIT_STONE_OPEN = "<SPIRIT_STONE_TAG>";
-const TAG_SPIRIT_STONE_CLOSE = "</SPIRIT_STONE_TAG>";
 const TAG_NPC_NEARBY_OPEN = "<NPC_NEARBY_TAG>";
 const TAG_NPC_NEARBY_CLOSE = "</NPC_NEARBY_TAG>";
 const TAG_STORY_SNAPSHOT_OPEN = "<mj_story_snapshot>";
@@ -143,7 +140,6 @@ export function parseInitStateAiResponse(raw: string, realmMajor: string, realmM
   const magicText = extractTagContent(raw, MJ_MAGIC_BODY_OPEN, MJ_MAGIC_BODY_CLOSE);
   const storageText = extractTagContent(raw, MJ_STORAGE_BODY_OPEN, MJ_STORAGE_BODY_CLOSE);
   const userStateText = extractTagContent(raw, TAG_USER_STATE_OPEN, TAG_USER_STATE_CLOSE);
-  const spiritStoneText = extractTagContent(raw, TAG_SPIRIT_STONE_OPEN, TAG_SPIRIT_STONE_CLOSE);
 
   const equipArr = tryParseJsonArray(equipText) ?? [];
   const magicArr = tryParseJsonArray(magicText) ?? [];
@@ -166,18 +162,6 @@ export function parseInitStateAiResponse(raw: string, realmMajor: string, realmM
     }
   }
 
-  const stoneArr = tryParseJsonArray(spiritStoneText) ?? [];
-  const spiritStones: { op: "add"; name: string; count: number }[] = stoneArr
-    .map((e: unknown) => {
-      if (!e || typeof e !== "object") return null;
-      const o = e as Record<string, unknown>;
-      const name = String(o.name || "").trim();
-      const count = typeof o.count === "number" ? Math.max(1, Math.floor(o.count)) : 1;
-      if (!name) return null;
-      return { op: "add" as const, name, count };
-    })
-    .filter((c): c is { op: "add"; name: string; count: number } => c !== null);
-
   const nearbyNpcs = parseInitNearbyNpcs(raw);
 
   const storySnapshot = extractTagContent(raw, TAG_STORY_SNAPSHOT_OPEN, TAG_STORY_SNAPSHOT_CLOSE);
@@ -189,7 +173,7 @@ export function parseInitStateAiResponse(raw: string, realmMajor: string, realmM
     if (!isNaN(parsed) && parsed > 0) protagonistAge = parsed;
   }
 
-  return { equips, gongfas, storage, worldLocation, hpPercent, mpPercent, spiritStones, nearbyNpcs, storySnapshot, protagonistAge };
+  return { equips, gongfas, storage, worldLocation, hpPercent, mpPercent, nearbyNpcs, storySnapshot, protagonistAge };
 }
 
 export function buildEquippedSlotsFromParsed(parsed: InitStateParsed): EquippedSlotsState {
@@ -211,7 +195,17 @@ export function buildGongfaSlotsFromParsed(parsed: InitStateParsed): GongfaSlots
 }
 
 export function buildInventoryFromParsed(parsed: InitStateParsed, _realmMajor: string, slotCount: number): Array<InventoryStackItem | null> {
-  const items: InventoryStackItem[] = [...parsed.storage];
+  let stoneTotal = 0;
+  const nonStoneItems: InventoryStackItem[] = [];
+  for (const item of parsed.storage) {
+    if (item && "type" in item && (item as any).type === "灵石") {
+      stoneTotal += (item as any).count;
+    } else {
+      nonStoneItems.push(item);
+    }
+  }
+  const stoneStack = { name: "灵石" as const, count: stoneTotal, desc: "修仙界通用货币，蕴含灵气，用于交易和修炼。" as const, type: "灵石" as const };
+  const items: InventoryStackItem[] = [stoneStack, ...nonStoneItems];
   const rest = Math.max(0, slotCount - items.length);
   return [...items, ...Array.from({ length: rest }, () => null)];
 }

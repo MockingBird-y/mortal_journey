@@ -31,14 +31,19 @@ export interface StateGenerateInput {
   npcSnapshot?: string;
 }
 
-export interface UserStateChange {
+export interface HpMpState {
   hpPercent: number;
   mpPercent: number;
-  xiuweiIncrease?: number;
+}
+
+export interface BreakthroughState {
   realmBreakthrough?: boolean;
   breakthroughQuestStart?: boolean;
   breakthroughFailed?: boolean;
-  timeAdvance?: TimeDelta;
+}
+
+export interface UserStateChange {
+  xiuweiIncrease?: number;
   gongfaMasteryChanges?: Array<{
     gongfaName: string;
     masteryExpIncrease: number;
@@ -103,7 +108,10 @@ export interface BattleTriggerEntry {
 
 export interface StateParsed {
   worldLocation: WorldLocation | null;
+  hpMp: HpMpState | null;
   userState: UserStateChange | null;
+  timeAdvance: TimeDelta | null;
+  breakthrough: BreakthroughState | null;
   spiritStoneChanges: SpiritStoneChange[];
   itemAdds: ItemAddEntry[];
   itemRemoves: ItemRemoveEntry[];
@@ -131,6 +139,12 @@ const TAG_BATTLE_TRIGGER_OPEN = "<BATTLE_TRIGGER_TAG>";
 const TAG_BATTLE_TRIGGER_CLOSE = "</BATTLE_TRIGGER_TAG>";
 const TAG_STORY_SNAPSHOT_OPEN = "<mj_story_snapshot>";
 const TAG_STORY_SNAPSHOT_CLOSE = "</mj_story_snapshot>";
+const TAG_HP_MP_OPEN = "<MJ_HP_MP_TAG>";
+const TAG_HP_MP_CLOSE = "</MJ_HP_MP_TAG>";
+const TAG_TIME_OPEN = "<MJ_TIME_TAG>";
+const TAG_TIME_CLOSE = "</MJ_TIME_TAG>";
+const TAG_BREAKTHROUGH_OPEN = "<MJ_BREAKTHROUGH_TAG>";
+const TAG_BREAKTHROUGH_CLOSE = "</MJ_BREAKTHROUGH_TAG>";
 
 function extractWorldBody(raw: string): WorldLocation | null {
   const s = raw == null ? "" : String(raw);
@@ -231,57 +245,95 @@ function parseBattleTrigger(raw: string): BattleTriggerEntry | null {
   return { shouldEnterBattle: true, triggerKind, triggerReason, allies, enemies };
 }
 
+function parseHpMp(raw: string): HpMpState | null {
+  const text = extractTagContent(raw, TAG_HP_MP_OPEN, TAG_HP_MP_CLOSE);
+  if (!text.trim()) return null;
+  const obj = safeJsonParse(text);
+  if (!obj || typeof obj !== "object") return null;
+  const o = obj as Record<string, unknown>;
+  const hasHp = typeof o.hpPercent === "number";
+  const hasMp = typeof o.mpPercent === "number";
+  if (!hasHp && !hasMp) return null;
+  return {
+    hpPercent: hasHp ? Math.max(0, Math.min(100, Math.round(o.hpPercent as number))) : 100,
+    mpPercent: hasMp ? Math.max(0, Math.min(100, Math.round(o.mpPercent as number))) : 100,
+  };
+}
+
+function parseTimeAdvance(raw: string): TimeDelta | null {
+  const text = extractTagContent(raw, TAG_TIME_OPEN, TAG_TIME_CLOSE);
+  if (!text.trim()) return null;
+  const obj = safeJsonParse(text);
+  if (!obj || typeof obj !== "object") return null;
+  const o = obj as Record<string, unknown>;
+  const rawTime = o.timeAdvance ?? o;
+  if (!rawTime || typeof rawTime !== "object") return null;
+  const td = rawTime as Record<string, unknown>;
+  const years = typeof td.years === "number" ? Math.max(0, Math.floor(td.years)) : undefined;
+  const months = typeof td.months === "number" ? Math.max(0, Math.floor(td.months)) : undefined;
+  const days = typeof td.days === "number" ? Math.max(0, Math.floor(td.days)) : undefined;
+  const hour = typeof td.hour === "number" ? Math.max(0, Math.floor(td.hour)) : undefined;
+  if (years || months || days || hour !== undefined) {
+    return { years, months, days, hour };
+  }
+  return null;
+}
+
+function parseBreakthrough(raw: string): BreakthroughState | null {
+  const text = extractTagContent(raw, TAG_BREAKTHROUGH_OPEN, TAG_BREAKTHROUGH_CLOSE);
+  if (!text.trim()) return null;
+  const obj = safeJsonParse(text);
+  if (!obj || typeof obj !== "object") return null;
+  const o = obj as Record<string, unknown>;
+  const realmBreakthrough = o.realmBreakthrough === true ? true : undefined;
+  const breakthroughQuestStart = o.breakthroughQuestStart === true ? true : undefined;
+  const breakthroughFailed = o.breakthroughFailed === true ? true : undefined;
+  if (!realmBreakthrough && !breakthroughQuestStart && !breakthroughFailed) return null;
+  return { realmBreakthrough, breakthroughQuestStart, breakthroughFailed };
+}
+
+function parseUserState(raw: string): UserStateChange | null {
+  const userStateText = extractTagContent(raw, TAG_USER_STATE_OPEN, TAG_USER_STATE_CLOSE);
+  if (!userStateText.trim()) return null;
+  const obj = safeJsonParse(userStateText);
+  if (!obj || typeof obj !== "object") return null;
+  const o = obj as Record<string, unknown>;
+  const xiuweiIncrease = typeof o.xiuweiIncrease === "number" ? Math.max(0, Math.floor(o.xiuweiIncrease)) : undefined;
+  const rawMastery = o.gongfaMasteryChanges;
+  let gongfaMasteryChanges: Array<{ gongfaName: string; masteryExpIncrease: number }> | undefined;
+  if (Array.isArray(rawMastery)) {
+    const parsed = rawMastery
+      .map((e: unknown) => {
+        if (!e || typeof e !== "object") return null;
+        const m = e as Record<string, unknown>;
+        const gongfaName = String(m.gongfaName || "").trim();
+        const val = typeof m.masteryExpIncrease === "number" ? m.masteryExpIncrease
+          : typeof m.masteryIncrease === "number" ? m.masteryIncrease
+          : 0;
+        const masteryExpIncrease = Math.max(1, Math.floor(val));
+        return gongfaName ? { gongfaName, masteryExpIncrease } : null;
+      })
+      .filter((e): e is { gongfaName: string; masteryExpIncrease: number } => e !== null);
+    if (parsed.length > 0) gongfaMasteryChanges = parsed;
+  }
+  if (!xiuweiIncrease && !gongfaMasteryChanges) return null;
+  const result: UserStateChange = {};
+  if (xiuweiIncrease) result.xiuweiIncrease = xiuweiIncrease;
+  if (gongfaMasteryChanges) result.gongfaMasteryChanges = gongfaMasteryChanges;
+  return result;
+}
+
 export function parseStateAiResponse(raw: string): StateParsed {
   const worldLocation = extractWorldBody(raw);
 
-  const userStateText = extractTagContent(raw, TAG_USER_STATE_OPEN, TAG_USER_STATE_CLOSE);
+  const hpMp = parseHpMp(raw);
+  const userState = parseUserState(raw);
+  const timeAdvance = parseTimeAdvance(raw);
+  const breakthrough = parseBreakthrough(raw);
+
   const spiritStoneText = extractTagContent(raw, TAG_SPIRIT_STONE_OPEN, TAG_SPIRIT_STONE_CLOSE);
   const itemAddText = extractTagContent(raw, TAG_ITEM_ADD_OPEN, TAG_ITEM_ADD_CLOSE);
   const itemRemoveText = extractTagContent(raw, TAG_ITEM_REMOVE_OPEN, TAG_ITEM_REMOVE_CLOSE);
-
-  let userState: UserStateChange | null = null;
-  if (userStateText) {
-    const obj = safeJsonParse(userStateText);
-    if (obj && typeof obj === "object") {
-      const o = obj as Record<string, unknown>;
-      const hpPercent = typeof o.hpPercent === "number" ? Math.max(0, Math.min(100, Math.round(o.hpPercent))) : 100;
-      const mpPercent = typeof o.mpPercent === "number" ? Math.max(0, Math.min(100, Math.round(o.mpPercent))) : 100;
-      const xiuweiIncrease = typeof o.xiuweiIncrease === "number" ? Math.max(0, Math.floor(o.xiuweiIncrease)) : undefined;
-      const realmBreakthrough = o.realmBreakthrough === true ? true : undefined;
-      const breakthroughQuestStart = o.breakthroughQuestStart === true ? true : undefined;
-      const breakthroughFailed = o.breakthroughFailed === true ? true : undefined;
-      let timeAdvance: TimeDelta | undefined;
-      const rawTime = o.timeAdvance;
-      if (rawTime && typeof rawTime === "object") {
-        const td = rawTime as Record<string, unknown>;
-        const years = typeof td.years === "number" ? Math.max(0, Math.floor(td.years)) : undefined;
-        const months = typeof td.months === "number" ? Math.max(0, Math.floor(td.months)) : undefined;
-        const days = typeof td.days === "number" ? Math.max(0, Math.floor(td.days)) : undefined;
-        const hour = typeof td.hour === "number" ? Math.max(0, Math.floor(td.hour)) : undefined;
-        if (years || months || days || hour !== undefined) {
-          timeAdvance = { years, months, days, hour };
-        }
-      }
-      const rawMastery = o.gongfaMasteryChanges;
-      let gongfaMasteryChanges: Array<{ gongfaName: string; masteryExpIncrease: number }> | undefined;
-      if (Array.isArray(rawMastery)) {
-        const parsed = rawMastery
-          .map((e: unknown) => {
-            if (!e || typeof e !== "object") return null;
-            const m = e as Record<string, unknown>;
-            const gongfaName = String(m.gongfaName || "").trim();
-            const raw = typeof m.masteryExpIncrease === "number" ? m.masteryExpIncrease
-              : typeof m.masteryIncrease === "number" ? m.masteryIncrease
-              : 0;
-            const masteryExpIncrease = Math.max(1, Math.floor(raw));
-            return gongfaName ? { gongfaName, masteryExpIncrease } : null;
-          })
-          .filter((e): e is { gongfaName: string; masteryExpIncrease: number } => e !== null);
-        if (parsed.length > 0) gongfaMasteryChanges = parsed;
-      }
-      userState = { hpPercent, mpPercent, xiuweiIncrease, realmBreakthrough, breakthroughQuestStart, breakthroughFailed, timeAdvance, gongfaMasteryChanges };
-    }
-  }
 
   const stoneArr = tryParseJsonArray(spiritStoneText) ?? [];
   const spiritStoneChanges: SpiritStoneChange[] = stoneArr
@@ -335,7 +387,10 @@ export function parseStateAiResponse(raw: string): StateParsed {
 
   return {
     worldLocation,
+    hpMp,
     userState,
+    timeAdvance,
+    breakthrough,
     spiritStoneChanges,
     itemAdds,
     itemRemoves,

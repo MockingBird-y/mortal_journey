@@ -74,6 +74,7 @@ import { Character } from "./Character";
 import {
   DEFAULT_INVENTORY_SLOT_COUNT,
   INVENTORY_SLOT_EXPAND_STEP,
+  compactInventorySlotsInPlace,
 } from "./CharacterInventory";
 import { isTreasureItem } from "./CharacterEquip";
 import {
@@ -416,6 +417,7 @@ export class Protagonist extends Character {
     this.equippedSlots = buildEquippedSlotsFromParsed(parsed);
     this.gongfaSlots = buildGongfaSlotsFromParsed(parsed);
     this.inventorySlots = buildInventoryFromParsed(parsed, this.realm.major, DEFAULT_INVENTORY_SLOT_COUNT);
+    compactInventorySlotsInPlace(this);
 
     const { maxHp: capH, maxMp: capM } = this.computeMaxHpMp();
     this.maxHp = capH;
@@ -444,28 +446,37 @@ export class Protagonist extends Character {
    * @param state AI 状态生成解析结果（`StateParsed`）。
    */
   applyStateChanges(state: StateParsed): void {
-    if (state.userState) {
+    if (state.hpMp) {
       this.setCurrentHpMp(
-        Math.round(this.maxHp * state.userState.hpPercent / 100),
-        Math.round(this.maxMp * state.userState.mpPercent / 100),
+        Math.round(this.maxHp * state.hpMp.hpPercent / 100),
+        Math.round(this.maxMp * state.hpMp.mpPercent / 100),
       );
+    }
+
+    if (state.userState) {
       if (typeof state.userState.xiuweiIncrease === "number") {
         this.addXiuwei(state.userState.xiuweiIncrease);
-      }
-      if (state.userState.breakthroughQuestStart === true
-          && this.breakthroughStatus === "ready") {
-        this.setBreakthroughStatus("in_quest");
-      }
-      if (state.userState.breakthroughFailed === true
-          && this.breakthroughStatus === "in_quest") {
-        this.onBreakthroughFailed();
-      }
-      if (state.userState.realmBreakthrough === true) {
-        this.breakthrough();
       }
       if (state.userState.gongfaMasteryChanges
           && state.userState.gongfaMasteryChanges.length > 0) {
         this.applyGongfaMasteryExpChanges(state.userState.gongfaMasteryChanges);
+        const totalMasteryExp = state.userState.gongfaMasteryChanges
+          .reduce((sum, c) => sum + c.masteryExpIncrease, 0);
+        this.addXiuwei(totalMasteryExp);
+      }
+    }
+
+    if (state.breakthrough) {
+      if (state.breakthrough.breakthroughQuestStart === true
+          && this.breakthroughStatus === "ready") {
+        this.setBreakthroughStatus("in_quest");
+      }
+      if (state.breakthrough.breakthroughFailed === true
+          && this.breakthroughStatus === "in_quest") {
+        this.onBreakthroughFailed();
+      }
+      if (state.breakthrough.realmBreakthrough === true) {
+        this.breakthrough();
       }
     }
 
@@ -805,7 +816,7 @@ export class Protagonist extends Character {
     if (!Array.isArray(raw)) {
       return Array.from({ length: DEFAULT_INVENTORY_SLOT_COUNT }, () => null);
     }
-    return raw.map((x) => {
+    const result = raw.map((x) => {
       if (x == null) return null;
       const item = x as any;
       if (item && typeof item === "object" && "function" in item) {
@@ -816,6 +827,9 @@ export class Protagonist extends Character {
       }
       return item as InventoryStackItem;
     });
+    const carrier = { inventorySlots: result };
+    compactInventorySlotsInPlace(carrier);
+    return carrier.inventorySlots;
   }
 
   // ===================================================================

@@ -293,6 +293,7 @@ onUnmounted(() => {
                     :class="{
                       'mj-inventory-slot--empty': !inventorySlotParts(cell).filled,
                       'mj-inventory-slot--filled': inventorySlotParts(cell).filled,
+                      'mj-inventory-slot--lingshi': inventorySlotParts(cell).lingshi,
                     }"
                     :data-rarity="inventorySlotParts(cell).rarity"
                     :title="cell ? `${inventorySlotParts(cell).label}${inventorySlotParts(cell).qty ? ' ×' + inventorySlotParts(cell).qty : ''}\n（点击查看详情）` : `格 ${bi + 1}`"
