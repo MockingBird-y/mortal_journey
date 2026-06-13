@@ -16,9 +16,10 @@ import type {
 import type { CultivationRealm, EquipSlotKey, TraitEntry } from "../role_core/types/playInfo";
 import type { TreasureSpecialEffect } from "../role_core/types/treasure";
 import type { GongfaSpecialEffect } from "../role_core/types/gongfa";
+import { resolveGongfaEffectDisplay } from "../role_core/types/gongfa";
 import { gradeToTraitRarity, getGongfaMasteryProgress } from "./protagonistPanelDisplay";
 import { resolveEffectDisplay, type DerivedStatValues } from "../role_core/types/combatMechanics";
-import { GONGFA_MASTERY_ATTRI_MULT } from "../role_core/types/gameConstants";
+import { GONGFA_MASTERY_COMBAT_MULT, GONGFA_MASTERY_ATTRI_MULT } from "../role_core/types/gameConstants";
 import type { ItemGrade } from "../role_core/types/itemInfo";
 
 type ItemSpecialEffect = TreasureSpecialEffect | GongfaSpecialEffect;
@@ -37,12 +38,24 @@ function pushSpecialEffectSection(
   out.push({
     label: "特殊效果",
     get text() {
+      if ("battleEffects" in fn) {
+        const ds = derivedStatsGetter ? derivedStatsGetter() : undefined;
+        const getStat = (key: "strength" | "perception") => {
+          if (!ds) return 0;
+          return (ds as unknown as Record<string, number>)[key] ?? 0;
+        };
+        const masteryMult = mastery != null && mastery >= 1
+          ? GONGFA_MASTERY_COMBAT_MULT[Math.min(mastery, GONGFA_MASTERY_COMBAT_MULT.length) - 1]
+          : 1.0;
+        const display = resolveGongfaEffectDisplay(fn, getStat, masteryMult, mastery ?? 1);
+        return display;
+      }
       const stat = primaryStatGetter ? primaryStatGetter() : undefined;
       const name = statNameGetter ? statNameGetter() : undefined;
       const ds = derivedStatsGetter ? derivedStatsGetter() : undefined;
-      const display = resolveEffectDisplay(fn, grade as ItemGrade, stat, name, system, ds, mastery);
-      if ('mpCost' in fn && fn.mpCost > 0) {
-        return display + `\n法力消耗：${fn.mpCost}`;
+      const display = resolveEffectDisplay(fn as TreasureSpecialEffect, grade as ItemGrade, stat, name, system, ds, mastery);
+      if ('mpCost' in fn && (fn as Record<string, unknown>).mpCost as number > 0) {
+        return display + `\n法力消耗：${(fn as Record<string, unknown>).mpCost}`;
       }
       return display;
     },

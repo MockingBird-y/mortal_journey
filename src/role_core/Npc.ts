@@ -232,7 +232,39 @@ export class Npc extends Character {
     const base: GongfaSlotsState = [null, null, null, null, null, null, null, null];
     if (!Array.isArray(raw)) return base;
     for (let i = 0; i < GONGFA_SLOT_COUNT; i++) {
-      base[i] = (raw[i] ?? null) as GongfaItemDefinition | null;
+      const item = (raw[i] ?? null) as Record<string, any> | null;
+      if (item && typeof item === "object" && item.function && typeof item.function === "object") {
+        if (!("battleEffects" in item.function) && "components" in item.function) {
+          const fn: any = item.function;
+          const migrated: any = {
+            name: fn.name,
+            type: fn.type,
+            mpCost: typeof fn.mpCost === "number" ? fn.mpCost : 0,
+            cooldown: typeof fn.cooldown === "number" ? fn.cooldown : 0,
+            battleEffects: [],
+          };
+          if (Array.isArray(fn.components)) {
+            for (const comp of fn.components) {
+              if (comp && comp.mechanic) {
+                const m = String(comp.mechanic);
+                const bv = typeof comp.baseValue === "number" ? comp.baseValue : 0;
+                const sr = typeof comp.scalingRatio === "number" ? comp.scalingRatio : 0;
+                const ss = comp.scalingStat === "perception" ? "perception" : "strength";
+                if (m.startsWith("dmg_")) {
+                  migrated.battleEffects.push({ type: "dealDamage", damageType: ss === "perception" ? "magical" : "physical", baseValue: bv, scalingRatio: sr, scalingStat: ss });
+                } else {
+                  migrated.battleEffects.push({ type: "dealDamage", damageType: "physical", baseValue: bv, scalingRatio: sr, scalingStat: ss });
+                }
+              }
+            }
+          }
+          if (migrated.battleEffects.length === 0) {
+            migrated.battleEffects = [{ type: "dealDamage", damageType: "physical", baseValue: 50, scalingRatio: 1.0, scalingStat: "strength" }];
+          }
+          item.function = migrated;
+        }
+      }
+      base[i] = item as GongfaItemDefinition | null;
     }
     return base;
   }

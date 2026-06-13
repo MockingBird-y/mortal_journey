@@ -20,10 +20,14 @@ import { rollGongfaFunction, normalizeGongfaSystem, normalizeGongfaRole } from "
 type SpecialEffect = TreasureSpecialEffect | GongfaSpecialEffect;
 
 function migrateSpecialEffect(fn: any): any {
-  if (fn && typeof fn === "object" && "mechanic" in fn && "desc" in fn && !("components" in fn)) {
+  if (!fn || typeof fn !== "object") return fn;
+
+  if ("battleEffects" in fn) return fn;
+
+  if ("mechanic" in fn && "desc" in fn && !("components" in fn)) {
     const migrated: any = {
       name: fn.name,
-      components: [{ mechanic: fn.mechanic, trigger: fn.type === "主动" ? "active" : "passive", desc: fn.desc }],
+      battleEffects: [{ type: "dealDamage" as const, damageType: "physical" as const, baseValue: 50, scalingRatio: 1.0, scalingStat: "strength" as const }],
     };
     if ("type" in fn) migrated.type = fn.type;
     if (typeof fn.mpCost === "number") migrated.mpCost = fn.mpCost;
@@ -31,12 +35,38 @@ function migrateSpecialEffect(fn: any): any {
     migrated.cooldown = 0;
     return migrated;
   }
-  if (fn && typeof fn === "object" && typeof fn.mpCost !== "number") {
-    fn.mpCost = 0;
+
+  if ("components" in fn && !("battleEffects" in fn)) {
+    const migrated: any = {
+      name: fn.name,
+      type: fn.type,
+      mpCost: typeof fn.mpCost === "number" ? fn.mpCost : 0,
+      cooldown: typeof fn.cooldown === "number" ? fn.cooldown : 0,
+      battleEffects: [],
+    };
+    if (Array.isArray(fn.components)) {
+      for (const comp of fn.components) {
+        if (comp && comp.mechanic) {
+          const m = String(comp.mechanic);
+          const bv = typeof comp.baseValue === "number" ? comp.baseValue : 0;
+          const sr = typeof comp.scalingRatio === "number" ? comp.scalingRatio : 0;
+          const ss = comp.scalingStat === "perception" ? "perception" as const : "strength" as const;
+          if (m.startsWith("dmg_")) {
+            migrated.battleEffects.push({ type: "dealDamage", damageType: ss === "perception" ? "magical" : "physical", baseValue: bv, scalingRatio: sr, scalingStat: ss });
+          } else {
+            migrated.battleEffects.push({ type: "dealDamage", damageType: "physical", baseValue: bv, scalingRatio: sr, scalingStat: ss });
+          }
+        }
+      }
+    }
+    if (migrated.battleEffects.length === 0) {
+      migrated.battleEffects = [{ type: "dealDamage", damageType: "physical", baseValue: 50, scalingRatio: 1.0, scalingStat: "strength" }];
+    }
+    return migrated;
   }
-  if (fn && typeof fn === "object" && typeof fn.cooldown !== "number") {
-    fn.cooldown = 0;
-  }
+
+  if (typeof fn.mpCost !== "number") fn.mpCost = 0;
+  if (typeof fn.cooldown !== "number") fn.cooldown = 0;
   return fn;
 }
 import type {

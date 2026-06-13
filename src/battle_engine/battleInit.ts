@@ -1,270 +1,284 @@
-import type { BattleCombatant, BattleSkill, BattleElixir, BattleEffect } from "./types";
+import type { BattleCombatant, BattleSkill, BattleElixir, BattleEffect, SkillEffect, DamageType, ModifierType, CcType, StatusType, SummonTrigger } from "./types";
 import type { BattleTriggerEntry } from "../ai/state_generate";
-import type { EquippedSlotsState, GongfaSlotsState, PrimaryStatKey } from "../role_core/types/playInfo";
+import type { GongfaSlotsState, EquippedSlotsState } from "../role_core/types/playInfo";
 import type { InventoryStackItem, ElixirItemDefinition } from "../role_core/types/itemInfo";
-import type { EffectComponent } from "../role_core/types/combatMechanics";
+import type { GongfaBattleEffect, LayerValue } from "../role_core/types/gongfa";
+import { atLayer, resolveGongfaBattleEffectDesc } from "../role_core/types/gongfa";
 import { protagonist } from "../role_core/Protagonist";
 import { Npc } from "../role_core/Npc";
 import { npcStore } from "../role_core/npcStore";
 import { gameLog } from "../log/gameLog";
 import { GONGFA_SLOT_COUNT, GONGFA_MASTERY_COMBAT_MULT } from "../role_core/types/gameConstants";
-import { SYSTEM_DAMAGE_STAT } from "../role_core/types/combatMechanics";
 import { generateId as generateEffectId } from "./formulas";
-import type { ItemGrade } from "../role_core/types/itemInfo";
 
 function generateId(team: "ally" | "enemy", index: number): string {
   return `${team}_${index}`;
 }
 
-function buildBattleSkills(gongfaSlots: GongfaSlotsState): BattleSkill[] {
+function getMasteryMult(mastery?: number): number {
+  if (mastery != null && mastery >= 1) {
+    return GONGFA_MASTERY_COMBAT_MULT[Math.min(mastery, GONGFA_MASTERY_COMBAT_MULT.length) - 1];
+  }
+  return 1.0;
+}
+
+function bakeScalingValue(
+  eff: GongfaBattleEffect,
+  getStat: (key: string) => number,
+  masteryMult: number,
+  layer: number,
+): number | undefined {
+  if (!("baseValue" in eff) || !("scalingRatio" in eff) || !("scalingStat" in eff)) {
+    return undefined;
+  }
+  const bv = atLayer(eff.baseValue as LayerValue, layer);
+  const sr = atLayer(eff.scalingRatio as LayerValue, layer);
+  const stat = getStat(eff.scalingStat);
+  return Math.round((bv + sr * stat) * masteryMult);
+}
+
+function convertBattleEffectToSkillEffect(
+  eff: GongfaBattleEffect,
+  getStat: (key: string) => number,
+  masteryMult: number,
+  layer: number,
+): SkillEffect {
+  const v = bakeScalingValue(eff, getStat, masteryMult, layer);
+
+  switch (eff.type) {
+    case "dealDamage":
+      return { type: "dealDamage", damageType: eff.damageType as DamageType, value: v ?? 0 };
+    case "dealDamageExecute":
+      return { type: "dealDamageExecute", damageType: eff.damageType as DamageType, value: v ?? 0, threshold: eff.threshold, bonusPercent: eff.bonusPercent };
+    case "dealDamagePierce":
+      return { type: "dealDamagePierce", value: v ?? 0 };
+    case "heal":
+      return { type: "heal", value: v ?? 0 };
+    case "lifesteal":
+      return { type: "lifesteal", damageType: eff.damageType as DamageType, damagePercent: atLayer(eff.damagePercent, layer) };
+    case "applyModifier":
+      return { type: "applyModifier", modifierType: eff.modifierType as ModifierType, value: atLayer(eff.value, layer), duration: eff.duration, maxStacks: eff.maxStacks, targetSelf: eff.targetSelf };
+    case "applyCc":
+      return { type: "applyCc", ccType: eff.ccType as CcType, chance: atLayer(eff.chance, layer), duration: eff.duration };
+    case "applyStatus":
+      return { type: "applyStatus", statusType: eff.statusType as StatusType, tickValue: atLayer(eff.tickValue, layer), isPercent: eff.isPercent, duration: eff.duration, maxStacks: eff.maxStacks };
+    case "shield":
+      return { type: "shield", value: v ?? 0 };
+    case "counter":
+      return { type: "counter", damage: v ?? 0, duration: eff.duration };
+    case "reflect":
+      return { type: "reflect", percent: atLayer(eff.percent, layer), duration: eff.duration };
+    case "damageShare":
+      return { type: "damageShare", percent: atLayer(eff.percent, layer), duration: eff.duration };
+    case "deathWard":
+      return { type: "deathWard", duration: eff.duration };
+    case "extraAction":
+      return { type: "extraAction", chance: eff.chance };
+    case "gaugeManipulate":
+      return { type: "gaugeManipulate", value: eff.value };
+    case "stealth":
+      return { type: "stealth", duration: eff.duration };
+    case "cleanse":
+      return { type: "cleanse" };
+    case "dispel":
+      return { type: "dispel" };
+    case "revive":
+      return { type: "revive", hpPercent: eff.hpPercent };
+    case "summon":
+      return { type: "summon", name: eff.name, trigger: eff.trigger as SummonTrigger, effect: { type: "dealDamage", damageType: "physical", value: atLayer(eff.summonDamage, layer) }, duration: eff.duration };
+  }
+}
+
+function isTargetEnemy(eff: GongfaBattleEffect): boolean {
+  switch (eff.type) {
+    case "dealDamage": case "dealDamageExecute": case "dealDamagePierce":
+    case "lifesteal": case "applyCc": case "applyStatus":
+    case "gaugeManipulate": case "dispel":
+      return true;
+    case "applyModifier":
+      return !eff.targetSelf;
+    default:
+      return false;
+  }
+}
+
+function needsTarget(eff: GongfaBattleEffect): boolean {
+  switch (eff.type) {
+    case "dealDamage": case "dealDamageExecute": case "dealDamagePierce":
+    case "lifesteal": case "applyCc": case "applyStatus":
+    case "gaugeManipulate": case "dispel":
+      return true;
+    case "applyModifier":
+      return !eff.targetSelf;
+    default:
+      return false;
+  }
+}
+function buildBattleSkills(gongfaSlots: GongfaSlotsState, getStat: (key: string) => number): BattleSkill[] {
   const skills: BattleSkill[] = [];
+
   for (const gf of gongfaSlots) {
     if (!gf || !gf.function) continue;
     if (gf.function.type !== "主动") continue;
 
-    const masteryMult = gf.mastery != null && gf.mastery >= 1
-      ? GONGFA_MASTERY_COMBAT_MULT[Math.min(gf.mastery, GONGFA_MASTERY_COMBAT_MULT.length) - 1]
-      : 1.0;
-
-    const system = gf.system as string | undefined;
-    const isMagical = system ? SYSTEM_DAMAGE_STAT[system] === "perception" : false;
-
-    const bakedComponents = gf.function.components.map(comp => {
-      if (comp.noMasteryScaling || masteryMult === 1.0) return { ...comp };
-      return {
-        ...comp,
-        baseValue: comp.baseValue != null ? Math.round(comp.baseValue * masteryMult) : undefined,
-        scalingRatio: comp.scalingRatio != null ? comp.scalingRatio * masteryMult : undefined,
-      };
-    });
-
-    const hasOffensive = bakedComponents.some(
-      c => c.mechanic?.startsWith("dmg_") || c.mechanic?.startsWith("debuff_") || c.mechanic?.startsWith("cc_"),
+    const layer = gf.mastery ?? 1;
+    const masteryMult = getMasteryMult(layer);
+    const effects = gf.function.battleEffects.map(eff =>
+      convertBattleEffectToSkillEffect(eff, getStat, masteryMult, layer),
     );
 
-    const isAoE = bakedComponents.some(c => c.mechanic === "dmg_aoe");
+    const hasOffensive = gf.function.battleEffects.some(isTargetEnemy);
+    const hasNeedTarget = gf.function.battleEffects.some(needsTarget);
 
-    const effects = convertComponentsToSkillEffects(bakedComponents, system);
+    const getStatForDesc = (key: "strength" | "perception") => getStat(key);
+    const desc = gf.function.battleEffects
+      .map(e => resolveGongfaBattleEffectDesc(e, getStatForDesc, masteryMult, layer))
+      .join("；");
 
     skills.push({
       name: gf.name,
-      desc: gf.function.components.map(c => c.desc ?? "").join("；"),
-      mpCost: gf.function.mpCost ?? 0,
+      desc,
+      mpCost: atLayer(gf.function.mpCost ?? 0, layer),
       actionCost: 100,
       cooldown: gf.function.cooldown ?? 0,
-      needTarget: hasOffensive,
+      needTarget: hasNeedTarget,
       targetTeam: hasOffensive ? "enemy" : "ally",
-      isAoE,
+      isAoE: false,
       effects,
     });
   }
   return skills;
 }
 
-function convertComponentsToSkillEffects(
-  components: Array<EffectComponent & { baseValue?: number; scalingRatio?: number }>,
-  system: string | undefined,
-): import("./types").SkillEffect[] {
-  const isMagical = system ? SYSTEM_DAMAGE_STAT[system] === "perception" : false;
-  const damageType: import("./types").DamageType = isMagical ? "magical" : "physical";
-
-  return components.map(comp => {
-    const mechanic = comp.mechanic;
-    if (!mechanic) {
-      if (comp.status) {
-        return convertStatusToSkillEffect(comp);
-      }
-      return { type: "shield" as const, value: 0 };
-    }
-
-    switch (mechanic) {
-      case "dmg_single":
-        return { type: "dealDamage" as const, damageType, value: comp.baseValue ?? 0 };
-      case "dmg_aoe":
-        return { type: "dealDamage" as const, damageType, value: comp.baseValue ?? 0 };
-      case "dmg_dot":
-        return { type: "applyStatus" as const, statusType: "burn" as const, tickValue: Math.round((comp.baseValue ?? 0) / 3), isPercent: false, duration: 3, maxStacks: 5 };
-      case "dmg_dot_pct":
-        return { type: "applyStatus" as const, statusType: "poison" as const, tickValue: comp.baseValue ? Math.round(comp.baseValue * 100) : 3, isPercent: true, duration: 3, maxStacks: 5 };
-      case "dmg_execute":
-        return { type: "dealDamageExecute" as const, damageType, value: comp.baseValue ?? 0, threshold: 0.5, bonusPercent: 50 };
-      case "dmg_pierce":
-        return { type: "dealDamagePierce" as const, value: comp.baseValue ?? 0 };
-      case "buff_atk":
-      case "buff_def":
-      case "buff_crit":
-      case "buff_crit_dmg":
-      case "buff_speed":
-      case "buff_dodge":
-      case "buff_stat":
-      case "buff_ramp": {
-        const modifierMap: Record<string, import("./types").ModifierType> = {
-          buff_atk: "damageDealt",
-          buff_def: "damageTaken",
-          buff_crit: "critRate",
-          buff_crit_dmg: "critDmg",
-          buff_speed: "speed",
-          buff_dodge: "dodgeRate",
-          buff_stat: "damageDealt",
-          buff_ramp: "damageDealt",
-        };
-        return { type: "applyModifier" as const, modifierType: modifierMap[mechanic] ?? "damageDealt", value: (comp.baseValue ?? 0) * 100, duration: comp.duration ?? 2, maxStacks: mechanic === "buff_ramp" ? 10 : 1 };
-      }
-      case "buff_shield":
-        return { type: "shield" as const, value: comp.baseValue ?? 0 };
-      case "buff_stealth":
-        return { type: "stealth" as const, duration: comp.duration ?? 1 };
-      case "debuff_def":
-        return { type: "applyModifier" as const, modifierType: "damageTaken" as const, value: -(comp.baseValue ?? 0) * 100, duration: comp.duration ?? 2, maxStacks: 1 };
-      case "debuff_atk":
-        return { type: "applyModifier" as const, modifierType: "damageDealt" as const, value: -(comp.baseValue ?? 0) * 100, duration: comp.duration ?? 2, maxStacks: 1 };
-      case "debuff_speed":
-        return { type: "applyModifier" as const, modifierType: "speed" as const, value: -(comp.baseValue ?? 0) * 100, duration: comp.duration ?? 2, maxStacks: 1 };
-      case "debuff_heal":
-        return { type: "applyStatus" as const, statusType: "burn" as const, tickValue: (comp.baseValue ?? 0) * 100, isPercent: true, duration: comp.duration ?? 2, maxStacks: 1 };
-      case "debuff_mp":
-        return { type: "applyStatus" as const, statusType: "mpDrain" as const, tickValue: (comp.baseValue ?? 0) * 100, isPercent: true, duration: comp.duration ?? 2, maxStacks: 1 };
-      case "debuff_mark":
-        return { type: "applyModifier" as const, modifierType: "damageTaken" as const, value: (comp.baseValue ?? 0) * 100, duration: comp.duration ?? 3, maxStacks: 5 };
-      case "cc_freeze":
-        return { type: "applyCc" as const, ccType: "freeze" as const, chance: comp.baseValue ?? 0.5, duration: comp.duration ?? 1 };
-      case "cc_stun":
-        return { type: "applyCc" as const, ccType: "stun" as const, chance: comp.baseValue ?? 0.5, duration: comp.duration ?? 1 };
-      case "cc_fear":
-        return { type: "applyCc" as const, ccType: "fear" as const, chance: comp.baseValue ?? 0.5, duration: comp.duration ?? 1 };
-      case "cc_root":
-        return { type: "applyCc" as const, ccType: "stun" as const, chance: comp.baseValue ?? 0.5, duration: comp.duration ?? 1 };
-      case "cc_silence":
-        return { type: "applyCc" as const, ccType: "silence" as const, chance: comp.baseValue ?? 0.5, duration: comp.duration ?? 1 };
-      case "heal_single":
-        return { type: "heal" as const, value: comp.baseValue ?? 0 };
-      case "heal_aoe":
-        return { type: "heal" as const, value: comp.baseValue ?? 0 };
-      case "heal_lifesteal":
-        return { type: "lifesteal" as const, damageType, damagePercent: 50 };
-      case "heal_lifesteal_pct":
-        return { type: "lifesteal" as const, damageType, damagePercent: 30 };
-      case "summon":
-        return { type: "summon" as const, name: "召唤物", trigger: "on_attack" as const, effect: { type: "dealDamage" as const, damageType: "physical" as const, value: comp.baseValue ?? 0 }, duration: 3 };
-      case "cleanse":
-        return { type: "cleanse" as const };
-      case "revive":
-        return { type: "revive" as const, hpPercent: (comp.baseValue ?? 30) * 100 };
-      case "kill_bonus":
-        return { type: "applyModifier" as const, modifierType: "damageDealt" as const, value: (comp.baseValue ?? 0) * 100, duration: 99, maxStacks: 99 };
-      case "death_ward":
-        return { type: "deathWard" as const, duration: comp.duration ?? 99 };
-      case "sacrifice":
-        return { type: "dealDamagePierce" as const, value: 0 };
-      case "extra_action":
-        return { type: "extraAction" as const, chance: comp.baseValue ?? 0.3 };
-      case "reflect":
-        return { type: "reflect" as const, percent: (comp.baseValue ?? 0) * 100, duration: 3 };
-      case "counter":
-        return { type: "counter" as const, damage: comp.baseValue ?? 0, duration: 2 };
-      case "damage_share":
-        return { type: "damageShare" as const, percent: (comp.baseValue ?? 0) * 100, duration: 3 };
-      case "dispel":
-        return { type: "dispel" as const };
-      default:
-        return { type: "shield" as const, value: 0 };
-    }
-  });
-}
-
-function convertStatusToSkillEffect(comp: EffectComponent): import("./types").SkillEffect {
-  const statusMap: Record<string, import("./types").StatusType> = {
-    poison: "poison",
-    burn: "burn",
-    corrode: "mpDrain",
-    shock: "burn",
-    frost: "burn",
-    thunder_seal: "burn",
-    fire_seed: "burn",
-    sword_intent: "bleed",
-  };
-  const status = statusMap[comp.status ?? ""] ?? "burn";
-  return { type: "applyStatus", statusType: status, tickValue: comp.baseValue ?? 3, isPercent: status === "poison", duration: comp.duration ?? 3, maxStacks: 5 };
-}
-
-function extractPassiveEffects(
-  equippedSlots: EquippedSlotsState,
-  gongfaSlots: GongfaSlotsState,
+function convertBattleEffectToInitEffect(
+  eff: GongfaBattleEffect,
+  getStat: (key: string) => number,
+  masteryMult: number,
+  layer: number,
+  effectName: string,
   combatantId: string,
-): BattleEffect[] {
-  const effects: BattleEffect[] = [];
-
-  for (const tr of equippedSlots) {
-    if (!tr || !tr.function) continue;
-    for (const comp of tr.function.components) {
-      if (comp.trigger === "active") continue;
-
-      if (comp.mechanic) {
-        const skillEffects = convertComponentsToSkillEffects([comp as any], undefined);
-        for (const se of skillEffects) {
-          effects.push(convertSkillEffectToBattleEffect(se, tr.function.name, combatantId, tr.grade));
-        }
-      }
-    }
-  }
-
-  for (const gf of gongfaSlots) {
-    if (!gf || !gf.function) continue;
-    for (const comp of gf.function.components) {
-      if (comp.trigger === "active") continue;
-
-      if (comp.mechanic) {
-        const skillEffects = convertComponentsToSkillEffects([comp as any], gf.system as string | undefined);
-        for (const se of skillEffects) {
-          effects.push(convertSkillEffectToBattleEffect(se, gf.function.name, combatantId, gf.grade));
-        }
-      }
-    }
-  }
-
-  return effects;
-}
-
-function convertSkillEffectToBattleEffect(
-  se: import("./types").SkillEffect,
-  name: string,
-  sourceId: string,
-  grade: ItemGrade,
 ): BattleEffect {
+  const v = bakeScalingValue(eff, getStat, masteryMult, layer);
   const base: BattleEffect = {
     id: generateEffectId(),
-    name,
-    sourceId,
+    name: effectName,
+    sourceId: combatantId,
     category: "special",
     remainingDuration: 2,
     stacks: 1,
     maxStacks: 1,
   };
 
-  switch (se.type) {
+  switch (eff.type) {
     case "applyModifier":
-      return { ...base, category: "modifier", modifierType: se.modifierType, modifierValue: se.value, remainingDuration: se.duration, maxStacks: se.maxStacks };
+      return { ...base, category: "modifier", modifierType: eff.modifierType as ModifierType, modifierValue: atLayer(eff.value, layer), remainingDuration: eff.duration, maxStacks: eff.maxStacks };
     case "applyCc":
-      return { ...base, category: "cc", ccType: se.ccType, remainingDuration: se.duration };
-    case "applyStatus":
-      return { ...base, category: "dot", tickValue: se.tickValue, tickIsPercent: se.isPercent, tickResource: "hp", statusType: se.statusType, remainingDuration: se.duration, maxStacks: se.maxStacks };
-    case "summon":
-      return { ...base, category: "summon", summonTrigger: se.trigger, summonEffect: se.effect, remainingDuration: se.duration, maxStacks: Infinity };
-    case "deathWard":
-      return { ...base, specialType: "deathWard", remainingDuration: se.duration };
-    case "counter":
-      return { ...base, specialType: "counter", specialValue: se.damage, remainingDuration: se.duration };
-    case "reflect":
-      return { ...base, specialType: "reflect", specialValue: se.percent, remainingDuration: se.duration };
-    case "damageShare":
-      return { ...base, specialType: "damageShare", specialValue: se.percent, remainingDuration: se.duration };
-    case "stealth":
-      return { ...base, specialType: "stealth", remainingDuration: se.duration };
+      return { ...base, category: "cc", ccType: eff.ccType as CcType, remainingDuration: eff.duration };
+    case "applyStatus": {
+      const isDoT = eff.statusType === "poison" || eff.statusType === "burn" || eff.statusType === "bleed" || eff.statusType === "mpDrain";
+      return { ...base, category: isDoT ? "dot" : "hot", tickValue: atLayer(eff.tickValue, layer), tickIsPercent: eff.isPercent, tickResource: eff.statusType === "mpDrain" ? "mp" : "hp", statusType: eff.statusType as StatusType, remainingDuration: eff.duration, maxStacks: eff.maxStacks };
+    }
     case "shield":
-      return { ...base, category: "modifier", modifierType: "damageTaken", modifierValue: 0, remainingDuration: 99 };
-    default:
+      return { ...base, specialType: "shield", specialValue: v ?? 0, remainingDuration: 99 };
+    case "counter":
+      return { ...base, specialType: "counter", specialValue: v ?? 0, remainingDuration: eff.duration };
+    case "reflect":
+      return { ...base, specialType: "reflect", specialValue: atLayer(eff.percent, layer), remainingDuration: eff.duration };
+    case "damageShare":
+      return { ...base, specialType: "damageShare", specialValue: atLayer(eff.percent, layer), remainingDuration: eff.duration };
+    case "deathWard":
+      return { ...base, specialType: "deathWard", remainingDuration: eff.duration };
+    case "stealth":
+      return { ...base, specialType: "stealth", remainingDuration: eff.duration };
+    case "extraAction":
+      return { ...base, specialType: "extraAction", specialValue: Math.round(eff.chance * 100), remainingDuration: 99 };
+    case "dealDamage":
+    case "dealDamageExecute":
+    case "dealDamagePierce":
+    case "heal":
+    case "lifesteal":
+      return { ...base, category: "modifier", modifierType: "damageDealt" as ModifierType, modifierValue: 0, remainingDuration: 99 };
+    case "gaugeManipulate":
+      return base;
+    case "cleanse":
+    case "dispel":
+    case "revive":
+    case "summon":
       return base;
   }
+}
+
+function extractPassiveEffects(
+  gongfaSlots: GongfaSlotsState,
+  getStat: (key: string) => number,
+  combatantId: string,
+): BattleEffect[] {
+  const effects: BattleEffect[] = [];
+
+  for (const gf of gongfaSlots) {
+    if (!gf || !gf.function) continue;
+    if (gf.function.type !== "被动") continue;
+
+    const layer = gf.mastery ?? 1;
+    const masteryMult = getMasteryMult(layer);
+    for (const eff of gf.function.battleEffects) {
+      effects.push(convertBattleEffectToInitEffect(eff, getStat, masteryMult, layer, gf.function.name, combatantId));
+    }
+  }
+
+  return effects;
+}
+
+function extractTreasurePassiveEffects(
+  equippedSlots: EquippedSlotsState,
+  combatantId: string,
+): BattleEffect[] {
+  const effects: BattleEffect[] = [];
+
+  for (const tr of equippedSlots) {
+    if (!tr || !tr.function) continue;
+    if (!("components" in tr.function)) continue;
+    for (const comp of tr.function.components as unknown as Array<Record<string, unknown>>) {
+      if (comp.trigger === "active") continue;
+      if (comp.mechanic) {
+        const mechanic = String(comp.mechanic);
+        const baseValue = typeof comp.baseValue === "number" ? comp.baseValue : 0;
+        const duration = typeof comp.duration === "number" ? comp.duration : 99;
+
+        switch (mechanic) {
+          case "buff_atk":
+            effects.push({ id: generateEffectId(), name: tr.function.name, sourceId: combatantId, category: "modifier", remainingDuration: duration, stacks: 1, maxStacks: 1, modifierType: "damageDealt", modifierValue: Math.round(baseValue * 100) });
+            break;
+          case "buff_def":
+            effects.push({ id: generateEffectId(), name: tr.function.name, sourceId: combatantId, category: "modifier", remainingDuration: duration, stacks: 1, maxStacks: 1, modifierType: "damageTaken", modifierValue: -Math.round(baseValue * 100) });
+            break;
+          case "buff_speed":
+            effects.push({ id: generateEffectId(), name: tr.function.name, sourceId: combatantId, category: "modifier", remainingDuration: duration, stacks: 1, maxStacks: 1, modifierType: "speed", modifierValue: Math.round(baseValue * 100) });
+            break;
+          case "buff_crit":
+            effects.push({ id: generateEffectId(), name: tr.function.name, sourceId: combatantId, category: "modifier", remainingDuration: duration, stacks: 1, maxStacks: 1, modifierType: "critRate", modifierValue: Math.round(baseValue * 100) });
+            break;
+          case "buff_crit_dmg":
+            effects.push({ id: generateEffectId(), name: tr.function.name, sourceId: combatantId, category: "modifier", remainingDuration: duration, stacks: 1, maxStacks: 1, modifierType: "critDmg", modifierValue: Math.round(baseValue * 100) });
+            break;
+          case "death_ward":
+            effects.push({ id: generateEffectId(), name: tr.function.name, sourceId: combatantId, category: "special", remainingDuration: duration, stacks: 1, maxStacks: 1, specialType: "deathWard" });
+            break;
+          case "reflect":
+            effects.push({ id: generateEffectId(), name: tr.function.name, sourceId: combatantId, category: "special", remainingDuration: duration, stacks: 1, maxStacks: 1, specialType: "reflect", specialValue: Math.round(baseValue * 100) });
+            break;
+          case "counter":
+            effects.push({ id: generateEffectId(), name: tr.function.name, sourceId: combatantId, category: "special", remainingDuration: duration, stacks: 1, maxStacks: 1, specialType: "counter", specialValue: baseValue });
+            break;
+          case "buff_shield":
+            effects.push({ id: generateEffectId(), name: tr.function.name, sourceId: combatantId, category: "special", remainingDuration: 99, stacks: 1, maxStacks: 1, specialType: "shield", specialValue: baseValue });
+            break;
+        }
+      }
+    }
+  }
+
+  return effects;
 }
 
 function extractRecoveryElixirs(inventorySlots: Array<InventoryStackItem | null>): BattleElixir[] {
@@ -291,9 +305,13 @@ function createProtagonistCombatant(): BattleCombatant | null {
   if (!p) return null;
 
   const primaryStats = p.getPrimaryStats();
-  const skills = buildBattleSkills(p.gongfaSlots);
+  const getStat = (key: string) => (primaryStats as Record<string, number>)[key] ?? 0;
+  const skills = buildBattleSkills(p.gongfaSlots, getStat);
   const elixirs = extractRecoveryElixirs(p.inventorySlots);
-  const passiveEffects: BattleEffect[] = [];
+  const passiveEffects: BattleEffect[] = [
+    ...extractPassiveEffects(p.gongfaSlots, getStat, generateId("ally", 0)),
+    ...extractTreasurePassiveEffects(p.equippedSlots, generateId("ally", 0)),
+  ];
 
   return {
     id: generateId("ally", 0),
@@ -332,11 +350,17 @@ function createProtagonistCombatant(): BattleCombatant | null {
 
 function createNpcCombatant(npc: Npc, team: "ally" | "enemy", index: number): BattleCombatant {
   const primaryStats = npc.getPrimaryStats();
-  const skills = buildBattleSkills(npc.gongfaSlots);
+  const getStat = (key: string) => (primaryStats as Record<string, number>)[key] ?? 0;
+  const skills = buildBattleSkills(npc.gongfaSlots, getStat);
   const elixirs = extractRecoveryElixirs(npc.inventorySlots);
+  const id = generateId(team, index);
+  const passiveEffects: BattleEffect[] = [
+    ...extractPassiveEffects(npc.gongfaSlots, getStat, id),
+    ...extractTreasurePassiveEffects(npc.equippedSlots, id),
+  ];
 
   return {
-    id: generateId(team, index),
+    id,
     name: npc.displayName,
     team,
     isProtagonist: false,
@@ -365,7 +389,7 @@ function createNpcCombatant(npc: Npc, team: "ally" | "enemy", index: number): Ba
     cooldowns: new Array(Math.max(GONGFA_SLOT_COUNT, skills.length)).fill(0),
     elixirs,
 
-    effects: [],
+    effects: passiveEffects,
     sourceNpcName: npc.displayName,
     realm: { ...npc.realm },
     powerTier: npc.powerTier,

@@ -160,6 +160,14 @@ export class EffectManager {
     return combatant.effects.filter(e => e.category === "summon" && e.summonTrigger === trigger);
   }
 
+  applyInitialShields(combatant: BattleCombatant): void {
+    for (const eff of combatant.effects) {
+      if (eff.specialType === "shield" && eff.specialValue) {
+        combatant.shield += eff.specialValue;
+      }
+    }
+  }
+
   makeEffect(overrides: Partial<BattleEffect> & Pick<BattleEffect, "name" | "sourceId" | "category">): BattleEffect {
     return {
       id: generateId(),

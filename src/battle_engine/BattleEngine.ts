@@ -46,6 +46,9 @@ export class BattleEngine implements BattleEngineLike {
 
   private startBattle(): void {
     this.state.phase = "running";
+    for (const c of [...this.state.allies, ...this.state.enemies]) {
+      this.effectManager.applyInitialShields(c);
+    }
     this.eventDispatcher.emit("battle_start", {
       event: "battle_start", allies: this.state.allies, enemies: this.state.enemies, turn: 0,
     });

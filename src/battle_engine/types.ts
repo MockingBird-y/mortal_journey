@@ -212,7 +212,7 @@ export interface BattleEffect {
   summonTrigger?: SummonTrigger;
   summonEffect?: SummonEffectPayload;
 
-  specialType?: "deathWard" | "counter" | "reflect" | "damageShare" | "stealth" | "extraAction";
+  specialType?: "deathWard" | "counter" | "reflect" | "damageShare" | "stealth" | "extraAction" | "shield";
   specialValue?: number;
 }
 
