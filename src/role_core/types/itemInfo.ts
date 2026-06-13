@@ -15,7 +15,6 @@ export type { TreasureSpecialEffect } from "./treasure";
 export type { GongfaItemDefinition } from "./gongfa";
 export type { GongfaSpecialEffect, GongfaSystem, GongfaRole } from "./gongfa";
 export type { ElixirItemDefinition, ElixirEffectType, ElixirEffects } from "./elixir";
-export type { MechanicId, EffectComponent, EffectTrigger, StatusId } from "./combatMechanics";
 
 // ---------------------------------------------------------------------------
 // 共用枚举与基底

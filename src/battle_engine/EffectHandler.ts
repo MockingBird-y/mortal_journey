@@ -212,7 +212,10 @@ export class EffectHandler {
   private doLifesteal(eff: SkillEffect & { type: "lifesteal" }, ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
     if (!ctx.target || ctx.target.isDead) return [];
     const entries: BattleLogEntry[] = [];
-    const dmgValue = Math.max(1, Math.round(ctx.actor.stats.physAttack * eff.damagePercent / 100));
+    const baseAttack = eff.damageType === "magical"
+      ? ctx.actor.stats.magAttack
+      : ctx.actor.stats.physAttack;
+    const dmgValue = Math.max(1, Math.round(baseAttack * eff.damagePercent / 100));
     const result = engine.damagePipeline.execute(
       { source: ctx.actor, target: ctx.target, rawDamage: dmgValue, damageType: eff.damageType, isCrit: false },
       ctx.turn, ctx.allies, ctx.enemies,

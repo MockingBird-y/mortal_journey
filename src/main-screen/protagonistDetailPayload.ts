@@ -15,22 +15,29 @@ import type {
 } from "../role_core/types/itemInfo";
 import type { CultivationRealm, EquipSlotKey, TraitEntry } from "../role_core/types/playInfo";
 import type { TreasureSpecialEffect } from "../role_core/types/treasure";
+import { TREASURE_MODIFIER_NAMES } from "../role_core/types/treasure";
 import type { GongfaSpecialEffect } from "../role_core/types/gongfa";
 import { resolveGongfaEffectDisplay } from "../role_core/types/gongfa";
 import { gradeToTraitRarity, getGongfaMasteryProgress } from "./protagonistPanelDisplay";
-import { resolveEffectDisplay, type DerivedStatValues } from "../role_core/types/combatMechanics";
 import { GONGFA_MASTERY_COMBAT_MULT, GONGFA_MASTERY_ATTRI_MULT } from "../role_core/types/gameConstants";
 import type { ItemGrade } from "../role_core/types/itemInfo";
+
+export interface DerivedStatValues {
+  strength: number;
+  perception: number;
+  guard: number;
+  resistance: number;
+}
 
 type ItemSpecialEffect = TreasureSpecialEffect | GongfaSpecialEffect;
 
 function pushSpecialEffectSection(
   out: ProtagonistDetailSection[],
   fn: ItemSpecialEffect | undefined,
-  grade: string,
-  primaryStatGetter?: () => number,
-  statNameGetter?: () => string,
-  system?: string,
+  _grade: string,
+  _primaryStatGetter?: () => number,
+  _statNameGetter?: () => string,
+  _system?: string,
   derivedStatsGetter?: () => DerivedStatValues,
   mastery?: number,
 ): void {
@@ -47,17 +54,15 @@ function pushSpecialEffectSection(
         const masteryMult = mastery != null && mastery >= 1
           ? GONGFA_MASTERY_COMBAT_MULT[Math.min(mastery, GONGFA_MASTERY_COMBAT_MULT.length) - 1]
           : 1.0;
-        const display = resolveGongfaEffectDisplay(fn, getStat, masteryMult, mastery ?? 1);
-        return display;
+        return resolveGongfaEffectDisplay(fn, getStat, masteryMult, mastery ?? 1);
       }
-      const stat = primaryStatGetter ? primaryStatGetter() : undefined;
-      const name = statNameGetter ? statNameGetter() : undefined;
-      const ds = derivedStatsGetter ? derivedStatsGetter() : undefined;
-      const display = resolveEffectDisplay(fn as TreasureSpecialEffect, grade as ItemGrade, stat, name, system, ds, mastery);
-      if ('mpCost' in fn && (fn as Record<string, unknown>).mpCost as number > 0) {
-        return display + `\n法力消耗：${(fn as Record<string, unknown>).mpCost}`;
+      if ("modifiers" in fn) {
+        const tFn = fn as TreasureSpecialEffect;
+        return tFn.modifiers
+          .map(m => `${TREASURE_MODIFIER_NAMES[m.modifierType]}+${m.value}%`)
+          .join("\n");
       }
-      return display;
+      return "";
     },
   });
 }

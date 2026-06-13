@@ -10,6 +10,7 @@ import { npcStore } from "../role_core/npcStore";
 import { gameLog } from "../log/gameLog";
 import { GONGFA_SLOT_COUNT, GONGFA_MASTERY_COMBAT_MULT } from "../role_core/types/gameConstants";
 import { generateId as generateEffectId } from "./formulas";
+import { BASE_CRIT_DMG } from "./constants";
 
 function generateId(team: "ally" | "enemy", index: number): string {
   return `${team}_${index}`;
@@ -237,44 +238,19 @@ function extractTreasurePassiveEffects(
 
   for (const tr of equippedSlots) {
     if (!tr || !tr.function) continue;
-    if (!("components" in tr.function)) continue;
-    for (const comp of tr.function.components as unknown as Array<Record<string, unknown>>) {
-      if (comp.trigger === "active") continue;
-      if (comp.mechanic) {
-        const mechanic = String(comp.mechanic);
-        const baseValue = typeof comp.baseValue === "number" ? comp.baseValue : 0;
-        const duration = typeof comp.duration === "number" ? comp.duration : 99;
-
-        switch (mechanic) {
-          case "buff_atk":
-            effects.push({ id: generateEffectId(), name: tr.function.name, sourceId: combatantId, category: "modifier", remainingDuration: duration, stacks: 1, maxStacks: 1, modifierType: "damageDealt", modifierValue: Math.round(baseValue * 100) });
-            break;
-          case "buff_def":
-            effects.push({ id: generateEffectId(), name: tr.function.name, sourceId: combatantId, category: "modifier", remainingDuration: duration, stacks: 1, maxStacks: 1, modifierType: "damageTaken", modifierValue: -Math.round(baseValue * 100) });
-            break;
-          case "buff_speed":
-            effects.push({ id: generateEffectId(), name: tr.function.name, sourceId: combatantId, category: "modifier", remainingDuration: duration, stacks: 1, maxStacks: 1, modifierType: "speed", modifierValue: Math.round(baseValue * 100) });
-            break;
-          case "buff_crit":
-            effects.push({ id: generateEffectId(), name: tr.function.name, sourceId: combatantId, category: "modifier", remainingDuration: duration, stacks: 1, maxStacks: 1, modifierType: "critRate", modifierValue: Math.round(baseValue * 100) });
-            break;
-          case "buff_crit_dmg":
-            effects.push({ id: generateEffectId(), name: tr.function.name, sourceId: combatantId, category: "modifier", remainingDuration: duration, stacks: 1, maxStacks: 1, modifierType: "critDmg", modifierValue: Math.round(baseValue * 100) });
-            break;
-          case "death_ward":
-            effects.push({ id: generateEffectId(), name: tr.function.name, sourceId: combatantId, category: "special", remainingDuration: duration, stacks: 1, maxStacks: 1, specialType: "deathWard" });
-            break;
-          case "reflect":
-            effects.push({ id: generateEffectId(), name: tr.function.name, sourceId: combatantId, category: "special", remainingDuration: duration, stacks: 1, maxStacks: 1, specialType: "reflect", specialValue: Math.round(baseValue * 100) });
-            break;
-          case "counter":
-            effects.push({ id: generateEffectId(), name: tr.function.name, sourceId: combatantId, category: "special", remainingDuration: duration, stacks: 1, maxStacks: 1, specialType: "counter", specialValue: baseValue });
-            break;
-          case "buff_shield":
-            effects.push({ id: generateEffectId(), name: tr.function.name, sourceId: combatantId, category: "special", remainingDuration: 99, stacks: 1, maxStacks: 1, specialType: "shield", specialValue: baseValue });
-            break;
-        }
-      }
+    if (!("modifiers" in tr.function)) continue;
+    for (const mod of tr.function.modifiers) {
+      effects.push({
+        id: generateEffectId(),
+        name: tr.function.name,
+        sourceId: combatantId,
+        category: "modifier",
+        remainingDuration: 99,
+        stacks: 1,
+        maxStacks: 1,
+        modifierType: mod.modifierType as ModifierType,
+        modifierValue: mod.modifierType === "damageTaken" ? -mod.value : mod.value,
+      });
     }
   }
 
@@ -329,7 +305,7 @@ function createProtagonistCombatant(): BattleCombatant | null {
       physDefense: primaryStats.guard ?? 0,
       magDefense: primaryStats.resistance ?? 0,
       critRate: 0,
-      critDmg: 150,
+      critDmg: BASE_CRIT_DMG,
     },
 
     hp: p.currentHp,
@@ -375,7 +351,7 @@ function createNpcCombatant(npc: Npc, team: "ally" | "enemy", index: number): Ba
       physDefense: primaryStats.guard ?? 0,
       magDefense: primaryStats.resistance ?? 0,
       critRate: 0,
-      critDmg: 150,
+      critDmg: BASE_CRIT_DMG,
     },
 
     hp: npc.currentHp,

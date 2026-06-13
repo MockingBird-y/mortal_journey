@@ -7,7 +7,7 @@ import { computed, ref } from "vue";
 import { Protagonist } from "../role_core/Protagonist";
 import { PRIMARY_STAT_KEY_TO_ZH, PRIMARY_STAT_KEYS, PRIMARY_STAT_KEY_DESC, type EquipSlotKey, type PrimaryStatKey } from "../role_core/types/playInfo";
 import type { GongfaItemDefinition } from "../role_core/types/itemInfo";
-import type { DerivedStatValues } from "../role_core/types/combatMechanics";
+import type { DerivedStatValues } from "./protagonistDetailPayload";
 import {
   buildGongfaDetailPayload,
   buildInventoryStackDetailPayload,

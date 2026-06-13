@@ -92,6 +92,18 @@ export class EffectManager {
       }
     }
 
+    const mpRecoverMod = this.getModifierTotal(combatant, "mpRecover");
+    if (mpRecoverMod > 0 && combatant.mp < combatant.stats.maxMp) {
+      const recover = Math.round(combatant.stats.maxMp * mpRecoverMod / 100);
+      const deficit = combatant.stats.maxMp - combatant.mp;
+      const recovered = Math.min(deficit, recover);
+      if (recovered > 0) {
+        combatant.mp += recovered;
+        entries.push(this.logEntry(actionCount, "法力恢复", "法力恢复", combatant.name, "info", recovered,
+          `${combatant.name}恢复${recovered}点法力`, combatant.team));
+      }
+    }
+
     for (let i = combatant.effects.length - 1; i >= 0; i--) {
       combatant.effects[i].remainingDuration--;
       if (combatant.effects[i].remainingDuration <= 0) {
