@@ -1,0 +1,375 @@
+// ═══════════════════════════════════════════════════════════════
+// 战斗引擎类型定义 — 自包含，不引用 role_core
+// ═══════════════════════════════════════════════════════════════
+
+// ─── 伤害类型 ───
+
+export type DamageType = "physical" | "magical" | "true";
+
+// ─── 修正类型（增益/减益） ───
+
+export type ModifierType =
+  | "damageDealt"
+  | "physDamageDealt"
+  | "magDamageDealt"
+  | "damageTaken"
+  | "healReceived"
+  | "mpRecover"
+  | "speed"
+  | "critRate"
+  | "critDmg"
+  | "dodgeRate";
+
+// ─── 控制效果 ───
+
+export type CcType =
+  | "freeze"
+  | "stun"
+  | "fear"
+  | "confusion"
+  | "silence"
+  | "taunt";
+
+// ─── 状态类型（DoT/HoT） ───
+
+export type StatusType =
+  | "poison"
+  | "burn"
+  | "bleed"
+  | "hpRegen"
+  | "mpDrain";
+
+// ─── 召唤物触发条件 ───
+
+export type SummonTrigger =
+  | "on_attack"
+  | "on_hit"
+  | "on_turn_start"
+  | "on_turn_end"
+  | "on_kill"
+  | "on_crit"
+  | "on_dodge";
+
+// ─── 战斗事件 ───
+
+export type BattleEvent =
+  | "battle_start"
+  | "turn_start"
+  | "turn_end"
+  | "action_start"
+  | "action_end"
+  | "pre_damage"
+  | "damage_dealt"
+  | "damage_taken"
+  | "heal"
+  | "crit"
+  | "dodge"
+  | "kill"
+  | "death"
+  | "fatal"
+  | "effect_expire"
+  | "battle_end";
+
+// ─── 战斗阶段 ───
+
+export type BattlePhase =
+  | "init"
+  | "running"
+  | "playerAction"
+  | "targetSelection"
+  | "victory"
+  | "defeat"
+  | "fled";
+
+// ─── 战斗结局 ───
+
+export type BattleOutcome = "victory" | "defeat" | "fled";
+
+// ═══════════════════════════════════════════════════════════════
+// 战斗者
+// ═══════════════════════════════════════════════════════════════
+
+export interface CombatantStats {
+  maxHp: number;
+  maxMp: number;
+  speed: number;
+  physAttack: number;
+  magAttack: number;
+  physDefense: number;
+  magDefense: number;
+  critRate: number;
+  critDmg: number;
+}
+
+export interface BattleCombatant {
+  id: string;
+  name: string;
+  team: "ally" | "enemy";
+  isPlayerControlled: boolean;
+  isProtagonist: boolean;
+
+  stats: Readonly<CombatantStats>;
+
+  hp: number;
+  mp: number;
+  shield: number;
+  actionGauge: number;
+  isDead: boolean;
+  isFleeing: boolean;
+
+  skills: BattleSkill[];
+  cooldowns: number[];
+  elixirs: BattleElixir[];
+
+  effects: BattleEffect[];
+
+  realm?: { major: string; minor: string };
+  powerTier?: string;
+  identity?: string;
+  sourceNpcName?: string;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 技能系统
+// ═══════════════════════════════════════════════════════════════
+
+export interface BattleSkill {
+  name: string;
+  desc: string;
+  mpCost: number;
+  actionCost: number;
+  cooldown: number;
+  needTarget: boolean;
+  targetTeam: "ally" | "enemy";
+  isAoE: boolean;
+  effects: readonly SkillEffect[];
+}
+
+export interface BattleElixir {
+  name: string;
+  desc: string;
+  effectType: "healHp" | "healMp";
+  value: number;
+  count: number;
+}
+
+// ─── 技能效果（联合类型） ───
+
+export type SkillEffect =
+  | { type: "dealDamage"; damageType: DamageType; value: number }
+  | { type: "dealDamageExecute"; damageType: DamageType; value: number; threshold: number; bonusPercent: number }
+  | { type: "dealDamagePierce"; value: number }
+  | { type: "heal"; value: number }
+  | { type: "lifesteal"; damageType: DamageType; damagePercent: number }
+  | { type: "applyModifier"; modifierType: ModifierType; value: number; duration: number; maxStacks: number; targetSelf?: boolean }
+  | { type: "applyCc"; ccType: CcType; chance: number; duration: number }
+  | { type: "applyStatus"; statusType: StatusType; tickValue: number; isPercent: boolean; duration: number; maxStacks: number }
+  | { type: "summon"; name: string; trigger: SummonTrigger; effect: SummonEffectPayload; duration: number }
+  | { type: "cleanse" }
+  | { type: "dispel" }
+  | { type: "revive"; hpPercent: number }
+  | { type: "deathWard"; duration: number }
+  | { type: "extraAction"; chance: number }
+  | { type: "counter"; damage: number; duration: number }
+  | { type: "reflect"; percent: number; duration: number }
+  | { type: "damageShare"; percent: number; duration: number }
+  | { type: "gaugeManipulate"; value: number }
+  | { type: "shield"; value: number }
+  | { type: "stealth"; duration: number };
+
+export type SummonEffectPayload =
+  | { type: "dealDamage"; damageType: DamageType; value: number }
+  | { type: "heal"; value: number }
+  | { type: "healMp"; value: number }
+  | { type: "applyModifier"; modifierType: ModifierType; value: number; duration?: number }
+  | { type: "applyStatus"; statusType: StatusType; tickValue: number; isPercent: boolean; duration: number; maxStacks?: number };
+
+// ═══════════════════════════════════════════════════════════════
+// 效果系统
+// ═══════════════════════════════════════════════════════════════
+
+export type EffectCategory = "modifier" | "dot" | "hot" | "cc" | "summon" | "special";
+
+export interface BattleEffect {
+  id: string;
+  name: string;
+  sourceId: string;
+  category: EffectCategory;
+  remainingDuration: number;
+  stacks: number;
+  maxStacks: number;
+
+  modifierType?: ModifierType;
+  modifierValue?: number;
+
+  tickValue?: number;
+  tickIsPercent?: boolean;
+  tickResource?: "hp" | "mp";
+  statusType?: StatusType;
+
+  ccType?: CcType;
+
+  summonTrigger?: SummonTrigger;
+  summonEffect?: SummonEffectPayload;
+
+  specialType?: "deathWard" | "counter" | "reflect" | "damageShare" | "stealth" | "extraAction";
+  specialValue?: number;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 行动 & 上下文
+// ═══════════════════════════════════════════════════════════════
+
+export type BattleAction =
+  | { type: "normalAttack"; targetId: string }
+  | { type: "skill"; skillIndex: number; targetId: string }
+  | { type: "elixir"; elixirIndex: number }
+  | { type: "flee" };
+
+export interface ActionContext {
+  actor: BattleCombatant;
+  action: BattleAction;
+  allies: BattleCombatant[];
+  enemies: BattleCombatant[];
+  turn: number;
+  target?: BattleCombatant;
+}
+
+export interface EventContext {
+  event: BattleEvent;
+  source?: BattleCombatant;
+  target?: BattleCombatant;
+  actor?: BattleCombatant;
+  action?: BattleAction;
+  damage?: DamageResult;
+  allies: BattleCombatant[];
+  enemies: BattleCombatant[];
+  turn: number;
+}
+
+export type EventHandler = (ctx: EventContext) => void;
+
+// ═══════════════════════════════════════════════════════════════
+// 伤害结果
+// ═══════════════════════════════════════════════════════════════
+
+export interface DamageContext {
+  source: BattleCombatant;
+  target: BattleCombatant;
+  rawDamage: number;
+  damageType: DamageType;
+  isCrit: boolean;
+  isReflected?: boolean;
+}
+
+export interface DamageResult {
+  finalDamage: number;
+  shieldAbsorbed: number;
+  hpLost: number;
+  killed: boolean;
+  dodged: boolean;
+  deathWardTriggered: boolean;
+  reflectHpLost: number;
+  reflectKilled: boolean;
+  counterHpLost: number;
+  counterKilled: boolean;
+  sharedDamages: Array<{
+    targetId: string;
+    targetName: string;
+    hpLost: number;
+    killed: boolean;
+  }>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 日志
+// ═══════════════════════════════════════════════════════════════
+
+export type BattleLogType =
+  | "damage" | "heal" | "shield" | "buff" | "debuff" | "cc"
+  | "dot" | "miss" | "crit" | "flee_success" | "flee_fail"
+  | "death" | "summon" | "info" | "gauge";
+
+export interface BattleLogEntry {
+  turn: number;
+  actorName: string;
+  action: string;
+  targetName?: string;
+  type: BattleLogType;
+  value?: number;
+  narrative: string;
+  team?: "ally" | "enemy";
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 行动选项（UI用）
+// ═══════════════════════════════════════════════════════════════
+
+export interface SkillActionItem {
+  skillIndex: number;
+  name: string;
+  mpCost: number;
+  needTarget: boolean;
+  targetTeam: "ally" | "enemy";
+  description: string;
+  cooldown: number;
+}
+
+export interface ElixirActionItem {
+  elixirIndex: number;
+  name: string;
+  effectType: "healHp" | "healMp";
+  value: number;
+  count: number;
+  description: string;
+}
+
+export interface ActionOptions {
+  canNormalAttack: boolean;
+  canFlee: boolean;
+  skills: SkillActionItem[];
+  elixirs: ElixirActionItem[];
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 战斗状态 & 结果
+// ═══════════════════════════════════════════════════════════════
+
+export interface BattleState {
+  phase: BattlePhase;
+  actionCount: number;
+  allies: BattleCombatant[];
+  enemies: BattleCombatant[];
+  activeCombatantId: string | null;
+  pendingAction: BattleAction | null;
+  selectedTargetId: string | null;
+  log: BattleLogEntry[];
+  triggerEntry: unknown;
+}
+
+export interface BattleResult {
+  outcome: BattleOutcome;
+  actionCount: number;
+  protagonistHpPercent: number;
+  protagonistMpPercent: number;
+  elixirsUsed: { name: string; count: number }[];
+  enemiesKilled: string[];
+  triggerReason: string;
+  allyNames: string[];
+  enemyNames: string[];
+  triggerKind: "active" | "passive";
+}
+
+// ─── 引擎接口（内部模块间引用） ───
+
+export interface BattleEngineLike {
+  readonly effectManager: import("./EffectManager").EffectManager;
+  readonly eventDispatcher: import("./EventDispatcher").EventDispatcher;
+  readonly damagePipeline: import("./DamagePipeline").DamagePipeline;
+  addLog(entry: BattleLogEntry): void;
+  addLogEntries(entries: BattleLogEntry[]): void;
+  findCombatant(id: string): BattleCombatant | undefined;
+  getAllCombatants(): BattleCombatant[];
+  applyHeal(target: BattleCombatant, rawHeal: number): number;
+  applyMpChange(target: BattleCombatant, delta: number): number;
+}

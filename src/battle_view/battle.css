@@ -203,6 +203,11 @@
   font-weight: 700;
 }
 
+.battle__card-badge--flee {
+  background: #c06020;
+  color: #fff;
+}
+
 .battle__card-identity {
   font-size: 11px;
   color: #999;
@@ -219,7 +224,7 @@
 .battle__bar-label {
   font-size: 10px;
   color: #888;
-  width: 20px;
+  width: 24px;
   flex-shrink: 0;
 }
 
@@ -241,6 +246,12 @@
 .battle__hp-bar--mid { background: #ca4; }
 .battle__hp-bar--low { background: #c44; }
 .battle__mp-bar { background: #46a; }
+
+.battle__gauge-fill { transition: width 0.4s ease-out; }
+.battle__gauge-bar--full { background: #f0c040; box-shadow: 0 0 6px #f0c04088; }
+.battle__gauge-bar--high { background: #c8a030; }
+.battle__gauge-bar--mid { background: #887040; }
+.battle__gauge-bar--low { background: #555; }
 
 .battle__bar-value {
   font-size: 10px;
@@ -269,10 +280,12 @@
   color: #fff;
 }
 
-.battle__effect-tag--buff { background: #2a5a2a; }
-.battle__effect-tag--debuff { background: #5a2a2a; }
+.battle__effect-tag--modifier { background: #2a5a2a; }
+.battle__effect-tag--dot { background: #5a3a1a; }
+.battle__effect-tag--hot { background: #1a5a3a; }
 .battle__effect-tag--cc { background: #2a2a5a; }
-.battle__effect-tag--damage { background: #5a3a1a; }
+.battle__effect-tag--summon { background: #4a2a5a; }
+.battle__effect-tag--special { background: #3a3a1a; }
 
 .battle__log-area {
   padding: 10px 14px;

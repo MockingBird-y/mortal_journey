@@ -3,15 +3,13 @@ import type {
   BattleState,
   BattleAction,
   BattleResult,
-  BattleCombatant,
-  GongfaActionItem,
-  ElixirActionItem,
-} from "./types";
+  ActionOptions,
+} from "../battle_engine/types";
 
 import type { BattleTriggerEntry } from "../ai/state_generate";
-import { BattleEngine } from "./battleEngine";
-import { createBattleCombatants } from "./battleInit";
-import { settleBattle } from "./battleSettle";
+import { BattleEngine } from "../battle_engine/BattleEngine";
+import { createBattleCombatants } from "../battle_engine/battleInit";
+import { settleBattle } from "../battle_engine/battleSettle";
 import { gameLog } from "../log/gameLog";
 
 export function useBattle() {
@@ -27,7 +25,6 @@ export function useBattle() {
     if (enemies.length === 0) {
       throw new Error(`战斗初始化失败：未找到敌方参战者。triggerEntry.enemies=${JSON.stringify(triggerEntry.enemies.map(e => e.displayName))}，请检查 NPC 是否已写入 npcStore`);
     }
-
     if (allies.length === 0) {
       throw new Error("战斗初始化失败：未找到主角参战者");
     }
@@ -38,47 +35,66 @@ export function useBattle() {
     state.value = e.state;
     result.value = null;
 
-    gameLog.info(`[useBattle] BattleEngine.init 完成: phase=${e.state.phase}, turn=${e.state.turn}`);
+    gameLog.info(`[useBattle] BattleEngine.init 完成: phase=${e.state.phase}, actionCount=${e.state.actionCount}`);
   }
 
-  function getPlayerActionOptions(): {
-    canNormalAttack: boolean;
-    canMagicAttack: boolean;
-    gongfaItems: GongfaActionItem[];
-    elixirItems: ElixirActionItem[];
-    canFlee: boolean;
-  } {
+  function getPlayerActionOptions(): ActionOptions {
     const e = engine.value;
-    if (!e) return { canNormalAttack: false, canMagicAttack: false, gongfaItems: [], elixirItems: [], canFlee: false };
+    if (!e) return { canNormalAttack: false, canFlee: false, skills: [], elixirs: [] };
     return e.getPlayerActionOptions();
   }
 
   function selectAction(action: BattleAction): void {
     const s = state.value;
     const e = engine.value;
-    if (!s || s.phase !== "player_action") return;
+    if (!s || s.phase !== "playerAction") return;
     s.pendingAction = action;
 
-    if (e && action.type === "normal_attack" && s.currentActorId) {
-      const actor = e.findCombatant(s.currentActorId);
-      if (actor && e.effectManager.isFeared(actor)) {
-        const allTargets = e.getAllCombatants().filter(c => !c.isDead && c.id !== actor.id);
-        if (allTargets.length > 0) {
-          const randomTarget = allTargets[Math.floor(Math.random() * allTargets.length)];
-          s.phase = "target_selection";
-          selectTarget(randomTarget.id);
+    if (action.type === "normalAttack" || action.type === "skill") {
+      if (e) {
+        const actor = e.findCombatant(s.activeCombatantId ?? "");
+        if (actor && e.effectManager.isFeared(actor)) {
+          const allTargets = e.getAllCombatants().filter(c => !c.isDead && c.id !== actor.id);
+          if (allTargets.length > 0) {
+            const randomTarget = allTargets[Math.floor(Math.random() * allTargets.length)];
+            s.phase = "targetSelection";
+            selectTarget(randomTarget.id);
+            return;
+          }
+        }
+      }
+    }
+
+    if (action.type === "flee" || action.type === "elixir") {
+      s.phase = "targetSelection";
+      if (action.type === "elixir") {
+        const currentActorId = s.activeCombatantId;
+        if (currentActorId) selectTarget(currentActorId);
+      } else {
+        selectTarget("");
+      }
+      return;
+    }
+
+    if (action.type === "skill") {
+      const opts = getPlayerActionOptions();
+      const skillItem = opts.skills.find(sk => sk.skillIndex === action.skillIndex);
+      if (skillItem && !skillItem.needTarget) {
+        const currentActorId = s.activeCombatantId;
+        if (currentActorId) {
+          selectTarget(currentActorId);
           return;
         }
       }
     }
 
-    s.phase = "target_selection";
+    s.phase = "targetSelection";
   }
 
   function selectTarget(targetId: string): void {
     const s = state.value;
     const e = engine.value;
-    if (!s || !e || s.phase !== "target_selection" || !s.pendingAction) return;
+    if (!s || !e || s.phase !== "targetSelection" || !s.pendingAction) return;
     s.selectedTargetId = targetId;
 
     const action = s.pendingAction;
@@ -109,7 +125,7 @@ export function useBattle() {
 
   function isBattleOver(): boolean {
     const phase = state.value?.phase;
-    return phase === "victory" || phase === "defeat" || phase === "fled" || phase === "draw";
+    return phase === "victory" || phase === "defeat" || phase === "fled";
   }
 
   function finishBattle(): void {

@@ -4,11 +4,11 @@ import DebugLogPanel from "./log/DebugLogPanel.vue";
 import StartFrame from "./start_frame/StartFrame.vue";
 import FateChoiceScreen from "./fate_choice/FateChoiceScreen.vue";
 import MainScreen from "./main-screen/MainScreen.vue";
-import BattleScreen from "./battle_core/BattleScreen.vue";
+import BattleScreen from "./battle_view/BattleScreen.vue";
 import { gameLog } from "./log/gameLog";
 import type { FateChoiceResult } from "./fate_choice/types";
 import type { BattleTriggerEntry } from "./ai/state_generate";
-import type { BattleResult } from "./battle_core/types";
+import type { BattleResult } from "./battle_engine/types";
 
 const fateChoiceVisible = ref(false);
 const mainScreenVisible = ref(false);

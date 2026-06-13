@@ -12,7 +12,7 @@ import { worldMapStore } from "../role_core/worldMapStore";
 import { Character } from "../role_core/Character";
 import { gameLog } from "../log/gameLog";
 import { advanceWorldTime, type WorldTime } from "../role_core/worldTime";
-import type { BattleResult } from "../battle_core/types";
+import type { BattleResult } from "../battle_engine/types";
 import type { WorldLocation } from "../role_core/types/worldLocation";
 import { formatWorldLocationDash, isEmptyWorldLocation } from "../role_core/types/worldLocation";
 
@@ -260,7 +260,6 @@ function formatBattleResultMessage(r: BattleResult): string {
     victory: "胜",
     defeat: "败",
     fled: "撤退",
-    draw: "平手",
   };
   const outcomeText = outcomeMap[r.outcome];
   const enemyText = r.enemyNames.join("、");

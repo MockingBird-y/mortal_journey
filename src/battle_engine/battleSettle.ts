@@ -1,18 +1,21 @@
 import type { BattleState, BattleResult, BattleCombatant, BattleOutcome } from "./types";
 import { protagonist } from "../role_core/Protagonist";
 import { npcStore } from "../role_core/npcStore";
+import type { BattleTriggerEntry } from "../ai/state_generate";
 
 export function settleBattle(state: BattleState): BattleResult {
+  const trigger = state.triggerEntry as BattleTriggerEntry;
   const protagonistCombatant = state.allies.find(a => a.isProtagonist);
   const elixirsUsed: { name: string; count: number }[] = [];
   const enemiesKilled: string[] = [];
 
   const elixirMap = new Map<string, number>();
   for (const ally of state.allies) {
-    for (const el of ally.availableElixirs) {
+    for (const el of ally.elixirs) {
       const original = el.count;
       if (original <= 0) continue;
-      elixirMap.set(el.name, (elixirMap.get(el.name) ?? 0) + (1 - el.count > 0 ? 1 - el.count : 0));
+      const used = (elixirMap.get(el.name) ?? 0) + (original > el.count ? original - el.count : 0);
+      elixirMap.set(el.name, used);
     }
   }
   for (const [name, count] of elixirMap) {
@@ -30,11 +33,11 @@ export function settleBattle(state: BattleState): BattleResult {
     if (state.phase === "defeat") {
       p.setCurrentHpMp(1, Math.max(0, Math.round(p.maxMp * 0.1)));
     } else {
-      const hpPct = protagonistCombatant.maxHp > 0
-        ? Math.round(protagonistCombatant.currentHp / protagonistCombatant.maxHp * 100)
+      const hpPct = protagonistCombatant.stats.maxHp > 0
+        ? Math.round(protagonistCombatant.hp / protagonistCombatant.stats.maxHp * 100)
         : 0;
-      const mpPct = protagonistCombatant.maxMp > 0
-        ? Math.round(protagonistCombatant.currentMp / protagonistCombatant.maxMp * 100)
+      const mpPct = protagonistCombatant.stats.maxMp > 0
+        ? Math.round(protagonistCombatant.mp / protagonistCombatant.stats.maxMp * 100)
         : 0;
       p.setCurrentHpMp(
         Math.round(p.maxHp * hpPct / 100),
@@ -74,8 +77,8 @@ export function settleBattle(state: BattleState): BattleResult {
     if (ally.isDead) {
       npc.isDead = true;
     } else {
-      const hpPct = ally.maxHp > 0 ? Math.round(ally.currentHp / ally.maxHp * 100) : 0;
-      const mpPct = ally.maxMp > 0 ? Math.round(ally.currentMp / ally.maxMp * 100) : 0;
+      const hpPct = ally.stats.maxHp > 0 ? Math.round(ally.hp / ally.stats.maxHp * 100) : 0;
+      const mpPct = ally.stats.maxMp > 0 ? Math.round(ally.mp / ally.stats.maxMp * 100) : 0;
       npc.setCurrentHpMp(
         Math.round(npc.maxHp * hpPct / 100),
         Math.round(npc.maxMp * mpPct / 100),
@@ -86,18 +89,18 @@ export function settleBattle(state: BattleState): BattleResult {
   const outcome: BattleOutcome = state.phase === "victory" ? "victory"
     : state.phase === "defeat" ? "defeat"
     : state.phase === "fled" ? "fled"
-    : "draw";
+    : "fled";
 
   return {
     outcome,
-    turn: state.turn,
-    protagonistHpPercent: protagonistCombatant ? Math.round(protagonistCombatant.currentHp / Math.max(1, protagonistCombatant.maxHp) * 100) : 0,
-    protagonistMpPercent: protagonistCombatant ? Math.round(protagonistCombatant.currentMp / Math.max(1, protagonistCombatant.maxMp) * 100) : 0,
+    actionCount: state.actionCount,
+    protagonistHpPercent: protagonistCombatant ? Math.round(protagonistCombatant.hp / Math.max(1, protagonistCombatant.stats.maxHp) * 100) : 0,
+    protagonistMpPercent: protagonistCombatant ? Math.round(protagonistCombatant.mp / Math.max(1, protagonistCombatant.stats.maxMp) * 100) : 0,
     elixirsUsed,
     enemiesKilled,
-    triggerReason: state.triggerEntry.triggerReason,
-    allyNames: state.triggerEntry.allies.map(a => a.displayName),
-    enemyNames: state.triggerEntry.enemies.map(e => e.displayName),
-    triggerKind: state.triggerEntry.triggerKind,
+    triggerReason: trigger.triggerReason,
+    allyNames: trigger.allies.map(a => a.displayName),
+    enemyNames: trigger.enemies.map(e => e.displayName),
+    triggerKind: trigger.triggerKind,
   };
 }

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, nextTick, watch } from "vue";
 import type { BattleTriggerEntry } from "../ai/state_generate";
-import type { BattleAction, BattleCombatant, BattleResult, GongfaActionItem, ElixirActionItem } from "../battle_core/types";
-import { useBattle } from "../battle_core/useBattle";
+import type { BattleAction, BattleCombatant, BattleResult, SkillActionItem, ElixirActionItem } from "../battle_engine/types";
+import { useBattle } from "./useBattle";
 import { gameLog } from "../log/gameLog";
 import { useScrollLock } from "../composables/useScrollLock";
 
@@ -38,11 +38,11 @@ watch(() => props.trigger, (entry) => {
 }, { immediate: true });
 
 const isPlayerTurn = computed(() => {
-  return state.value?.phase === "player_action";
+  return state.value?.phase === "playerAction";
 });
 
 const isTargetSelection = computed(() => {
-  return state.value?.phase === "target_selection";
+  return state.value?.phase === "targetSelection";
 });
 
 const battleOver = computed(() => {
@@ -54,44 +54,26 @@ const actionOptions = computed(() => {
   return getPlayerActionOptions();
 });
 
-const needsTarget = computed(() => {
-  const action = state.value?.pendingAction;
-  if (!action) return false;
-  if (action.type === "flee" || action.type === "elixir") return false;
-  return true;
-});
-
 const targetTeam = computed((): "ally" | "enemy" => {
   const action = state.value?.pendingAction;
   if (!action) return "enemy";
-  if (action.type === "gongfa") {
-    const s = state.value!;
-    const currentActorId = s.currentActorId;
-    const actor = s.allies.find(a => a.id === currentActorId) ?? s.enemies.find(en => en.id === currentActorId);
-    if (actor) {
-      const gf = actor.gongfaSlots[action.gongfaIndex];
-      if (gf?.function) {
-        const hasOffensive = gf.function.components.some(c => c.mechanic?.startsWith("dmg_") || c.mechanic?.startsWith("debuff_") || c.mechanic?.startsWith("cc_"));
-        return hasOffensive ? "enemy" : "ally";
-      }
-    }
+  if (action.type === "skill") {
+    const opts = actionOptions.value;
+    const skillItem = opts?.skills.find(s => s.skillIndex === action.skillIndex);
+    return skillItem?.targetTeam ?? "enemy";
   }
   return "enemy";
 });
 
 function onNormalAttack() {
-  selectAction({ type: "normal_attack", targetId: "" });
+  selectAction({ type: "normalAttack", targetId: "" });
 }
 
-function onMagicAttack() {
-  selectAction({ type: "magic_attack", targetId: "" });
-}
-
-function onGongfaSelect(item: GongfaActionItem) {
+function onSkillSelect(item: SkillActionItem) {
   if (item.needTarget) {
-    selectAction({ type: "gongfa", gongfaIndex: item.gongfaIndex, targetId: "" });
+    selectAction({ type: "skill", skillIndex: item.skillIndex, targetId: "" });
   } else {
-    const currentActorId = state.value?.currentActorId;
+    const currentActorId = state.value?.activeCombatantId;
     if (currentActorId) {
       selectTarget(currentActorId);
     }
@@ -100,7 +82,7 @@ function onGongfaSelect(item: GongfaActionItem) {
 
 function onElixirSelect(item: ElixirActionItem) {
   selectAction({ type: "elixir", elixirIndex: item.elixirIndex });
-  const currentActorId = state.value?.currentActorId;
+  const currentActorId = state.value?.activeCombatantId;
   if (currentActorId) {
     selectTarget(currentActorId);
   }
@@ -129,10 +111,22 @@ watch(() => state.value?.log.length, async () => {
 });
 
 function hpBarClass(combatant: BattleCombatant): string {
-  const pct = combatant.maxHp > 0 ? combatant.currentHp / combatant.maxHp : 0;
+  const pct = combatant.stats.maxHp > 0 ? combatant.hp / combatant.stats.maxHp : 0;
   if (pct > 0.6) return "battle__hp-bar--high";
   if (pct > 0.3) return "battle__hp-bar--mid";
   return "battle__hp-bar--low";
+}
+
+function gaugePct(combatant: BattleCombatant): number {
+  return Math.min(100, Math.max(0, combatant.actionGauge));
+}
+
+function gaugeBarClass(combatant: BattleCombatant): string {
+  const g = combatant.actionGauge;
+  if (g >= 100) return "battle__gauge-bar--full";
+  if (g >= 60) return "battle__gauge-bar--high";
+  if (g >= 30) return "battle__gauge-bar--mid";
+  return "battle__gauge-bar--low";
 }
 
 function logAlignClass(team?: string): string {
@@ -168,26 +162,22 @@ function logIcon(type: string): string {
     case "flee_success": return "🏃";
     case "flee_fail": return "✋";
     case "summon": return "✨";
+    case "gauge": return "⏳";
     default: return "•";
   }
 }
 
-const gongfaSubmenuOpen = ref(false);
+const skillSubmenuOpen = ref(false);
 const elixirSubmenuOpen = ref(false);
 
-function toggleGongfaSubmenu() {
-  gongfaSubmenuOpen.value = !gongfaSubmenuOpen.value;
+function toggleSkillSubmenu() {
+  skillSubmenuOpen.value = !skillSubmenuOpen.value;
   elixirSubmenuOpen.value = false;
 }
 
 function toggleElixirSubmenu() {
   elixirSubmenuOpen.value = !elixirSubmenuOpen.value;
-  gongfaSubmenuOpen.value = false;
-}
-
-function closeSubmenus() {
-  gongfaSubmenuOpen.value = false;
-  elixirSubmenuOpen.value = false;
+  skillSubmenuOpen.value = false;
 }
 </script>
 
@@ -208,7 +198,7 @@ function closeSubmenus() {
             </template>
             <template v-else-if="state">
             <header class="battle__header">
-              <h2 class="battle__title">⚔ 战斗 — 第 {{ state.turn }} 回合</h2>
+              <h2 class="battle__title">⚔ 战斗 — 行动 {{ state.actionCount }}</h2>
               <span class="battle__phase">
                 <template v-if="isPlayerTurn">你的回合</template>
                 <template v-else-if="isTargetSelection">选择目标</template>
@@ -223,31 +213,28 @@ function closeSubmenus() {
                   <button class="battle__action-btn" @click="onNormalAttack" :disabled="!actionOptions.canNormalAttack">
                     ⚔ 普通攻击
                   </button>
-                  <button class="battle__action-btn" @click="onMagicAttack" :disabled="!actionOptions.canMagicAttack" v-if="actionOptions.canMagicAttack">
-                    ✨ 法术攻击
-                  </button>
                   <div class="battle__action-group">
-                    <button class="battle__action-btn" @click="toggleGongfaSubmenu" :disabled="actionOptions.gongfaItems.length === 0">
-                      📜 功法攻击 {{ gongfaSubmenuOpen ? '▲' : '▼' }}
+                    <button class="battle__action-btn" @click="toggleSkillSubmenu" :disabled="actionOptions.skills.length === 0">
+                      📜 技能 {{ skillSubmenuOpen ? '▲' : '▼' }}
                     </button>
-                    <div v-if="gongfaSubmenuOpen" class="battle__submenu">
+                    <div v-if="skillSubmenuOpen" class="battle__submenu">
                       <button
-                        v-for="item in actionOptions.gongfaItems"
-                        :key="item.gongfaIndex"
+                        v-for="item in actionOptions.skills"
+                        :key="item.skillIndex"
                         class="battle__submenu-item"
-                        @click="onGongfaSelect(item)"
+                        @click="onSkillSelect(item)"
                       >
                         {{ item.name }} <span class="battle__mp-cost">MP:{{ item.mpCost }}</span>
                       </button>
                     </div>
                   </div>
                   <div class="battle__action-group">
-                    <button class="battle__action-btn" @click="toggleElixirSubmenu" :disabled="actionOptions.elixirItems.length === 0">
+                    <button class="battle__action-btn" @click="toggleElixirSubmenu" :disabled="actionOptions.elixirs.length === 0">
                       💊 恢复丹药 {{ elixirSubmenuOpen ? '▲' : '▼' }}
                     </button>
                     <div v-if="elixirSubmenuOpen" class="battle__submenu">
                       <button
-                        v-for="item in actionOptions.elixirItems"
+                        v-for="item in actionOptions.elixirs"
                         :key="item.elixirIndex"
                         class="battle__submenu-item"
                         @click="onElixirSelect(item)"
@@ -279,24 +266,30 @@ function closeSubmenus() {
                   @click="isTargetSelection && targetTeam === 'ally' && !ally.isDead && onTargetClick(ally.id)"
                 >
                   <div class="battle__card-name">
-                    {{ ally.displayName }}
+                    {{ ally.name }}
                     <span v-if="ally.isProtagonist" class="battle__card-badge">主角</span>
+                    <span v-if="ally.isFleeing" class="battle__card-badge battle__card-badge--flee">逃跑中</span>
                   </div>
                   <div class="battle__card-identity" v-if="ally.identity">{{ ally.identity }}</div>
                   <div class="battle__bar-row">
                     <span class="battle__bar-label">HP</span>
-                    <div class="battle__bar"><div class="battle__bar-fill" :class="hpBarClass(ally)" :style="{ width: (ally.maxHp > 0 ? ally.currentHp / ally.maxHp * 100 : 0) + '%' }"></div></div>
-                    <span class="battle__bar-value">{{ ally.currentHp }}/{{ ally.maxHp }}</span>
+                    <div class="battle__bar"><div class="battle__bar-fill" :class="hpBarClass(ally)" :style="{ width: (ally.stats.maxHp > 0 ? ally.hp / ally.stats.maxHp * 100 : 0) + '%' }"></div></div>
+                    <span class="battle__bar-value">{{ ally.hp }}/{{ ally.stats.maxHp }}</span>
                   </div>
                   <div class="battle__bar-row">
                     <span class="battle__bar-label">MP</span>
-                    <div class="battle__bar"><div class="battle__bar-fill battle__mp-bar" :style="{ width: (ally.maxMp > 0 ? ally.currentMp / ally.maxMp * 100 : 0) + '%' }"></div></div>
-                    <span class="battle__bar-value">{{ ally.currentMp }}/{{ ally.maxMp }}</span>
+                    <div class="battle__bar"><div class="battle__bar-fill battle__mp-bar" :style="{ width: (ally.stats.maxMp > 0 ? ally.mp / ally.stats.maxMp * 100 : 0) + '%' }"></div></div>
+                    <span class="battle__bar-value">{{ ally.mp }}/{{ ally.stats.maxMp }}</span>
+                  </div>
+                  <div class="battle__bar-row">
+                    <span class="battle__bar-label">蓄力</span>
+                    <div class="battle__bar"><div class="battle__bar-fill battle__gauge-fill" :class="gaugeBarClass(ally)" :style="{ width: gaugePct(ally) + '%' }"></div></div>
+                    <span class="battle__bar-value">{{ Math.floor(ally.actionGauge) }}%</span>
                   </div>
                   <div v-if="ally.shield > 0" class="battle__card-shield">🛡 {{ ally.shield }}</div>
-                  <div v-if="ally.activeEffects.length > 0" class="battle__card-effects">
-                    <span v-for="eff in ally.activeEffects" :key="eff.id" class="battle__effect-tag" :class="'battle__effect-tag--' + eff.category">
-                      {{ eff.name }}({{ eff.remainingTurns }})
+                  <div v-if="ally.effects.length > 0" class="battle__card-effects">
+                    <span v-for="eff in ally.effects" :key="eff.id" class="battle__effect-tag" :class="'battle__effect-tag--' + eff.category">
+                      {{ eff.name }}({{ eff.remainingDuration }})
                     </span>
                   </div>
                 </div>
@@ -322,24 +315,29 @@ function closeSubmenus() {
                   @click="isTargetSelection && targetTeam === 'enemy' && !enemy.isDead && onTargetClick(enemy.id)"
                 >
                   <div class="battle__card-name">
-                    {{ enemy.displayName }}
+                    {{ enemy.name }}
                     <span v-if="enemy.powerTier" class="battle__card-badge battle__card-badge--{{ enemy.powerTier }}">{{ enemy.powerTier }}</span>
                   </div>
                   <div class="battle__card-identity" v-if="enemy.identity">{{ enemy.identity }}</div>
                   <div class="battle__bar-row">
                     <span class="battle__bar-label">HP</span>
-                    <div class="battle__bar"><div class="battle__bar-fill" :class="hpBarClass(enemy)" :style="{ width: (enemy.maxHp > 0 ? enemy.currentHp / enemy.maxHp * 100 : 0) + '%' }"></div></div>
-                    <span class="battle__bar-value">{{ enemy.currentHp }}/{{ enemy.maxHp }}</span>
+                    <div class="battle__bar"><div class="battle__bar-fill" :class="hpBarClass(enemy)" :style="{ width: (enemy.stats.maxHp > 0 ? enemy.hp / enemy.stats.maxHp * 100 : 0) + '%' }"></div></div>
+                    <span class="battle__bar-value">{{ enemy.hp }}/{{ enemy.stats.maxHp }}</span>
                   </div>
                   <div class="battle__bar-row">
                     <span class="battle__bar-label">MP</span>
-                    <div class="battle__bar"><div class="battle__bar-fill battle__mp-bar" :style="{ width: (enemy.maxMp > 0 ? enemy.currentMp / enemy.maxMp * 100 : 0) + '%' }"></div></div>
-                    <span class="battle__bar-value">{{ enemy.currentMp }}/{{ enemy.maxMp }}</span>
+                    <div class="battle__bar"><div class="battle__bar-fill battle__mp-bar" :style="{ width: (enemy.stats.maxMp > 0 ? enemy.mp / enemy.stats.maxMp * 100 : 0) + '%' }"></div></div>
+                    <span class="battle__bar-value">{{ enemy.mp }}/{{ enemy.stats.maxMp }}</span>
+                  </div>
+                  <div class="battle__bar-row">
+                    <span class="battle__bar-label">蓄力</span>
+                    <div class="battle__bar"><div class="battle__bar-fill battle__gauge-fill" :class="gaugeBarClass(enemy)" :style="{ width: gaugePct(enemy) + '%' }"></div></div>
+                    <span class="battle__bar-value">{{ Math.floor(enemy.actionGauge) }}%</span>
                   </div>
                   <div v-if="enemy.shield > 0" class="battle__card-shield">🛡 {{ enemy.shield }}</div>
-                  <div v-if="enemy.activeEffects.length > 0" class="battle__card-effects">
-                    <span v-for="eff in enemy.activeEffects" :key="eff.id" class="battle__effect-tag" :class="'battle__effect-tag--' + eff.category">
-                      {{ eff.name }}({{ eff.remainingTurns }})
+                  <div v-if="enemy.effects.length > 0" class="battle__card-effects">
+                    <span v-for="eff in enemy.effects" :key="eff.id" class="battle__effect-tag" :class="'battle__effect-tag--' + eff.category">
+                      {{ eff.name }}({{ eff.remainingDuration }})
                     </span>
                   </div>
                 </div>
@@ -351,8 +349,7 @@ function closeSubmenus() {
                 <h2 v-if="state.phase === 'victory'">🎉 战斗胜利！</h2>
                 <h2 v-else-if="state.phase === 'defeat'">💀 战斗失败</h2>
                 <h2 v-else-if="state.phase === 'fled'">🏃 成功撤退</h2>
-                <h2 v-else>⚖ 战斗平局</h2>
-                <p v-if="result">共 {{ result.turn }} 回合 | 主角 HP: {{ result.protagonistHpPercent }}% | MP: {{ result.protagonistMpPercent }}%</p>
+                <p v-if="result">共 {{ result.actionCount }} 次行动 | 主角 HP: {{ result.protagonistHpPercent }}% | MP: {{ result.protagonistMpPercent }}%</p>
                 <p v-if="result && result.enemiesKilled.length > 0">击杀：{{ result.enemiesKilled.join("、") }}</p>
                 <button class="battle__action-btn" @click="onBattleEnd">返回</button>
               </div>
