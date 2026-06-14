@@ -6,6 +6,7 @@ import FateChoiceScreen from "./fate_choice/FateChoiceScreen.vue";
 import MainScreen from "./main-screen/MainScreen.vue";
 import BattleScreen from "./battle_view/BattleScreen.vue";
 import { gameLog } from "./log/gameLog";
+import { npcStore } from "./role_core/npcStore";
 import type { FateChoiceResult } from "./fate_choice/types";
 import type { BattleTriggerEntry } from "./ai/state_generate";
 import type { BattleResult } from "./battle_engine/types";
@@ -45,9 +46,14 @@ const battleVisible = ref(false);
 const lastBattleResult = ref<BattleResult | null>(null);
 
 function onBattleEnd(result: BattleResult | null) {
+  const wasTest = pendingBattleTrigger.value?.isTestBattle ?? false;
   battleVisible.value = false;
   pendingBattleTrigger.value = null;
-  if (result) lastBattleResult.value = result;
+  if (wasTest) {
+    npcStore.removeNpc("战斗人偶");
+  } else if (result) {
+    lastBattleResult.value = result;
+  }
 }
 
 function onBattleResultConsumed() {

@@ -150,6 +150,7 @@ export interface BattleElixir {
   desc: string;
   effectType: "healHp" | "healMp";
   value: number;
+  isPercent: boolean;
   count: number;
 }
 
@@ -214,6 +215,8 @@ export interface BattleEffect {
 
   specialType?: "deathWard" | "counter" | "reflect" | "damageShare" | "stealth" | "extraAction" | "shield";
   specialValue?: number;
+
+  hidden?: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -269,6 +272,7 @@ export interface DamageResult {
   killed: boolean;
   dodged: boolean;
   deathWardTriggered: boolean;
+  isCrit: boolean;
   reflectHpLost: number;
   reflectKilled: boolean;
   counterHpLost: number;
@@ -279,6 +283,7 @@ export interface DamageResult {
     hpLost: number;
     killed: boolean;
   }>;
+  trace?: string[];
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -288,7 +293,7 @@ export interface DamageResult {
 export type BattleLogType =
   | "damage" | "heal" | "shield" | "buff" | "debuff" | "cc"
   | "dot" | "miss" | "crit" | "flee_success" | "flee_fail"
-  | "death" | "summon" | "info" | "gauge";
+  | "death" | "summon" | "info" | "gauge" | "debug";
 
 export interface BattleLogEntry {
   turn: number;
@@ -335,6 +340,13 @@ export interface ActionOptions {
 // 战斗状态 & 结果
 // ═══════════════════════════════════════════════════════════════
 
+export interface FloatingText {
+  id: number;
+  combatantId: string;
+  text: string;
+  kind: "hp" | "mp";
+}
+
 export interface BattleState {
   phase: BattlePhase;
   actionCount: number;
@@ -344,6 +356,7 @@ export interface BattleState {
   pendingAction: BattleAction | null;
   selectedTargetId: string | null;
   log: BattleLogEntry[];
+  floatingTexts: FloatingText[];
   triggerEntry: unknown;
 }
 

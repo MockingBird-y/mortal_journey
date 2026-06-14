@@ -1,4 +1,4 @@
-import { ref, type Ref } from "vue";
+import { ref, triggerRef, type Ref } from "vue";
 import type {
   BattleState,
   BattleAction,
@@ -11,6 +11,7 @@ import { BattleEngine } from "../battle_engine/BattleEngine";
 import { createBattleCombatants } from "../battle_engine/battleInit";
 import { settleBattle } from "../battle_engine/battleSettle";
 import { gameLog } from "../log/gameLog";
+import { BASE_GAUGE_TIME_MS, AGILITY_DIVISOR, GAUGE_MAX, ACTION_DELAY_MS } from "../battle_engine/constants";
 
 export function useBattle() {
   const engine: Ref<BattleEngine | null> = ref(null);
@@ -18,7 +19,16 @@ export function useBattle() {
   const result: Ref<BattleResult | null> = ref(null);
   const resolving = ref(false);
 
+  let rafId: number | null = null;
+  let lastFrameTime = 0;
+  let active = false;
+  let isTestBattle = false;
+
   function startBattle(triggerEntry: BattleTriggerEntry): void {
+    stopGaugeLoop();
+    active = true;
+    isTestBattle = triggerEntry.isTestBattle ?? false;
+
     const { allies, enemies } = createBattleCombatants(triggerEntry);
     gameLog.info(`[useBattle] createBattleCombatants 完成: allies=${allies.length}, enemies=${enemies.length}`);
 
@@ -36,6 +46,8 @@ export function useBattle() {
     result.value = null;
 
     gameLog.info(`[useBattle] BattleEngine.init 完成: phase=${e.state.phase}, actionCount=${e.state.actionCount}`);
+
+    startGaugeLoop();
   }
 
   function getPlayerActionOptions(): ActionOptions {
@@ -80,6 +92,7 @@ export function useBattle() {
       const opts = getPlayerActionOptions();
       const skillItem = opts.skills.find(sk => sk.skillIndex === action.skillIndex);
       if (skillItem && !skillItem.needTarget) {
+        s.phase = "targetSelection";
         const currentActorId = s.activeCombatantId;
         if (currentActorId) {
           selectTarget(currentActorId);
@@ -94,7 +107,7 @@ export function useBattle() {
   function selectTarget(targetId: string): void {
     const s = state.value;
     const e = engine.value;
-    if (!s || !e || s.phase !== "targetSelection" || !s.pendingAction) return;
+    if (!s || !e || s.phase !== "targetSelection" || !s.pendingAction || resolving.value) return;
     s.selectedTargetId = targetId;
 
     const action = s.pendingAction;
@@ -114,13 +127,21 @@ export function useBattle() {
     }
 
     e.submitPlayerAction(action);
-    state.value = e.state;
+    triggerRef(state);
 
     if (isBattleOver()) {
       finishBattle();
+      resolving.value = false;
+      return;
     }
 
     resolving.value = false;
+
+    window.setTimeout(() => {
+      if (!active) return;
+      if (e.checkBattleEnd()) return;
+      resumeAfterAction();
+    }, ACTION_DELAY_MS);
   }
 
   function isBattleOver(): boolean {
@@ -129,17 +150,122 @@ export function useBattle() {
   }
 
   function finishBattle(): void {
+    stopGaugeLoop();
     const e = engine.value;
     const s = state.value;
     if (!e || !s) return;
-    result.value = settleBattle(s);
+    if (isTestBattle) {
+      result.value = null;
+    } else {
+      result.value = settleBattle(s);
+    }
   }
 
   function clearBattle(): void {
+    stopGaugeLoop();
+    active = false;
     engine.value = null;
     state.value = null;
     result.value = null;
     resolving.value = false;
+  }
+
+  // ─── rAF gauge loop ───
+
+  function startGaugeLoop(): void {
+    stopGaugeLoop();
+    lastFrameTime = performance.now();
+    rafId = requestAnimationFrame(gaugeLoop);
+  }
+
+  function stopGaugeLoop(): void {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+  }
+
+  function gaugeLoop(now: number): void {
+    const s = state.value;
+    const e = engine.value;
+    if (!s || !e || !active) return;
+
+    const dt = now - lastFrameTime;
+    lastFrameTime = now;
+
+    const baseRate = GAUGE_MAX / BASE_GAUGE_TIME_MS;
+    for (const c of s.allies) {
+      if (!c.isDead) {
+        const spd = e.gaugeManager.getEffectiveSpeed(c);
+        const rate = baseRate * (1 + spd / AGILITY_DIVISOR);
+        c.actionGauge = Math.min(200, c.actionGauge + rate * dt);
+      }
+    }
+    for (const c of s.enemies) {
+      if (!c.isDead) {
+        const spd = e.gaugeManager.getEffectiveSpeed(c);
+        const rate = baseRate * (1 + spd / AGILITY_DIVISOR);
+        c.actionGauge = Math.min(200, c.actionGauge + rate * dt);
+      }
+    }
+
+    if (e.checkFleeSuccess()) {
+      triggerRef(state);
+      finishBattle();
+      return;
+    }
+
+    const actor = e.checkActorReady();
+    if (actor) {
+      stopGaugeLoop();
+      s.activeCombatantId = actor.id;
+      onActorReady();
+      return;
+    }
+
+    rafId = requestAnimationFrame(gaugeLoop);
+  }
+
+  async function onActorReady(): Promise<void> {
+    const e = engine.value;
+    const s = state.value;
+    if (!e || !s || !active) return;
+
+    e.executeTurn();
+    triggerRef(state);
+
+    if (e.checkBattleEnd()) {
+      finishBattle();
+      return;
+    }
+
+    if (s.phase === "playerAction") return;
+
+    await delay(ACTION_DELAY_MS);
+    if (!active) return;
+    if (e.checkBattleEnd()) {
+      finishBattle();
+      return;
+    }
+
+    resumeAfterAction();
+  }
+
+  function resumeAfterAction(): void {
+    const e = engine.value;
+    if (!e || !active) return;
+
+    const next = e.checkActorReady();
+    if (next) {
+      e.state.activeCombatantId = next.id;
+      onActorReady();
+    } else {
+      startGaugeLoop();
+    }
+  }
+
+  function delay(ms: number): Promise<void> {
+    return new Promise(resolve => window.setTimeout(resolve, ms));
   }
 
   return {

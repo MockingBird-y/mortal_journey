@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, nextTick, watch } from "vue";
 import type { BattleTriggerEntry } from "../ai/state_generate";
-import type { BattleAction, BattleCombatant, BattleResult, SkillActionItem, ElixirActionItem } from "../battle_engine/types";
+import type { BattleAction, BattleCombatant, BattleResult, SkillActionItem, ElixirActionItem, FloatingText } from "../battle_engine/types";
 import { useBattle } from "./useBattle";
 import { gameLog } from "../log/gameLog";
 import { useScrollLock } from "../composables/useScrollLock";
@@ -70,14 +70,7 @@ function onNormalAttack() {
 }
 
 function onSkillSelect(item: SkillActionItem) {
-  if (item.needTarget) {
-    selectAction({ type: "skill", skillIndex: item.skillIndex, targetId: "" });
-  } else {
-    const currentActorId = state.value?.activeCombatantId;
-    if (currentActorId) {
-      selectTarget(currentActorId);
-    }
-  }
+  selectAction({ type: "skill", skillIndex: item.skillIndex, targetId: "" });
 }
 
 function onElixirSelect(item: ElixirActionItem) {
@@ -109,6 +102,22 @@ watch(() => state.value?.log.length, async () => {
     logContainer.value.scrollTop = logContainer.value.scrollHeight;
   }
 });
+
+const FLOAT_DURATION = 1500;
+
+watch(() => state.value?.floatingTexts.length, () => {
+  const s = state.value;
+  const e = engine.value;
+  if (!s || !e) return;
+  const current = [...s.floatingTexts];
+  for (const ft of current) {
+    setTimeout(() => e.clearFloatingText(ft.id), FLOAT_DURATION);
+  }
+});
+
+function floatsFor(combatantId: string): FloatingText[] {
+  return state.value?.floatingTexts.filter(ft => ft.combatantId === combatantId) ?? [];
+}
 
 function hpBarClass(combatant: BattleCombatant): string {
   const pct = combatant.stats.maxHp > 0 ? combatant.hp / combatant.stats.maxHp : 0;
@@ -145,6 +154,7 @@ function logTypeClass(type: string): string {
     case "miss": return "battle__log--miss";
     case "death": return "battle__log--death";
     case "flee_success": case "flee_fail": return "battle__log--flee";
+    case "debug": return "battle__log--debug";
     default: return "battle__log--info";
   }
 }
@@ -163,6 +173,7 @@ function logIcon(type: string): string {
     case "flee_fail": return "✋";
     case "summon": return "✨";
     case "gauge": return "⏳";
+    case "debug": return "🔍";
     default: return "•";
   }
 }
@@ -270,7 +281,6 @@ function toggleElixirSubmenu() {
                     <span v-if="ally.isProtagonist" class="battle__card-badge">主角</span>
                     <span v-if="ally.isFleeing" class="battle__card-badge battle__card-badge--flee">逃跑中</span>
                   </div>
-                  <div class="battle__card-identity" v-if="ally.identity">{{ ally.identity }}</div>
                   <div class="battle__bar-row">
                     <span class="battle__bar-label">HP</span>
                     <div class="battle__bar"><div class="battle__bar-fill" :class="hpBarClass(ally)" :style="{ width: (ally.stats.maxHp > 0 ? ally.hp / ally.stats.maxHp * 100 : 0) + '%' }"></div></div>
@@ -287,8 +297,17 @@ function toggleElixirSubmenu() {
                     <span class="battle__bar-value">{{ Math.floor(ally.actionGauge) }}%</span>
                   </div>
                   <div v-if="ally.shield > 0" class="battle__card-shield">🛡 {{ ally.shield }}</div>
-                  <div v-if="ally.effects.length > 0" class="battle__card-effects">
-                    <span v-for="eff in ally.effects" :key="eff.id" class="battle__effect-tag" :class="'battle__effect-tag--' + eff.category">
+                  <div class="battle__float-layer">
+                    <span
+                      v-for="(ft, idx) in floatsFor(ally.id)"
+                      :key="ft.id"
+                      class="battle__floating-text"
+                      :class="'battle__floating-text--' + ft.kind"
+                      :style="{ top: 30 + idx * 22 + 'px' }"
+                    >{{ ft.text }}</span>
+                  </div>
+                  <div v-if="ally.effects.some(e => !e.hidden)" class="battle__card-effects">
+                    <span v-for="eff in ally.effects.filter(e => !e.hidden)" :key="eff.id" class="battle__effect-tag" :class="'battle__effect-tag--' + eff.category">
                       {{ eff.name }}({{ eff.remainingDuration }})
                     </span>
                   </div>
@@ -318,7 +337,6 @@ function toggleElixirSubmenu() {
                     {{ enemy.name }}
                     <span v-if="enemy.powerTier" class="battle__card-badge battle__card-badge--{{ enemy.powerTier }}">{{ enemy.powerTier }}</span>
                   </div>
-                  <div class="battle__card-identity" v-if="enemy.identity">{{ enemy.identity }}</div>
                   <div class="battle__bar-row">
                     <span class="battle__bar-label">HP</span>
                     <div class="battle__bar"><div class="battle__bar-fill" :class="hpBarClass(enemy)" :style="{ width: (enemy.stats.maxHp > 0 ? enemy.hp / enemy.stats.maxHp * 100 : 0) + '%' }"></div></div>
@@ -335,8 +353,17 @@ function toggleElixirSubmenu() {
                     <span class="battle__bar-value">{{ Math.floor(enemy.actionGauge) }}%</span>
                   </div>
                   <div v-if="enemy.shield > 0" class="battle__card-shield">🛡 {{ enemy.shield }}</div>
-                  <div v-if="enemy.effects.length > 0" class="battle__card-effects">
-                    <span v-for="eff in enemy.effects" :key="eff.id" class="battle__effect-tag" :class="'battle__effect-tag--' + eff.category">
+                  <div class="battle__float-layer">
+                    <span
+                      v-for="(ft, idx) in floatsFor(enemy.id)"
+                      :key="ft.id"
+                      class="battle__floating-text"
+                      :class="'battle__floating-text--' + ft.kind"
+                      :style="{ top: 30 + idx * 22 + 'px' }"
+                    >{{ ft.text }}</span>
+                  </div>
+                  <div v-if="enemy.effects.some(e => !e.hidden)" class="battle__card-effects">
+                    <span v-for="eff in enemy.effects.filter(e => !e.hidden)" :key="eff.id" class="battle__effect-tag" :class="'battle__effect-tag--' + eff.category">
                       {{ eff.name }}({{ eff.remainingDuration }})
                     </span>
                   </div>

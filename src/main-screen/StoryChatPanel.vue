@@ -47,6 +47,7 @@ const emit = defineEmits<{
   "battleTrigger": [value: BattleTriggerEntry];
   "consumeBattleResult": [];
   "consumeCultivation": [];
+  "generatingChange": [value: boolean];
 }>();
 
 interface ChatMessage {
@@ -105,6 +106,10 @@ watch(
   },
   { immediate: true },
 );
+
+watch(generating, (val) => {
+  emit("generatingChange", val);
+});
 
 function applyStateResult(stateResult: StateParsed, linggen: string[]): void {
   if (stateResult.worldLocation && !isEmptyWorldLocation(stateResult.worldLocation)) {

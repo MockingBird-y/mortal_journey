@@ -23,6 +23,13 @@ export class BattleAI {
       }
     }
 
+    if (actor.mp < actor.stats.maxMp * 0.3) {
+      const elixirIdx = actor.elixirs.findIndex(e => e.effectType === "healMp" && e.count > 0);
+      if (elixirIdx >= 0) {
+        return { type: "elixir", elixirIndex: elixirIdx };
+      }
+    }
+
     const target = this.selectTarget(aliveEnemies);
     if (target) return { type: "normalAttack", targetId: target.id };
 

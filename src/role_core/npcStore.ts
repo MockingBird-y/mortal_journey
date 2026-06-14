@@ -52,6 +52,14 @@ export function useNpcStore() {
     npcMap.value.clear();
   }
 
+  function setNpc(npc: Npc): void {
+    npcMap.value.set(npc.displayName, npc);
+  }
+
+  function removeNpc(displayName: string): void {
+    npcMap.value.delete(displayName);
+  }
+
   return {
     npcs: npcMap,
     applyNpcUpdates,
@@ -60,6 +68,8 @@ export function useNpcStore() {
     serializeNpcs,
     restoreNpcs,
     clearNpcs,
+    setNpc,
+    removeNpc,
   };
 }
 

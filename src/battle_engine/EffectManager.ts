@@ -41,7 +41,11 @@ export class EffectManager {
     return count;
   }
 
-  tickEffects(combatant: BattleCombatant, actionCount: number): BattleLogEntry[] {
+  tickEffects(
+    combatant: BattleCombatant,
+    actionCount: number,
+    onFloat?: (combatantId: string, text: string, kind: "hp" | "mp") => void,
+  ): BattleLogEntry[] {
     const entries: BattleLogEntry[] = [];
 
     for (const eff of combatant.effects) {
@@ -86,8 +90,7 @@ export class EffectManager {
         const healed = Math.min(deficit, healAmt);
         if (healed > 0) {
           combatant.hp += healed;
-          entries.push(this.logEntry(actionCount, eff.name, "持续恢复", combatant.name, "heal", healed,
-            `${combatant.name}受到${eff.name}，恢复${healed}点生命`, combatant.team));
+          onFloat?.(combatant.id, `+${healed}`, "hp");
         }
       }
     }
@@ -99,8 +102,7 @@ export class EffectManager {
       const recovered = Math.min(deficit, recover);
       if (recovered > 0) {
         combatant.mp += recovered;
-        entries.push(this.logEntry(actionCount, "法力恢复", "法力恢复", combatant.name, "info", recovered,
-          `${combatant.name}恢复${recovered}点法力`, combatant.team));
+        onFloat?.(combatant.id, `+${recovered}`, "mp");
       }
     }
 

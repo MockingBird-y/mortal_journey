@@ -82,8 +82,8 @@ export const PRIMARY_STAT_KEY_DESC: Readonly<Record<PrimaryStatKey, string>> = {
   perception: "提高造成的法伤",
   guard: "提高对物伤的抵抗率",
   resistance: "提高对法伤的抵抗率",
-  agility: "增加闪避的几率，并决定先手和逃跑几率",
-  insight: "增加修炼速度，修炼功法耗时更少",
+  agility: "增加行动速度",
+  insight: "增加修炼速度",
 };
 
 export type ZhStatBonusMap = Partial<Record<string, number>>;

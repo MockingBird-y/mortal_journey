@@ -334,6 +334,7 @@
 .battle__log--death { color: #f44; font-weight: 600; }
 .battle__log--flee { color: #ff8; }
 .battle__log--info { color: #aaa; }
+.battle__log--debug { color: #888; font-size: 11px; font-family: "Consolas", "Courier New", monospace; }
 
 .battle__overlay {
   position: absolute;
@@ -370,4 +371,53 @@
   width: auto;
   padding: 10px 32px;
   font-size: 15px;
+}
+
+.battle__float-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 5;
+}
+
+.battle__card {
+  position: relative;
+}
+
+.battle__floating-text {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  animation: mj-float-up 1.5s ease-out forwards;
+}
+
+.battle__floating-text--hp {
+  color: #4f4;
+  text-shadow: 0 0 4px rgba(0, 255, 0, 0.5);
+}
+
+.battle__floating-text--mp {
+  color: #4af;
+  text-shadow: 0 0 4px rgba(0, 128, 255, 0.5);
+}
+
+@keyframes mj-float-up {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+  15% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-40px);
+  }
 }

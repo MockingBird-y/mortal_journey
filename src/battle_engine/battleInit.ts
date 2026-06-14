@@ -223,7 +223,9 @@ function extractPassiveEffects(
     const layer = gf.mastery ?? 1;
     const masteryMult = getMasteryMult(layer);
     for (const eff of gf.function.battleEffects) {
-      effects.push(convertBattleEffectToInitEffect(eff, getStat, masteryMult, layer, gf.function.name, combatantId));
+      const be = convertBattleEffectToInitEffect(eff, getStat, masteryMult, layer, gf.function.name, combatantId);
+      be.hidden = true;
+      effects.push(be);
     }
   }
 
@@ -250,6 +252,7 @@ function extractTreasurePassiveEffects(
         maxStacks: 1,
         modifierType: mod.modifierType as ModifierType,
         modifierValue: mod.modifierType === "damageTaken" ? -mod.value : mod.value,
+        hidden: true,
       });
     }
   }
@@ -269,6 +272,7 @@ function extractRecoveryElixirs(inventorySlots: Array<InventoryStackItem | null>
         desc: el.desc ?? "",
         effectType: el.effectType === "恢复血量" ? "healHp" : "healMp",
         value: el.effects?.value ?? 0,
+        isPercent: el.effects?.isPercent ?? false,
         count: el.count,
       });
     }

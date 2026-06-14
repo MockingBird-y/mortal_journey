@@ -104,6 +104,7 @@ export interface BattleTriggerEntry {
   triggerReason: string;
   allies: BattleCombatant[];
   enemies: BattleCombatant[];
+  isTestBattle?: boolean;
 }
 
 export interface StateParsed {

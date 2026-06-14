@@ -125,7 +125,6 @@ export function useOpeningStoryFromFateChoice(
         }
 
         storyBody.value = storyResult.storyBody;
-        phase.value = "ready";
 
         try {
           const stateResult = await generateInitState({
@@ -163,6 +162,8 @@ export function useOpeningStoryFromFateChoice(
         } catch (stateErr) {
           gameLog.error("[OpeningStory] 状态生成失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));
         }
+
+        phase.value = "ready";
       } catch (e) {
         if (ac.signal.aborted) return;
         phase.value = "error";

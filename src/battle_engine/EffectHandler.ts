@@ -7,19 +7,77 @@ import type {
   BattleEngineLike,
   ActionContext,
   DamageType,
+  DamageResult,
   ModifierType,
   CcType,
   StatusType,
   SummonTrigger,
 } from "./types";
 import { generateId } from "./formulas";
-import { GAUGE_MAX, NORMAL_ATTACK_COST } from "./constants";
+import { GAUGE_MAX, NORMAL_ATTACK_COST, BATTLE_DEBUG } from "./constants";
 
 function log(
   turn: number, actorName: string, action: string, type: BattleLogEntry["type"],
   narrative: string, team?: "ally" | "enemy", targetName?: string, value?: number,
 ): BattleLogEntry {
   return { turn, actorName, action, type, narrative, team, targetName, value };
+}
+
+export function emitDamageTrace(
+  turn: number,
+  actorName: string,
+  team: "ally" | "enemy",
+  trace?: string[],
+): BattleLogEntry[] {
+  if (!BATTLE_DEBUG || !trace || trace.length === 0) return [];
+  return trace.map(line => log(turn, actorName, "伤害计算", "debug", line, team));
+}
+
+function buildDamageEntries(
+  turn: number,
+  actorName: string,
+  targetName: string,
+  result: DamageResult,
+  damageLabel: string,
+  team: "ally" | "enemy",
+  extraText?: string,
+): BattleLogEntry[] {
+  const entries: BattleLogEntry[] = [];
+
+  entries.push(...emitDamageTrace(turn, actorName, team, result.trace));
+
+  if (result.dodged) {
+    entries.push(log(turn, actorName, "攻击", "miss",
+      `${targetName}闪避了${actorName}的攻击`, team, targetName));
+    return entries;
+  }
+
+  if (result.hpLost === 0 && result.shieldAbsorbed > 0) {
+    entries.push(log(turn, actorName, "攻击", "shield",
+      `${actorName}对${targetName}的攻击被护盾完全抵挡（吸收${result.shieldAbsorbed}点）`,
+      team, targetName, result.shieldAbsorbed));
+  } else {
+    const critText = result.isCrit ? "，暴击！" : "";
+    const shieldText = result.shieldAbsorbed > 0
+      ? `（护盾吸收${result.shieldAbsorbed}点）`
+      : "";
+    const suffix = extraText ? extraText : "";
+    entries.push(log(turn, actorName, "攻击", result.isCrit ? "crit" : "damage",
+      `${actorName}对${targetName}造成${result.hpLost}点${damageLabel}${critText}${shieldText}${suffix}`,
+      team, targetName, result.hpLost));
+  }
+
+  if (result.deathWardTriggered) {
+    entries.push(log(turn, targetName, "免死护盾", "buff",
+      `${targetName}触发免死护盾，保留1点生命！`));
+  }
+
+  if (result.killed) {
+    entries.push(log(turn, targetName, "阵亡", "death",
+      `${targetName}倒下了！`));
+  }
+
+  return entries;
 }
 
 export class EffectHandler {
@@ -56,31 +114,15 @@ export class EffectHandler {
             { source, target, rawDamage: payload.value, damageType: payload.damageType, isCrit: false },
             actionCount, allies, enemies,
           );
-          entries.push(log(actionCount, source.name, "召唤物攻击", result.hpLost > 0 ? "damage" : "miss",
-            `召唤物对${target.name}造成${result.hpLost}点伤害`, source.team, target.name, result.hpLost));
-          if (result.killed) {
-            entries.push(log(actionCount, target.name, "阵亡", "death", `${target.name}倒下了！`, target.team));
-          }
+          entries.push(...buildDamageEntries(actionCount, source.name, target.name, result, "召唤物攻击", source.team));
           break;
         }
         case "heal": {
-          const deficit = source.stats.maxHp - source.hp;
-          const healed = Math.min(deficit, payload.value);
-          if (healed > 0) {
-            source.hp += healed;
-            entries.push(log(actionCount, source.name, "召唤物治疗", "heal",
-              `召唤物为${source.name}恢复${healed}点生命`, source.team, source.name, healed));
-          }
+          engine.applyHeal(source, payload.value);
           break;
         }
         case "healMp": {
-          const deficit = source.stats.maxMp - source.mp;
-          const restored = Math.min(deficit, payload.value);
-          if (restored > 0) {
-            source.mp += restored;
-            entries.push(log(actionCount, source.name, "召唤物恢复法力", "heal",
-              `召唤物为${source.name}恢复${restored}点法力`, source.team, source.name, restored));
-          }
+          engine.applyMpChange(source, payload.value);
           break;
         }
         case "applyModifier": {
@@ -146,17 +188,7 @@ export class EffectHandler {
       { source: ctx.actor, target: ctx.target, rawDamage: value, damageType, isCrit: false },
       ctx.turn, ctx.allies, ctx.enemies,
     );
-    const entries: BattleLogEntry[] = [];
-    if (result.dodged) {
-      entries.push(log(ctx.turn, ctx.actor.name, "攻击", "miss", `${ctx.target.name}闪避了${ctx.actor.name}的攻击`, ctx.actor.team, ctx.target.name));
-    } else {
-      const critText = result.finalDamage > value ? "，暴击！" : "";
-      entries.push(log(ctx.turn, ctx.actor.name, "攻击", result.finalDamage > value ? "crit" : "damage",
-        `${ctx.actor.name}对${ctx.target.name}造成${result.hpLost}点伤害${critText}`, ctx.actor.team, ctx.target.name, result.hpLost));
-      if (result.killed) {
-        entries.push(log(ctx.turn, ctx.target.name, "阵亡", "death", `${ctx.target.name}倒下了！`, ctx.target.team));
-      }
-    }
+    const entries = buildDamageEntries(ctx.turn, ctx.actor.name, ctx.target.name, result, "伤害", ctx.actor.team);
     this.addSecondaryLogs(result, ctx, entries);
     return entries;
   }
@@ -174,13 +206,8 @@ export class EffectHandler {
       { source: ctx.actor, target: ctx.target, rawDamage: value, damageType: eff.damageType, isCrit: false },
       ctx.turn, ctx.allies, ctx.enemies,
     );
-    const entries: BattleLogEntry[] = [];
-    entries.push(log(ctx.turn, ctx.actor.name, "斩杀攻击", "damage",
-      `${ctx.actor.name}对${ctx.target.name}发动斩杀，造成${result.hpLost}点伤害${executed ? "（目标低血量，伤害提升！）" : ""}`,
-      ctx.actor.team, ctx.target.name, result.hpLost));
-    if (result.killed) {
-      entries.push(log(ctx.turn, ctx.target.name, "阵亡", "death", `${ctx.target.name}倒下了！`, ctx.target.team));
-    }
+    const extraText = executed ? "（目标低血量，伤害提升！）" : undefined;
+    const entries = buildDamageEntries(ctx.turn, ctx.actor.name, ctx.target.name, result, "斩杀伤害", ctx.actor.team, extraText);
     this.addSecondaryLogs(result, ctx, entries);
     return entries;
   }
@@ -191,12 +218,7 @@ export class EffectHandler {
       { source: ctx.actor, target: ctx.target, rawDamage: value, damageType: "true", isCrit: false },
       ctx.turn, ctx.allies, ctx.enemies,
     );
-    const entries: BattleLogEntry[] = [];
-    entries.push(log(ctx.turn, ctx.actor.name, "穿透攻击", "damage",
-      `${ctx.actor.name}对${ctx.target.name}造成${result.hpLost}点穿透伤害`, ctx.actor.team, ctx.target.name, result.hpLost));
-    if (result.killed) {
-      entries.push(log(ctx.turn, ctx.target.name, "阵亡", "death", `${ctx.target.name}倒下了！`, ctx.target.team));
-    }
+    const entries = buildDamageEntries(ctx.turn, ctx.actor.name, ctx.target.name, result, "穿透伤害", ctx.actor.team);
     this.addSecondaryLogs(result, ctx, entries);
     return entries;
   }
@@ -204,9 +226,8 @@ export class EffectHandler {
   private doHeal(value: number, ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
     const target = ctx.target ?? ctx.actor;
     const healMult = 1 + engine.effectManager.getModifierTotal(target, "healReceived") / 100;
-    const healed = engine.applyHeal(target, Math.round(value * healMult));
-    return [log(ctx.turn, ctx.actor.name, "治疗", "heal",
-      `${ctx.actor.name}为${target.name}恢复${healed}点生命`, ctx.actor.team, target.name, healed)];
+    engine.applyHeal(target, Math.round(value * healMult));
+    return [];
   }
 
   private doLifesteal(eff: SkillEffect & { type: "lifesteal" }, ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
@@ -220,16 +241,15 @@ export class EffectHandler {
       { source: ctx.actor, target: ctx.target, rawDamage: dmgValue, damageType: eff.damageType, isCrit: false },
       ctx.turn, ctx.allies, ctx.enemies,
     );
-    entries.push(log(ctx.turn, ctx.actor.name, "生命偷取", "damage",
-      `${ctx.actor.name}吸取${ctx.target.name}${result.hpLost}点生命`, ctx.actor.team, ctx.target.name, result.hpLost));
-    const healed = engine.applyHeal(ctx.actor, result.hpLost);
-    if (healed > 0) {
-      entries.push(log(ctx.turn, ctx.actor.name, "吸血恢复", "heal",
-        `${ctx.actor.name}恢复${healed}点生命`, ctx.actor.team, ctx.actor.name, healed));
+    const dmgEntries = buildDamageEntries(ctx.turn, ctx.actor.name, ctx.target.name, result, "吸血伤害", ctx.actor.team);
+    for (const e of dmgEntries) {
+      e.action = "生命偷取";
+      if (e.type === "damage" || e.type === "crit") {
+        e.narrative = `${ctx.actor.name}吸取${ctx.target.name}${result.hpLost}点生命`;
+      }
     }
-    if (result.killed) {
-      entries.push(log(ctx.turn, ctx.target.name, "阵亡", "death", `${ctx.target.name}倒下了！`, ctx.target.team));
-    }
+    entries.push(...dmgEntries);
+    engine.applyHeal(ctx.actor, result.hpLost);
     this.addSecondaryLogs(result, ctx, entries);
     return entries;
   }

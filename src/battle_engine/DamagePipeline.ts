@@ -2,6 +2,8 @@ import type {
   DamageContext,
   DamageResult,
   BattleCombatant,
+  DamageType,
+  ModifierType,
 } from "./types";
 import type { EffectManager } from "./EffectManager";
 import type { EventDispatcher } from "./EventDispatcher";
@@ -14,12 +16,29 @@ const EMPTY_RESULT: DamageResult = {
   killed: false,
   dodged: false,
   deathWardTriggered: false,
+  isCrit: false,
   reflectHpLost: 0,
   reflectKilled: false,
   counterHpLost: 0,
   counterKilled: false,
   sharedDamages: [],
+  trace: [],
 };
+
+const DAMAGE_TYPE_LABEL: Record<DamageType, string> = {
+  physical: "物理",
+  magical: "法术",
+  true: "真实",
+};
+
+function formatModBreakdown(combatant: BattleCombatant, type: ModifierType): string {
+  const mods = combatant.effects.filter(e => e.category === "modifier" && e.modifierType === type);
+  if (mods.length === 0) return "无";
+  return mods.map(e => {
+    const v = (e.modifierValue ?? 0) * e.stacks;
+    return `${e.name}${v >= 0 ? "+" : ""}${v}%`;
+  }).join(", ");
+}
 
 export class DamagePipeline {
   constructor(
@@ -33,34 +52,55 @@ export class DamagePipeline {
     allies: BattleCombatant[],
     enemies: BattleCombatant[],
   ): DamageResult {
+    const trace: string[] = [];
+    const typeLabel = DAMAGE_TYPE_LABEL[ctx.damageType];
+    trace.push(`[伤害计算] ${ctx.source.name} → ${ctx.target.name} (${typeLabel})`);
+
     this.dispatcher.emit("pre_damage", {
       event: "pre_damage", source: ctx.source, target: ctx.target, turn: actionCount, allies, enemies,
     });
 
+    let rawDamage = ctx.rawDamage;
+    trace.push(`  原始伤害: ${rawDamage}`);
+
     const dodgeRate = this.effectManager.getModifierTotal(ctx.target, "dodgeRate");
+    trace.push(`  闪避判定: 闪避率=${dodgeRate}%${formatModBreakdown(ctx.target, "dodgeRate") !== "无" ? ` (${formatModBreakdown(ctx.target, "dodgeRate")})` : ""}`);
     if (checkDodge(dodgeRate)) {
+      trace.push(`  → 闪避成功!`);
       this.dispatcher.emit("dodge", {
         event: "dodge", source: ctx.source, target: ctx.target, turn: actionCount, allies, enemies,
       });
-      return { ...EMPTY_RESULT, dodged: true };
+      return { ...EMPTY_RESULT, dodged: true, trace };
     }
+    trace.push(`  → 未闪避`);
 
-    let rawDamage = ctx.rawDamage;
     let actualCrit = ctx.isCrit;
 
     if (!actualCrit) {
-      const critRate = ctx.source.stats.critRate + this.effectManager.getModifierTotal(ctx.source, "critRate");
+      const critRateBase = ctx.source.stats.critRate;
+      const critRateMod = this.effectManager.getModifierTotal(ctx.source, "critRate");
+      const critRate = critRateBase + critRateMod;
+      trace.push(`  暴击判定: 暴击率=${critRate}% (基础${critRateBase}+修正${critRateMod >= 0 ? "+" : ""}${critRateMod})`);
       actualCrit = checkCrit(Math.max(0, critRate));
+    } else {
+      trace.push(`  暴击判定: 强制暴击`);
     }
     if (actualCrit) {
-      const critDmg = ctx.source.stats.critDmg + this.effectManager.getModifierTotal(ctx.source, "critDmg");
+      const critDmgBase = ctx.source.stats.critDmg;
+      const critDmgMod = this.effectManager.getModifierTotal(ctx.source, "critDmg");
+      const critDmg = critDmgBase + critDmgMod;
+      trace.push(`  → 暴击! 倍率=${critDmg}% (基础${critDmgBase}+修正${critDmgMod >= 0 ? "+" : ""}${critDmgMod})`);
       rawDamage = Math.round(rawDamage * critDmg / 100);
+      trace.push(`  暴击后伤害: ${rawDamage}`);
+    } else {
+      trace.push(`  → 未暴击`);
     }
 
     const defense = ctx.damageType === "physical" ? ctx.target.stats.physDefense
       : ctx.damageType === "magical" ? ctx.target.stats.magDefense
       : 0;
     let baseDamage = calcDefenseReduction(rawDamage, defense, ctx.damageType);
+    trace.push(`  防御: ${typeLabel}${defense} → 减防后: ${baseDamage}`);
 
     const damageDealtGeneral = this.effectManager.getModifierTotal(ctx.source, "damageDealt");
     const damageDealtSpecific = ctx.damageType === "physical"
@@ -69,11 +109,14 @@ export class DamagePipeline {
         ? this.effectManager.getModifierTotal(ctx.source, "magDamageDealt")
         : 0;
     const dealtMult = 1 + (damageDealtGeneral + damageDealtSpecific) / 100;
+    trace.push(`  攻击方伤害加成: damageDealt${damageDealtGeneral >= 0 ? "+" : ""}${damageDealtGeneral}%, ${ctx.damageType === "physical" ? "physDamageDealt" : ctx.damageType === "magical" ? "magDamageDealt" : "specific"}${damageDealtSpecific >= 0 ? "+" : ""}${damageDealtSpecific}% → 倍率=${dealtMult.toFixed(4)}`);
 
     const damageTaken = this.effectManager.getModifierTotal(ctx.target, "damageTaken");
     const takenMult = 1 + damageTaken / 100;
+    trace.push(`  受击方承伤修正: damageTaken${damageTaken >= 0 ? "+" : ""}${damageTaken}% → 倍率=${takenMult.toFixed(4)}`);
 
     let finalDamage = Math.max(1, Math.round(baseDamage * dealtMult * takenMult));
+    trace.push(`  最终伤害: max(1, round(${baseDamage} × ${dealtMult.toFixed(4)} × ${takenMult.toFixed(4)})) = ${finalDamage}`);
 
     let remaining = finalDamage;
     let shieldAbsorbed = 0;
@@ -82,10 +125,12 @@ export class DamagePipeline {
       ctx.target.shield -= absorbed;
       remaining -= absorbed;
       shieldAbsorbed = absorbed;
+      trace.push(`  护盾: 吸收${shieldAbsorbed} → 穿透${remaining}`);
     }
 
     const hpLost = Math.min(ctx.target.hp, remaining);
     ctx.target.hp -= hpLost;
+    trace.push(`  生命损失: ${hpLost} (目标剩余HP: ${ctx.target.hp}/${ctx.target.stats.maxHp})`);
 
     let killed = false;
     let deathWardTriggered = false;
@@ -99,9 +144,11 @@ export class DamagePipeline {
       if (this.effectManager.consumeDeathWard(ctx.target)) {
         ctx.target.hp = 1;
         deathWardTriggered = true;
+        trace.push(`  [免死护盾触发] 保留1点生命`);
       } else {
         killed = true;
         ctx.target.isDead = true;
+        trace.push(`  [目标阵亡]`);
       }
     }
 
@@ -186,11 +233,13 @@ export class DamagePipeline {
       killed,
       dodged: false,
       deathWardTriggered,
+      isCrit: actualCrit,
       reflectHpLost,
       reflectKilled,
       counterHpLost,
       counterKilled,
       sharedDamages,
+      trace,
     };
 
     this.dispatcher.emit("damage_dealt", {

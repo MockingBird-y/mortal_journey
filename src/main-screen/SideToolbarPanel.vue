@@ -5,6 +5,11 @@ import WorldMapModal from "./WorldMapModal.vue";
 
 const props = defineProps<{
   currentLocation?: WorldLocation | null;
+  testDisabled?: boolean;
+}>();
+
+const emit = defineEmits<{
+  testBattle: [];
 }>();
 
 const mapModalOpen = ref(false);
@@ -23,6 +28,7 @@ function closeMapModal() {
     <div class="main-panel__body">
       <div class="side-btn-group">
         <button type="button" class="main-screen__btn side-btn" @click="openMapModal">世界地图</button>
+        <button type="button" class="main-screen__btn side-btn" @click="emit('testBattle')" :disabled="props.testDisabled">战斗测试</button>
       </div>
     </div>
     <WorldMapModal

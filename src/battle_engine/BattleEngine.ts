@@ -15,7 +15,7 @@ import { EventDispatcher } from "./EventDispatcher";
 import { GaugeManager } from "./GaugeManager";
 import { EffectManager } from "./EffectManager";
 import { DamagePipeline } from "./DamagePipeline";
-import { EffectHandler } from "./EffectHandler";
+import { EffectHandler, emitDamageTrace } from "./EffectHandler";
 import { BattleAI } from "./BattleAI";
 import { NORMAL_ATTACK_COST, ELIXIR_COST, GAUGE_MAX } from "./constants";
 
@@ -27,6 +27,7 @@ export class BattleEngine implements BattleEngineLike {
   readonly effectHandler = new EffectHandler();
 
   private ai = new BattleAI();
+  private floatId = 0;
   state!: BattleState;
 
   init(allies: BattleCombatant[], enemies: BattleCombatant[], triggerEntry: unknown): void {
@@ -39,6 +40,7 @@ export class BattleEngine implements BattleEngineLike {
       pendingAction: null,
       selectedTargetId: null,
       log: [],
+      floatingTexts: [],
       triggerEntry,
     };
     this.startBattle();
@@ -52,32 +54,34 @@ export class BattleEngine implements BattleEngineLike {
     this.eventDispatcher.emit("battle_start", {
       event: "battle_start", allies: this.state.allies, enemies: this.state.enemies, turn: 0,
     });
-    this.processNextActor();
   }
 
-  private processNextActor(): void {
-    if (this.checkBattleEnd()) return;
+  checkActorReady(): BattleCombatant | null {
+    const ready = this.getAllCombatants()
+      .filter(c => !c.isDead && c.actionGauge >= GAUGE_MAX && !c.isFleeing)
+      .sort((a, b) => b.actionGauge - a.actionGauge ||
+        this.gaugeManager.getEffectiveSpeed(b) - this.gaugeManager.getEffectiveSpeed(a));
+    return ready[0] ?? null;
+  }
 
-    const actor = this.gaugeManager.advanceToNextActor(
-      this.getAllCombatants(),
-      (p) => {
-        if (p.actionGauge >= GAUGE_MAX) {
-          this.state.phase = "fled";
-          this.addLog({
-            turn: this.state.actionCount, actorName: p.name, action: "逃跑成功",
-            type: "flee_success", narrative: `${p.name}成功逃离了战斗！`, team: p.team,
-          });
-          this.emitBattleEnd();
-          return true;
-        }
-        return false;
-      },
-    );
+  checkFleeSuccess(): boolean {
+    const fleeing = this.getAllCombatants().find(c => c.isFleeing && !c.isDead);
+    if (!fleeing) return false;
+    if (fleeing.actionGauge >= GAUGE_MAX) {
+      this.state.phase = "fled";
+      this.addLog({
+        turn: this.state.actionCount, actorName: fleeing.name, action: "逃跑成功",
+        type: "flee_success", narrative: `${fleeing.name}成功逃离了战斗！`, team: fleeing.team,
+      });
+      this.emitBattleEnd();
+      return true;
+    }
+    return false;
+  }
 
-    if (this.state.phase === "fled") return;
-    if (!actor) return;
-
-    this.state.activeCombatantId = actor.id;
+  executeTurn(): boolean {
+    const actor = this.findCombatant(this.state.activeCombatantId ?? "");
+    if (!actor) return false;
 
     this.state.actionCount++;
     this.addLog({
@@ -85,12 +89,15 @@ export class BattleEngine implements BattleEngineLike {
       type: "info", narrative: `─── ${actor.name}的回合 ───`, team: actor.team,
     });
 
-    const tickEntries = this.effectManager.tickEffects(actor, this.state.actionCount);
+    const tickEntries = this.effectManager.tickEffects(
+      actor, this.state.actionCount,
+      (id, text, kind) => this.pushFloat(id, text, kind),
+    );
     this.addLogEntries(tickEntries);
 
     this.tickCooldowns(actor);
 
-    if (actor.isDead || this.checkBattleEnd()) return;
+    if (actor.isDead || this.checkBattleEnd()) return false;
 
     if (!this.effectManager.canAct(actor)) {
       this.addLog({
@@ -98,36 +105,32 @@ export class BattleEngine implements BattleEngineLike {
         type: "info", narrative: `${actor.name}无法行动`, team: actor.team,
       });
       this.gaugeManager.consumeGauge(actor, GAUGE_MAX);
-      this.processNextActor();
-      return;
+      return true;
     }
 
     if (actor.isPlayerControlled) {
       this.state.phase = "playerAction";
       this.state.pendingAction = null;
-      return;
+      return false;
     }
 
-    this.executeAiTurn(actor);
-  }
-
-  private executeAiTurn(actor: BattleCombatant): void {
     const action = this.ai.decide(actor, this.state, this);
     if (!action) {
       this.gaugeManager.consumeGauge(actor, GAUGE_MAX);
-      this.processNextActor();
-      return;
+      return true;
     }
 
     this.executeAction(actor, action);
 
-    if (this.checkBattleEnd()) return;
+    if (this.checkBattleEnd()) return false;
 
     this.triggerSummons(actor, "on_turn_end");
-    this.processNextActor();
+    return true;
   }
 
   submitPlayerAction(action: BattleAction): void {
+    this.state.phase = "running";
+
     const actor = this.findCombatant(this.state.activeCombatantId ?? "");
     if (!actor) return;
 
@@ -135,7 +138,6 @@ export class BattleEngine implements BattleEngineLike {
 
     if (!this.checkBattleEnd()) {
       this.triggerSummons(actor, "on_turn_end");
-      this.processNextActor();
     }
   }
 
@@ -213,12 +215,18 @@ export class BattleEngine implements BattleEngineLike {
       this.state.actionCount, this.state.allies, this.state.enemies,
     );
 
+    this.addLogEntries(emitDamageTrace(this.state.actionCount, actor.name, actor.team, result.trace));
+
     if (result.dodged) {
       this.addLog({ turn: this.state.actionCount, actorName: actor.name, action: "普通攻击", targetName: target.name, type: "miss", narrative: `${target.name}闪避了${actor.name}的攻击`, team: actor.team });
       this.triggerSummons(actor, "on_dodge");
     } else {
-      const isCrit = result.finalDamage > rawDmg;
-      this.addLog({ turn: this.state.actionCount, actorName: actor.name, action: "普通攻击", targetName: target.name, type: isCrit ? "crit" : "damage", value: result.hpLost, narrative: `${actor.name}对${target.name}造成${result.hpLost}点物理伤害${isCrit ? "，暴击！" : ""}`, team: actor.team });
+      const critText = result.isCrit ? "，暴击！" : "";
+      const shieldText = result.shieldAbsorbed > 0 ? `（护盾吸收${result.shieldAbsorbed}点）` : "";
+      this.addLog({ turn: this.state.actionCount, actorName: actor.name, action: "普通攻击", targetName: target.name, type: result.isCrit ? "crit" : "damage", value: result.hpLost, narrative: `${actor.name}对${target.name}造成${result.hpLost}点物理伤害${critText}${shieldText}`, team: actor.team });
+      if (result.deathWardTriggered) {
+        this.addLog({ turn: this.state.actionCount, actorName: target.name, action: "免死护盾", type: "buff", narrative: `${target.name}触发免死护盾，保留1点生命！`, team: target.team });
+      }
       if (result.killed) {
         this.addLog({ turn: this.state.actionCount, actorName: target.name, action: "阵亡", type: "death", narrative: `${target.name}被击败了！`, team: target.team });
         this.triggerSummons(actor, "on_kill");
@@ -283,11 +291,21 @@ export class BattleEngine implements BattleEngineLike {
     const healMult = 1 + this.effectManager.getModifierTotal(actor, "healReceived") / 100;
 
     if (elixir.effectType === "healHp") {
-      const healed = this.applyHeal(actor, Math.round(elixir.value * healMult));
-      this.addLog({ turn: this.state.actionCount, actorName: actor.name, action: "使用丹药", targetName: actor.name, type: "heal", value: healed, narrative: `${actor.name}使用${elixir.name}，恢复${healed}点生命`, team: actor.team });
+      const baseHeal = elixir.isPercent
+        ? Math.round(actor.stats.maxHp * elixir.value / 100)
+        : elixir.value;
+      const healed = this.applyHeal(actor, Math.round(baseHeal * healMult));
+      if (healed <= 0) {
+        this.addLog({ turn: this.state.actionCount, actorName: actor.name, action: "使用丹药", type: "info", narrative: `${actor.name}使用${elixir.name}，但生命已满`, team: actor.team });
+      }
     } else if (elixir.effectType === "healMp") {
-      const restored = this.applyMpChange(actor, elixir.value);
-      this.addLog({ turn: this.state.actionCount, actorName: actor.name, action: "使用丹药", targetName: actor.name, type: "heal", value: restored, narrative: `${actor.name}使用${elixir.name}，恢复${restored}点法力`, team: actor.team });
+      const baseRestore = elixir.isPercent
+        ? Math.round(actor.stats.maxMp * elixir.value / 100)
+        : elixir.value;
+      const restored = this.applyMpChange(actor, baseRestore);
+      if (restored <= 0) {
+        this.addLog({ turn: this.state.actionCount, actorName: actor.name, action: "使用丹药", type: "info", narrative: `${actor.name}使用${elixir.name}，但法力已满`, team: actor.team });
+      }
     }
 
     this.gaugeManager.consumeGauge(actor, ELIXIR_COST);
@@ -318,7 +336,7 @@ export class BattleEngine implements BattleEngineLike {
     }
   }
 
-  private checkBattleEnd(): boolean {
+  checkBattleEnd(): boolean {
     if (this.state.phase === "fled") return true;
 
     const alliesAlive = this.state.allies.some(a => !a.isDead);
@@ -444,14 +462,23 @@ export class BattleEngine implements BattleEngineLike {
   }
 
   applyMpChange(target: BattleCombatant, delta: number): number {
+    const before = target.mp;
     target.mp = Math.max(0, Math.min(target.stats.maxMp, target.mp + delta));
-    return target.mp;
+    const actual = target.mp - before;
+    if (actual > 0) {
+      this.pushFloat(target.id, `+${actual}`, "mp");
+    }
+    return actual;
   }
 
   applyHeal(target: BattleCombatant, rawHeal: number): number {
     const deficit = target.stats.maxHp - target.hp;
     const healed = Math.min(deficit, rawHeal);
     target.hp += healed;
+
+    if (healed > 0) {
+      this.pushFloat(target.id, `+${healed}`, "hp");
+    }
 
     this.eventDispatcher.emit("heal", {
       event: "heal", target,
@@ -461,5 +488,19 @@ export class BattleEngine implements BattleEngineLike {
     });
 
     return healed;
+  }
+
+  pushFloat(combatantId: string, text: string, kind: "hp" | "mp"): void {
+    this.state.floatingTexts.push({
+      id: this.floatId++,
+      combatantId,
+      text,
+      kind,
+    });
+  }
+
+  clearFloatingText(id: number): void {
+    const idx = this.state.floatingTexts.findIndex(ft => ft.id === id);
+    if (idx >= 0) this.state.floatingTexts.splice(idx, 1);
   }
 }
