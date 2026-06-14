@@ -226,7 +226,11 @@ export class EffectHandler {
   private doHeal(value: number, ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
     const target = ctx.target ?? ctx.actor;
     const healMult = 1 + engine.effectManager.getModifierTotal(target, "healReceived") / 100;
-    engine.applyHeal(target, Math.round(value * healMult));
+    const healed = engine.applyHeal(target, Math.round(value * healMult));
+    if (healed > 0) {
+      return [log(ctx.turn, ctx.actor.name, "治疗", "heal",
+        `${target.name}恢复${healed}点生命`, target.team, target.name, healed)];
+    }
     return [];
   }
 
@@ -250,6 +254,10 @@ export class EffectHandler {
     }
     entries.push(...dmgEntries);
     engine.applyHeal(ctx.actor, result.hpLost);
+    if (result.hpLost > 0) {
+      entries.push(log(ctx.turn, ctx.actor.name, "生命偷取", "heal",
+        `${ctx.actor.name}恢复${result.hpLost}点生命`, ctx.actor.team, ctx.actor.name, result.hpLost));
+    }
     this.addSecondaryLogs(result, ctx, entries);
     return entries;
   }

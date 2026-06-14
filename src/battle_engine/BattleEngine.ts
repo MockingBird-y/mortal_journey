@@ -17,7 +17,7 @@ import { EffectManager } from "./EffectManager";
 import { DamagePipeline } from "./DamagePipeline";
 import { EffectHandler, emitDamageTrace } from "./EffectHandler";
 import { BattleAI } from "./BattleAI";
-import { NORMAL_ATTACK_COST, ELIXIR_COST, GAUGE_MAX } from "./constants";
+import { NORMAL_ATTACK_COST, ELIXIR_COST, FLEE_COST, GAUGE_MAX } from "./constants";
 
 export class BattleEngine implements BattleEngineLike {
   readonly eventDispatcher = new EventDispatcher();
@@ -297,6 +297,8 @@ export class BattleEngine implements BattleEngineLike {
       const healed = this.applyHeal(actor, Math.round(baseHeal * healMult));
       if (healed <= 0) {
         this.addLog({ turn: this.state.actionCount, actorName: actor.name, action: "使用丹药", type: "info", narrative: `${actor.name}使用${elixir.name}，但生命已满`, team: actor.team });
+      } else {
+        this.addLog({ turn: this.state.actionCount, actorName: actor.name, action: "使用丹药", type: "heal", value: healed, narrative: `${actor.name}使用${elixir.name}，恢复${healed}点生命`, team: actor.team });
       }
     } else if (elixir.effectType === "healMp") {
       const baseRestore = elixir.isPercent
@@ -305,6 +307,8 @@ export class BattleEngine implements BattleEngineLike {
       const restored = this.applyMpChange(actor, baseRestore);
       if (restored <= 0) {
         this.addLog({ turn: this.state.actionCount, actorName: actor.name, action: "使用丹药", type: "info", narrative: `${actor.name}使用${elixir.name}，但法力已满`, team: actor.team });
+      } else {
+        this.addLog({ turn: this.state.actionCount, actorName: actor.name, action: "使用丹药", type: "heal", value: restored, narrative: `${actor.name}使用${elixir.name}，恢复${restored}点法力`, team: actor.team });
       }
     }
 
@@ -319,7 +323,7 @@ export class BattleEngine implements BattleEngineLike {
     }
 
     actor.isFleeing = true;
-    this.gaugeManager.resetGauge(actor);
+    this.gaugeManager.consumeGauge(actor, FLEE_COST);
     this.addLog({ turn: this.state.actionCount, actorName: actor.name, action: "开始逃跑", type: "info", narrative: `${actor.name}开始蓄力逃跑，行动条从零开始累积…`, team: actor.team });
   }
 
@@ -364,12 +368,12 @@ export class BattleEngine implements BattleEngineLike {
   getPlayerActionOptions(): ActionOptions {
     const actor = this.findCombatant(this.state.activeCombatantId ?? "");
     if (!actor || actor.isDead) {
-      return { canNormalAttack: false, canFlee: false, skills: [], elixirs: [] };
+      return { canNormalAttack: false, normalAttackCost: NORMAL_ATTACK_COST, normalAttackDamage: 0, skillActionCost: 100, elixirActionCost: ELIXIR_COST, fleeActionCost: FLEE_COST, canFlee: false, skills: [], elixirs: [] };
     }
 
     const canAct = this.effectManager.canAct(actor);
     if (!canAct) {
-      return { canNormalAttack: false, canFlee: false, skills: [], elixirs: [] };
+      return { canNormalAttack: false, normalAttackCost: NORMAL_ATTACK_COST, normalAttackDamage: 0, skillActionCost: 100, elixirActionCost: ELIXIR_COST, fleeActionCost: FLEE_COST, canFlee: false, skills: [], elixirs: [] };
     }
 
     const canUseSkills = this.effectManager.canUseSkills(actor);
@@ -397,19 +401,25 @@ export class BattleEngine implements BattleEngineLike {
     for (let i = 0; i < actor.elixirs.length; i++) {
       const el = actor.elixirs[i];
       if (!el || el.count <= 0) continue;
+      const statLabel = el.effectType === "healHp" ? "生命" : "法力";
       elixirs.push({
         elixirIndex: i,
         name: el.name,
         effectType: el.effectType,
         value: el.value,
         count: el.count,
-        description: el.desc,
+        description: `恢复${el.value}${el.isPercent ? "%" : "点"}${statLabel}`,
       });
     }
 
     return {
       canNormalAttack: true,
+      normalAttackCost: NORMAL_ATTACK_COST,
+      normalAttackDamage: actor.stats.physAttack,
+      skillActionCost: 100,
+      elixirActionCost: ELIXIR_COST,
       canFlee: actor.isProtagonist,
+      fleeActionCost: FLEE_COST,
       skills,
       elixirs,
     };

@@ -14,6 +14,7 @@ export type ModifierType =
   | "magDamageDealt"
   | "damageTaken"
   | "healReceived"
+  | "hpRecover"
   | "mpRecover"
   | "speed"
   | "critRate"
@@ -331,6 +332,11 @@ export interface ElixirActionItem {
 
 export interface ActionOptions {
   canNormalAttack: boolean;
+  normalAttackCost: number;
+  normalAttackDamage: number;
+  skillActionCost: number;
+  elixirActionCost: number;
+  fleeActionCost: number;
   canFlee: boolean;
   skills: SkillActionItem[];
   elixirs: ElixirActionItem[];

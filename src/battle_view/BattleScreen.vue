@@ -221,41 +221,47 @@ function toggleElixirSubmenu() {
             <div class="battle__body">
               <aside class="battle__actions">
                 <template v-if="isPlayerTurn && actionOptions">
-                  <button class="battle__action-btn" @click="onNormalAttack" :disabled="!actionOptions.canNormalAttack">
-                    ⚔ 普通攻击
+                  <button class="battle__action-btn battle__action-btn--attack" @click="onNormalAttack" :disabled="!actionOptions.canNormalAttack">
+                    <span class="battle__action-label">⚔ 普通攻击</span>
+                    <span class="battle__action-info">行动值:{{ actionOptions.normalAttackCost }} | 攻击:{{ actionOptions.normalAttackDamage }}</span>
                   </button>
                   <div class="battle__action-group">
-                    <button class="battle__action-btn" @click="toggleSkillSubmenu" :disabled="actionOptions.skills.length === 0">
-                      📜 技能 {{ skillSubmenuOpen ? '▲' : '▼' }}
+                    <button class="battle__action-btn battle__action-btn--skill" :class="{ 'battle__action-btn--active': skillSubmenuOpen }" @click="toggleSkillSubmenu" :disabled="actionOptions.skills.length === 0">
+                      <span class="battle__action-label">📜 功法 {{ skillSubmenuOpen ? '▲' : '▼' }}</span>
+                      <span class="battle__action-info">行动值:{{ actionOptions.skillActionCost }}</span>
                     </button>
-                    <div v-if="skillSubmenuOpen" class="battle__submenu">
+                    <div v-if="skillSubmenuOpen" class="battle__submenu battle__submenu--skill">
                       <button
                         v-for="item in actionOptions.skills"
                         :key="item.skillIndex"
                         class="battle__submenu-item"
                         @click="onSkillSelect(item)"
                       >
-                        {{ item.name }} <span class="battle__mp-cost">MP:{{ item.mpCost }}</span>
+                        <span class="battle__submenu-name">{{ item.name }} <span class="battle__mp-cost">MP:{{ item.mpCost }}</span></span>
+                        <span class="battle__submenu-desc">{{ item.description }}</span>
                       </button>
                     </div>
                   </div>
                   <div class="battle__action-group">
-                    <button class="battle__action-btn" @click="toggleElixirSubmenu" :disabled="actionOptions.elixirs.length === 0">
-                      💊 恢复丹药 {{ elixirSubmenuOpen ? '▲' : '▼' }}
+                    <button class="battle__action-btn battle__action-btn--elixir" :class="{ 'battle__action-btn--active': elixirSubmenuOpen }" @click="toggleElixirSubmenu" :disabled="actionOptions.elixirs.length === 0">
+                      <span class="battle__action-label">💊 恢复丹药 {{ elixirSubmenuOpen ? '▲' : '▼' }}</span>
+                      <span class="battle__action-info">行动值:{{ actionOptions.elixirActionCost }}</span>
                     </button>
-                    <div v-if="elixirSubmenuOpen" class="battle__submenu">
+                    <div v-if="elixirSubmenuOpen" class="battle__submenu battle__submenu--elixir">
                       <button
                         v-for="item in actionOptions.elixirs"
                         :key="item.elixirIndex"
                         class="battle__submenu-item"
                         @click="onElixirSelect(item)"
                       >
-                        {{ item.name }} ×{{ item.count }}
+                        <span class="battle__submenu-name">{{ item.name }} ×{{ item.count }}</span>
+                        <span class="battle__submenu-desc">{{ item.description }}</span>
                       </button>
                     </div>
                   </div>
                   <button class="battle__action-btn battle__action-btn--flee" @click="onFlee" :disabled="!actionOptions.canFlee">
-                    🏃 逃跑
+                    <span class="battle__action-label">🏃 逃跑</span>
+                    <span class="battle__action-info">行动值:{{ actionOptions.fleeActionCost }}</span>
                   </button>
                 </template>
                 <template v-else-if="!battleOver">

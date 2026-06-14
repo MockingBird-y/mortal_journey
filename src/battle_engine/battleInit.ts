@@ -133,7 +133,7 @@ function buildBattleSkills(gongfaSlots: GongfaSlotsState, getStat: (key: string)
 
     const getStatForDesc = (key: "strength" | "perception") => getStat(key);
     const desc = gf.function.battleEffects
-      .map(e => resolveGongfaBattleEffectDesc(e, getStatForDesc, masteryMult, layer))
+      .map(e => resolveGongfaBattleEffectDesc(e, getStatForDesc, masteryMult, layer, false))
       .join("；");
 
     skills.push({
@@ -242,6 +242,8 @@ function extractTreasurePassiveEffects(
     if (!tr || !tr.function) continue;
     if (!("modifiers" in tr.function)) continue;
     for (const mod of tr.function.modifiers) {
+      const rawType = mod.modifierType as string;
+      const engineType = (rawType === "healReceived" ? "hpRecover" : rawType) as ModifierType;
       effects.push({
         id: generateEffectId(),
         name: tr.function.name,
@@ -250,7 +252,7 @@ function extractTreasurePassiveEffects(
         remainingDuration: 99,
         stacks: 1,
         maxStacks: 1,
-        modifierType: mod.modifierType as ModifierType,
+        modifierType: engineType,
         modifierValue: mod.modifierType === "damageTaken" ? -mod.value : mod.value,
         hidden: true,
       });

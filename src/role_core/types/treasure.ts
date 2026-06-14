@@ -7,7 +7,7 @@ import type { ItemGrade } from "./itemInfo";
 export type TreasureModifierType =
   | "damageDealt"
   | "damageTaken"
-  | "healReceived"
+  | "hpRecover"
   | "mpRecover"
   | "speed"
   | "critRate"
@@ -31,7 +31,7 @@ export interface TreasureSpecialEffect {
 export const TREASURE_MODIFIER_NAMES: Readonly<Record<TreasureModifierType, string>> = {
   damageDealt: "增伤",
   damageTaken: "减伤",
-  healReceived: "血量恢复",
+  hpRecover: "血量恢复",
   mpRecover: "法力恢复",
   speed: "速度",
   critRate: "暴击",
@@ -59,7 +59,7 @@ const GRADE_MODIFIER_COUNT: Readonly<Record<ItemGrade, number>> = {
 const MODIFIER_VALUE_RANGES: Readonly<Record<TreasureModifierType, Readonly<Record<ItemGrade, readonly [number, number]>>>> = {
   damageDealt:  { "下品": [2, 4],  "中品": [3, 6],   "上品": [5, 9],   "极品": [7, 13],  "仙品": [10, 16], "神品": [12, 20] },
   damageTaken:  { "下品": [1, 2],  "中品": [1, 3],   "上品": [2, 4],   "极品": [3, 6],   "仙品": [5, 8],   "神品": [6, 10] },
-  healReceived: { "下品": [1, 2],  "中品": [2, 3],   "上品": [3, 4],   "极品": [4, 6],   "仙品": [6, 8],   "神品": [8, 10] },
+  hpRecover:   { "下品": [1, 2],  "中品": [2, 3],   "上品": [3, 4],   "极品": [4, 6],   "仙品": [6, 8],   "神品": [8, 10] },
   mpRecover:    { "下品": [1, 2],  "中品": [2, 3],   "上品": [3, 4],   "极品": [4, 6],   "仙品": [6, 8],   "神品": [8, 10] },
   speed:        { "下品": [2, 4],  "中品": [3, 6],   "上品": [5, 9],   "极品": [7, 13],  "仙品": [10, 18], "神品": [15, 25] },
   critRate:     { "下品": [2, 4],  "中品": [3, 6],   "上品": [5, 9],   "极品": [8, 15],  "仙品": [12, 20], "神品": [15, 25] },
@@ -72,7 +72,7 @@ const MODIFIER_VALUE_RANGES: Readonly<Record<TreasureModifierType, Readonly<Reco
 // ═══════════════════════════════════════════════════════════════════════════
 
 const MODIFIER_POOL: readonly TreasureModifierType[] = [
-  "damageDealt", "damageTaken", "healReceived", "mpRecover",
+  "damageDealt", "damageTaken", "hpRecover", "mpRecover",
   "speed", "critRate", "critDmg", "dodgeRate",
 ];
 

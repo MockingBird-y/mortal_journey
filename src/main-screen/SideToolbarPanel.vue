@@ -44,4 +44,10 @@ function closeMapModal() {
   width: 100%;
   margin-bottom: 6px;
 }
+
+.side-btn:disabled {
+  color: #888;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
 </style>

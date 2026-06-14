@@ -141,8 +141,10 @@ function formatScaledValue(
   eff: GongfaBattleEffect,
   v: number | undefined,
   layer: number,
+  showFormula: boolean = true,
 ): string {
   if (v == null) return "0";
+  if (!showFormula) return String(v);
   if (!("scalingRatio" in eff) || !("scalingStat" in eff)) return String(v);
   const sr = atLayer(eff.scalingRatio as LayerValue, layer);
   if (sr === 0) return String(v);
@@ -157,9 +159,10 @@ export function resolveGongfaBattleEffectDesc(
   getStat: (key: "strength" | "perception") => number,
   masteryMult: number,
   layer: number,
+  showFormula: boolean = true,
 ): string {
   const v = bakeValue(eff, getStat, masteryMult, layer);
-  const sv = formatScaledValue(eff, v, layer);
+  const sv = formatScaledValue(eff, v, layer, showFormula);
 
   switch (eff.type) {
     case "dealDamage": {

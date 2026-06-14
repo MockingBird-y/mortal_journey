@@ -91,7 +91,22 @@ export class EffectManager {
         if (healed > 0) {
           combatant.hp += healed;
           onFloat?.(combatant.id, `+${healed}`, "hp");
+          entries.push(this.logEntry(actionCount, eff.name, "持续恢复", combatant.name, "heal", healed,
+            `${combatant.name}受到${eff.name}效果，恢复${healed}点生命`, combatant.team));
         }
+      }
+    }
+
+    const hpRecoverMod = this.getModifierTotal(combatant, "hpRecover");
+    if (hpRecoverMod > 0 && combatant.hp < combatant.stats.maxHp) {
+      const recover = Math.round(combatant.stats.maxHp * hpRecoverMod / 100);
+      const deficit = combatant.stats.maxHp - combatant.hp;
+      const recovered = Math.min(deficit, recover);
+      if (recovered > 0) {
+        combatant.hp += recovered;
+        onFloat?.(combatant.id, `+${recovered}`, "hp");
+        entries.push(this.logEntry(actionCount, "血量恢复", "持续恢复", combatant.name, "heal", recovered,
+          `${combatant.name}恢复${recovered}点生命`, combatant.team));
       }
     }
 
@@ -103,6 +118,8 @@ export class EffectManager {
       if (recovered > 0) {
         combatant.mp += recovered;
         onFloat?.(combatant.id, `+${recovered}`, "mp");
+        entries.push(this.logEntry(actionCount, "法力恢复", "持续恢复", combatant.name, "heal", recovered,
+          `${combatant.name}恢复${recovered}点法力`, combatant.team));
       }
     }
 
