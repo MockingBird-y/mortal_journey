@@ -218,12 +218,12 @@ export class BattleEngine implements BattleEngineLike {
     this.addLogEntries(emitDamageTrace(this.state.actionCount, actor.name, actor.team, result.trace));
 
     if (result.dodged) {
-      this.addLog({ turn: this.state.actionCount, actorName: actor.name, action: "普通攻击", targetName: target.name, type: "miss", narrative: `${target.name}闪避了${actor.name}的攻击`, team: actor.team });
+      this.addLog({ turn: this.state.actionCount, actorName: actor.name, action: "普通攻击", targetName: target.name, type: "miss", narrative: `${target.name}闪避了${actor.name}的普通攻击`, team: actor.team });
       this.triggerSummons(actor, "on_dodge");
     } else {
-      const critText = result.isCrit ? "，暴击！" : "";
+      const label = result.isCrit ? "暴击物理伤害" : "物理伤害";
       const shieldText = result.shieldAbsorbed > 0 ? `（护盾吸收${result.shieldAbsorbed}点）` : "";
-      this.addLog({ turn: this.state.actionCount, actorName: actor.name, action: "普通攻击", targetName: target.name, type: result.isCrit ? "crit" : "damage", value: result.hpLost, narrative: `${actor.name}对${target.name}造成${result.hpLost}点物理伤害${critText}${shieldText}`, team: actor.team });
+      this.addLog({ turn: this.state.actionCount, actorName: actor.name, action: "普通攻击", targetName: target.name, type: result.isCrit ? "crit" : "damage", value: result.hpLost, narrative: `${actor.name}使用普通攻击对${target.name}造成${result.hpLost}点${label}${shieldText}`, team: actor.team });
       if (result.deathWardTriggered) {
         this.addLog({ turn: this.state.actionCount, actorName: target.name, action: "免死护盾", type: "buff", narrative: `${target.name}触发免死护盾，保留1点生命！`, team: target.team });
       }
@@ -267,11 +267,11 @@ export class BattleEngine implements BattleEngineLike {
       const targets = (skill.targetTeam === "enemy" ? ctx.enemies : ctx.allies).filter(c => !c.isDead);
       for (const t of targets) {
         ctx.target = t;
-        const entries = this.effectHandler.executeEffects(skill.effects, ctx, this);
+        const entries = this.effectHandler.executeEffects(skill.effects, ctx, this, skill.name);
         this.addLogEntries(entries);
       }
     } else {
-      const entries = this.effectHandler.executeEffects(skill.effects, ctx, this);
+      const entries = this.effectHandler.executeEffects(skill.effects, ctx, this, skill.name);
       this.addLogEntries(entries);
     }
 

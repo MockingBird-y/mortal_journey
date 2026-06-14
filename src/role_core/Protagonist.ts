@@ -16,6 +16,7 @@ import type { TreasureSpecialEffect } from "./types/treasure";
 import { rollTreasureFunction } from "./types/treasure";
 import type { GongfaSpecialEffect, GongfaSystem } from "./types/gongfa";
 import { rollGongfaFunction, normalizeGongfaSystem, normalizeGongfaRole } from "./types/gongfa";
+import { GONGFA_GRADE_ATTRI_TABLE, rollGradeAttriValue } from "./types/gameConstants";
 
 type SpecialEffect = TreasureSpecialEffect | GongfaSpecialEffect;
 
@@ -484,6 +485,11 @@ export class Protagonist extends Character {
         const itemRec = item as unknown as Record<string, unknown>;
         const system = normalizeGongfaSystem(itemRec.system);
         const role = normalizeGongfaRole(itemRec.role);
+        const bonusName = typeof itemRec.bonus === "string" ? itemRec.bonus.trim() : "";
+        const validBonus = new Set(Object.keys(GONGFA_GRADE_ATTRI_TABLE));
+        const bonus = validBonus.has(bonusName)
+          ? { [bonusName]: rollGradeAttriValue(bonusName, grade, GONGFA_GRADE_ATTRI_TABLE) }
+          : {};
         fn = rollGongfaFunction(system, grade, role);
         this.addToInventory({
           name: item.name,
@@ -494,6 +500,7 @@ export class Protagonist extends Character {
           system,
           role,
           mastery: 1,
+          bonus,
           function: fn,
         } as InventoryStackItem);
         continue;

@@ -16,6 +16,53 @@ import type {
 import { generateId } from "./formulas";
 import { GAUGE_MAX, NORMAL_ATTACK_COST, BATTLE_DEBUG } from "./constants";
 
+const MODIFIER_LABELS: Record<string, string> = {
+  damageDealt: "攻击增伤",
+  physDamageDealt: "物理增伤",
+  magDamageDealt: "法术增伤",
+  damageTaken: "受伤增加",
+  physDamageTaken: "物理减伤",
+  magDamageTaken: "法术减伤",
+  healReceived: "受到治疗",
+  hpRecover: "血量恢复",
+  mpRecover: "法力恢复",
+  speed: "速度",
+  critRate: "暴击率",
+  critDmg: "暴击伤害",
+  dodgeRate: "闪避率",
+  lifesteal: "吸血",
+  defensePenetration: "穿透",
+  physDefensePenetration: "破甲",
+  magDefensePenetration: "破法",
+};
+
+const CC_LABELS: Record<string, string> = {
+  freeze: "冰冻",
+  stun: "眩晕",
+  fear: "恐惧",
+  confusion: "混乱",
+  silence: "沉默",
+  taunt: "嘲讽",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  poison: "中毒",
+  burn: "灼烧",
+  bleed: "流血",
+  hpRegen: "生命恢复",
+  mpDrain: "法力流失",
+};
+
+function modifierLabel(type: string): string {
+  return MODIFIER_LABELS[type] ?? type;
+}
+function ccLabel(type: string): string {
+  return CC_LABELS[type] ?? type;
+}
+function statusLabel(type: string): string {
+  return STATUS_LABELS[type] ?? type;
+}
+
 function log(
   turn: number, actorName: string, action: string, type: BattleLogEntry["type"],
   narrative: string, team?: "ally" | "enemy", targetName?: string, value?: number,
@@ -41,29 +88,32 @@ function buildDamageEntries(
   damageLabel: string,
   team: "ally" | "enemy",
   extraText?: string,
+  sourceName?: string,
 ): BattleLogEntry[] {
   const entries: BattleLogEntry[] = [];
 
   entries.push(...emitDamageTrace(turn, actorName, team, result.trace));
 
+  const prefix = sourceName ? `使用${sourceName}` : "";
+  const label = result.isCrit ? `暴击${damageLabel}` : damageLabel;
+
   if (result.dodged) {
     entries.push(log(turn, actorName, "攻击", "miss",
-      `${targetName}闪避了${actorName}的攻击`, team, targetName));
+      `${targetName}闪避了${actorName}的${sourceName || "攻击"}`, team, targetName));
     return entries;
   }
 
   if (result.hpLost === 0 && result.shieldAbsorbed > 0) {
     entries.push(log(turn, actorName, "攻击", "shield",
-      `${actorName}对${targetName}的攻击被护盾完全抵挡（吸收${result.shieldAbsorbed}点）`,
+      `${actorName}${prefix}对${targetName}的攻击被护盾完全抵挡（吸收${result.shieldAbsorbed}点）`,
       team, targetName, result.shieldAbsorbed));
   } else {
-    const critText = result.isCrit ? "，暴击！" : "";
     const shieldText = result.shieldAbsorbed > 0
       ? `（护盾吸收${result.shieldAbsorbed}点）`
       : "";
     const suffix = extraText ? extraText : "";
-    entries.push(log(turn, actorName, "攻击", result.isCrit ? "crit" : "damage",
-      `${actorName}对${targetName}造成${result.hpLost}点${damageLabel}${critText}${shieldText}${suffix}`,
+    entries.push(log(turn, actorName, sourceName || "攻击", result.isCrit ? "crit" : "damage",
+      `${actorName}${prefix}对${targetName}造成${result.hpLost}点${label}${shieldText}${suffix}`,
       team, targetName, result.hpLost));
   }
 
@@ -86,10 +136,11 @@ export class EffectHandler {
     effects: readonly SkillEffect[],
     ctx: ActionContext,
     engine: BattleEngineLike,
+    sourceName?: string,
   ): BattleLogEntry[] {
     const entries: BattleLogEntry[] = [];
     for (const eff of effects) {
-      entries.push(...this.executeOne(eff, ctx, engine));
+      entries.push(...this.executeOne(eff, ctx, engine, sourceName));
     }
     return entries;
   }
@@ -140,15 +191,16 @@ export class EffectHandler {
           const targets = enemies.filter(e => !e.isDead);
           if (targets.length === 0) break;
           const target = targets[Math.floor(Math.random() * targets.length)];
+          const sLabel = statusLabel(payload.statusType);
           engine.effectManager.addEffect(target, {
-            id: generateId(), name: `召唤物${payload.statusType}`, sourceId: source.id,
+            id: generateId(), name: `召唤物${sLabel}`, sourceId: source.id,
             category: "dot", remainingDuration: payload.duration ?? 3,
             stacks: 1, maxStacks: payload.maxStacks ?? 5,
             tickValue: payload.tickValue, tickIsPercent: payload.isPercent,
             tickResource: "hp", statusType: payload.statusType,
           });
-          entries.push(log(actionCount, source.name, `召唤物施加${payload.statusType}`, "debuff",
-            `召唤物对${target.name}施加了${payload.statusType}`, source.team, target.name));
+          entries.push(log(actionCount, source.name, `召唤物施加${sLabel}`, "debuff",
+            `召唤物对${target.name}施加了${sLabel}`, source.team, target.name));
           break;
         }
       }
@@ -156,14 +208,14 @@ export class EffectHandler {
     return entries;
   }
 
-  private executeOne(eff: SkillEffect, ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
+  private executeOne(eff: SkillEffect, ctx: ActionContext, engine: BattleEngineLike, sourceName?: string): BattleLogEntry[] {
     const t = ctx.turn;
     switch (eff.type) {
-      case "dealDamage": return this.doDamage(eff.damageType, eff.value, ctx, engine);
-      case "dealDamageExecute": return this.doDamageExecute(eff, ctx, engine);
-      case "dealDamagePierce": return this.doDamagePierce(eff.value, ctx, engine);
+      case "dealDamage": return this.doDamage(eff.damageType, eff.value, ctx, engine, sourceName);
+      case "dealDamageExecute": return this.doDamageExecute(eff, ctx, engine, sourceName);
+      case "dealDamagePierce": return this.doDamagePierce(eff.value, ctx, engine, sourceName);
       case "heal": return this.doHeal(eff.value, ctx, engine);
-      case "lifesteal": return this.doLifesteal(eff, ctx, engine);
+      case "lifesteal": return this.doLifesteal(eff, ctx, engine, sourceName);
       case "applyModifier": return this.doApplyModifier(eff, ctx, engine);
       case "applyCc": return this.doApplyCc(eff, ctx, engine);
       case "applyStatus": return this.doApplyStatus(eff, ctx, engine);
@@ -182,18 +234,18 @@ export class EffectHandler {
     }
   }
 
-  private doDamage(damageType: DamageType, value: number, ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
+  private doDamage(damageType: DamageType, value: number, ctx: ActionContext, engine: BattleEngineLike, sourceName?: string): BattleLogEntry[] {
     if (!ctx.target || ctx.target.isDead) return [];
     const result = engine.damagePipeline.execute(
       { source: ctx.actor, target: ctx.target, rawDamage: value, damageType, isCrit: false },
       ctx.turn, ctx.allies, ctx.enemies,
     );
-    const entries = buildDamageEntries(ctx.turn, ctx.actor.name, ctx.target.name, result, "伤害", ctx.actor.team);
+    const entries = buildDamageEntries(ctx.turn, ctx.actor.name, ctx.target.name, result, "伤害", ctx.actor.team, undefined, sourceName);
     this.addSecondaryLogs(result, ctx, entries);
     return entries;
   }
 
-  private doDamageExecute(eff: SkillEffect & { type: "dealDamageExecute" }, ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
+  private doDamageExecute(eff: SkillEffect & { type: "dealDamageExecute" }, ctx: ActionContext, engine: BattleEngineLike, sourceName?: string): BattleLogEntry[] {
     if (!ctx.target || ctx.target.isDead) return [];
     let value = eff.value;
     const hpRatio = ctx.target.hp / ctx.target.stats.maxHp;
@@ -207,18 +259,18 @@ export class EffectHandler {
       ctx.turn, ctx.allies, ctx.enemies,
     );
     const extraText = executed ? "（目标低血量，伤害提升！）" : undefined;
-    const entries = buildDamageEntries(ctx.turn, ctx.actor.name, ctx.target.name, result, "斩杀伤害", ctx.actor.team, extraText);
+    const entries = buildDamageEntries(ctx.turn, ctx.actor.name, ctx.target.name, result, "斩杀伤害", ctx.actor.team, extraText, sourceName);
     this.addSecondaryLogs(result, ctx, entries);
     return entries;
   }
 
-  private doDamagePierce(value: number, ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
+  private doDamagePierce(value: number, ctx: ActionContext, engine: BattleEngineLike, sourceName?: string): BattleLogEntry[] {
     if (!ctx.target || ctx.target.isDead) return [];
     const result = engine.damagePipeline.execute(
       { source: ctx.actor, target: ctx.target, rawDamage: value, damageType: "true", isCrit: false },
       ctx.turn, ctx.allies, ctx.enemies,
     );
-    const entries = buildDamageEntries(ctx.turn, ctx.actor.name, ctx.target.name, result, "穿透伤害", ctx.actor.team);
+    const entries = buildDamageEntries(ctx.turn, ctx.actor.name, ctx.target.name, result, "穿透伤害", ctx.actor.team, undefined, sourceName);
     this.addSecondaryLogs(result, ctx, entries);
     return entries;
   }
@@ -234,7 +286,7 @@ export class EffectHandler {
     return [];
   }
 
-  private doLifesteal(eff: SkillEffect & { type: "lifesteal" }, ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
+  private doLifesteal(eff: SkillEffect & { type: "lifesteal" }, ctx: ActionContext, engine: BattleEngineLike, sourceName?: string): BattleLogEntry[] {
     if (!ctx.target || ctx.target.isDead) return [];
     const entries: BattleLogEntry[] = [];
     const baseAttack = eff.damageType === "magical"
@@ -245,11 +297,12 @@ export class EffectHandler {
       { source: ctx.actor, target: ctx.target, rawDamage: dmgValue, damageType: eff.damageType, isCrit: false },
       ctx.turn, ctx.allies, ctx.enemies,
     );
-    const dmgEntries = buildDamageEntries(ctx.turn, ctx.actor.name, ctx.target.name, result, "吸血伤害", ctx.actor.team);
+    const prefix = sourceName ? `使用${sourceName}` : "";
+    const dmgEntries = buildDamageEntries(ctx.turn, ctx.actor.name, ctx.target.name, result, "吸血伤害", ctx.actor.team, undefined, sourceName);
     for (const e of dmgEntries) {
       e.action = "生命偷取";
       if (e.type === "damage" || e.type === "crit") {
-        e.narrative = `${ctx.actor.name}吸取${ctx.target.name}${result.hpLost}点生命`;
+        e.narrative = `${ctx.actor.name}${prefix}吸取${ctx.target.name}${result.hpLost}点生命`;
       }
     }
     entries.push(...dmgEntries);
@@ -265,24 +318,31 @@ export class EffectHandler {
   private doApplyModifier(eff: SkillEffect & { type: "applyModifier" }, ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
     const target = eff.targetSelf ? ctx.actor : (ctx.target ?? ctx.actor);
     const isPositive = eff.value > 0;
+    const label = modifierLabel(eff.modifierType);
+    const sign = isPositive ? "+" : "-";
     engine.effectManager.addEffect(target, {
-      id: generateId(), name: `${eff.modifierType}效果`, sourceId: ctx.actor.id,
+      id: generateId(), name: `${label}${sign}${Math.abs(eff.value)}%`, sourceId: ctx.actor.id,
       category: "modifier", remainingDuration: eff.duration,
       stacks: 1, maxStacks: eff.maxStacks,
       modifierType: eff.modifierType, modifierValue: eff.value,
     });
     const pctText = `${Math.abs(eff.value)}%`;
+    const verb = isPositive ? "增加" : "降低";
+    const isSelfBuff = ctx.actor === target && isPositive;
+    const narrative = isSelfBuff
+      ? `${ctx.actor.name}获得增益：${verb}${label} ${pctText}`
+      : `${ctx.actor.name}对${target.name}施加${isPositive ? "增益" : "减益"}：${verb}${label} ${pctText}`;
     return [log(ctx.turn, ctx.actor.name, isPositive ? "增益" : "减益", isPositive ? "buff" : "debuff",
-      `${ctx.actor.name}对${target.name}施加${isPositive ? "增益" : "减益"}：${eff.modifierType} ${pctText}`,
-      ctx.actor.team, target.name)];
+      narrative, ctx.actor.team, target.name)];
   }
 
   private doApplyCc(eff: SkillEffect & { type: "applyCc" }, ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
     if (!ctx.target) return [];
+    const label = ccLabel(eff.ccType);
     const hit = Math.random() < eff.chance;
     if (!hit) {
-      return [log(ctx.turn, ctx.actor.name, eff.ccType, "info",
-        `${ctx.actor.name}试图对${ctx.target.name}施加${eff.ccType}，但被抵抗了`, ctx.actor.team, ctx.target.name)];
+      return [log(ctx.turn, ctx.actor.name, label, "info",
+        `${ctx.actor.name}试图对${ctx.target.name}施加${label}，但被抵抗了`, ctx.actor.team, ctx.target.name)];
     }
 
     if (eff.ccType === "freeze") {
@@ -292,29 +352,30 @@ export class EffectHandler {
     }
 
     engine.effectManager.addEffect(ctx.target, {
-      id: generateId(), name: eff.ccType, sourceId: ctx.actor.id,
+      id: generateId(), name: label, sourceId: ctx.actor.id,
       category: "cc", remainingDuration: eff.duration,
       stacks: 1, maxStacks: 1,
       ccType: eff.ccType,
     });
 
-    return [log(ctx.turn, ctx.actor.name, eff.ccType, "cc",
-      `${ctx.actor.name}对${ctx.target.name}施加了${eff.ccType}`, ctx.actor.team, ctx.target.name)];
+    return [log(ctx.turn, ctx.actor.name, label, "cc",
+      `${ctx.actor.name}对${ctx.target.name}施加了${label}`, ctx.actor.team, ctx.target.name)];
   }
 
   private doApplyStatus(eff: SkillEffect & { type: "applyStatus" }, ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
     if (!ctx.target) return [];
+    const label = statusLabel(eff.statusType);
     const isDoT = eff.statusType === "poison" || eff.statusType === "burn" || eff.statusType === "bleed" || eff.statusType === "mpDrain";
     engine.effectManager.addEffect(ctx.target, {
-      id: generateId(), name: eff.statusType, sourceId: ctx.actor.id,
+      id: generateId(), name: label, sourceId: ctx.actor.id,
       category: isDoT ? "dot" : "hot", remainingDuration: eff.duration,
       stacks: 1, maxStacks: eff.maxStacks,
       tickValue: eff.tickValue, tickIsPercent: eff.isPercent,
       tickResource: eff.statusType === "mpDrain" ? "mp" : "hp",
       statusType: eff.statusType,
     });
-    return [log(ctx.turn, ctx.actor.name, `施加${eff.statusType}`, isDoT ? "debuff" : "buff",
-      `${ctx.actor.name}对${ctx.target.name}施加了${eff.statusType}`, ctx.actor.team, ctx.target.name)];
+    return [log(ctx.turn, ctx.actor.name, `施加${label}`, isDoT ? "debuff" : "buff",
+      `${ctx.actor.name}对${ctx.target.name}施加了${label}`, ctx.actor.team, ctx.target.name)];
   }
 
   private doSummon(eff: SkillEffect & { type: "summon" }, ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {

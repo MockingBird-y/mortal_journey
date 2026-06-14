@@ -161,7 +161,8 @@ function logTypeClass(type: string): string {
 
 function logIcon(type: string): string {
   switch (type) {
-    case "damage": case "dot": case "crit": return "⚔";
+    case "damage": case "dot": return "⚔";
+    case "crit": return "💥";
     case "heal": return "💚";
     case "shield": return "🛡";
     case "buff": return "⬆";

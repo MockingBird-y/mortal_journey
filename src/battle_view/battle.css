@@ -365,7 +365,7 @@
 }
 
 .battle__log--damage { color: #f88; }
-.battle__log--crit { color: #ff4; font-weight: 600; }
+.battle__log--crit { color: #f44; font-weight: 700; border-left: 3px solid #f44; padding-left: 4px; }
 .battle__log--heal { color: #8f8; }
 .battle__log--buff { color: #8af; }
 .battle__log--debuff { color: #fa8; }

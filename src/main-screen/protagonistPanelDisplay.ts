@@ -206,8 +206,8 @@ export function inventorySlotParts(cell: InventoryStackItem | null): InventorySl
   }
   const lingshi = isSpiritStoneStack(cell);
   const cnt =
-    typeof cell.count === "number" && Number.isFinite(cell.count) ? Math.max(1, Math.floor(cell.count)) : 1;
-  const qty = cnt > 1 ? String(cnt) : null;
+    typeof cell.count === "number" && Number.isFinite(cell.count) ? Math.floor(cell.count) : 1;
+  const qty = cnt === 0 ? "0" : (cnt > 1 ? String(cnt) : null);
   const gr = "grade" in cell && cell.grade != null ? String(cell.grade).trim() : "";
   const rarity = gr ? gradeToTraitRarity(gr) : undefined;
   return { label: cell.name, qty, filled: true, lingshi, rarity };

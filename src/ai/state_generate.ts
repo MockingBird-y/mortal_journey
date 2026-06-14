@@ -64,6 +64,7 @@ export interface ItemAddEntry {
   system?: unknown;
   role?: unknown;
   function?: unknown;
+  bonus?: unknown;
 }
 
 export interface ItemRemoveEntry {
@@ -364,6 +365,7 @@ export function parseStateAiResponse(raw: string): StateParsed {
         ...(o.system != null ? { system: o.system } : {}),
         ...(o.role != null ? { role: o.role } : {}),
         ...(o.function != null ? { function: o.function } : {}),
+        ...(o.bonus != null ? { bonus: o.bonus } : {}),
       } as ItemAddEntry;
     })
     .filter((e): e is ItemAddEntry => e !== null);
