@@ -21,6 +21,7 @@ const EMPTY_RESULT: DamageResult = {
   reflectKilled: false,
   counterHpLost: 0,
   counterKilled: false,
+  lifestealHeal: 0,
   sharedDamages: [],
   trace: [],
 };
@@ -96,11 +97,19 @@ export class DamagePipeline {
       trace.push(`  → 未暴击`);
     }
 
-    const defense = ctx.damageType === "physical" ? ctx.target.stats.physDefense
+    const rawDefense = ctx.damageType === "physical" ? ctx.target.stats.physDefense
       : ctx.damageType === "magical" ? ctx.target.stats.magDefense
       : 0;
-    let baseDamage = calcDefenseReduction(rawDamage, defense, ctx.damageType);
-    trace.push(`  防御: ${typeLabel}${defense} → 减防后: ${baseDamage}`);
+    const penGeneral = this.effectManager.getModifierTotal(ctx.source, "defensePenetration");
+    const penSpecific = ctx.damageType === "physical"
+      ? this.effectManager.getModifierTotal(ctx.source, "physDefensePenetration")
+      : ctx.damageType === "magical"
+        ? this.effectManager.getModifierTotal(ctx.source, "magDefensePenetration")
+        : 0;
+    const penetration = penGeneral + penSpecific;
+    const effectiveDefense = ctx.damageType === "true" ? 0 : Math.round(rawDefense * (1 - penetration / 100));
+    let baseDamage = calcDefenseReduction(rawDamage, effectiveDefense, ctx.damageType);
+    trace.push(`  防御: ${typeLabel}${rawDefense}${penetration > 0 ? `（破甲${penetration}%→有效${effectiveDefense}）` : ""} → 减防后: ${baseDamage}`);
 
     const damageDealtGeneral = this.effectManager.getModifierTotal(ctx.source, "damageDealt");
     const damageDealtSpecific = ctx.damageType === "physical"
@@ -111,9 +120,14 @@ export class DamagePipeline {
     const dealtMult = 1 + (damageDealtGeneral + damageDealtSpecific) / 100;
     trace.push(`  攻击方伤害加成: damageDealt${damageDealtGeneral >= 0 ? "+" : ""}${damageDealtGeneral}%, ${ctx.damageType === "physical" ? "physDamageDealt" : ctx.damageType === "magical" ? "magDamageDealt" : "specific"}${damageDealtSpecific >= 0 ? "+" : ""}${damageDealtSpecific}% → 倍率=${dealtMult.toFixed(4)}`);
 
-    const damageTaken = this.effectManager.getModifierTotal(ctx.target, "damageTaken");
-    const takenMult = 1 + damageTaken / 100;
-    trace.push(`  受击方承伤修正: damageTaken${damageTaken >= 0 ? "+" : ""}${damageTaken}% → 倍率=${takenMult.toFixed(4)}`);
+    const damageTakenGeneral = this.effectManager.getModifierTotal(ctx.target, "damageTaken");
+    const damageTakenSpecific = ctx.damageType === "physical"
+      ? this.effectManager.getModifierTotal(ctx.target, "physDamageTaken")
+      : ctx.damageType === "magical"
+        ? this.effectManager.getModifierTotal(ctx.target, "magDamageTaken")
+        : 0;
+    const takenMult = 1 + (damageTakenGeneral + damageTakenSpecific) / 100;
+    trace.push(`  受击方承伤修正: damageTaken${damageTakenGeneral >= 0 ? "+" : ""}${damageTakenGeneral}%, ${ctx.damageType === "physical" ? "physDamageTaken" : ctx.damageType === "magical" ? "magDamageTaken" : "specific"}${damageTakenSpecific >= 0 ? "+" : ""}${damageTakenSpecific}% → 倍率=${takenMult.toFixed(4)}`);
 
     let finalDamage = Math.max(1, Math.round(baseDamage * dealtMult * takenMult));
     trace.push(`  最终伤害: max(1, round(${baseDamage} × ${dealtMult.toFixed(4)} × ${takenMult.toFixed(4)})) = ${finalDamage}`);
@@ -226,6 +240,15 @@ export class DamagePipeline {
       }
     }
 
+    let lifestealHeal = 0;
+    if (hpLost > 0) {
+      const lifestealMod = this.effectManager.getModifierTotal(ctx.source, "lifesteal");
+      if (lifestealMod > 0) {
+        lifestealHeal = Math.round(hpLost * lifestealMod / 100);
+        trace.push(`  吸血: ${lifestealMod}% → 恢复${lifestealHeal}点生命`);
+      }
+    }
+
     const result: DamageResult = {
       finalDamage,
       shieldAbsorbed,
@@ -238,6 +261,7 @@ export class DamagePipeline {
       reflectKilled,
       counterHpLost,
       counterKilled,
+      lifestealHeal,
       sharedDamages,
       trace,
     };

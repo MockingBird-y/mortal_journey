@@ -12,7 +12,15 @@ export type TreasureModifierType =
   | "speed"
   | "critRate"
   | "critDmg"
-  | "dodgeRate";
+  | "dodgeRate"
+  | "lifesteal"
+  | "defensePenetration"
+  | "physDamageDealt"
+  | "magDamageDealt"
+  | "physDamageTaken"
+  | "magDamageTaken"
+  | "physDefensePenetration"
+  | "magDefensePenetration";
 
 export interface TreasureModifier {
   modifierType: TreasureModifierType;
@@ -37,6 +45,14 @@ export const TREASURE_MODIFIER_NAMES: Readonly<Record<TreasureModifierType, stri
   critRate: "暴击",
   critDmg: "暴伤",
   dodgeRate: "闪避",
+  lifesteal: "吸血",
+  defensePenetration: "穿透",
+  physDamageDealt: "物理增伤",
+  magDamageDealt: "法术增伤",
+  physDamageTaken: "物理减伤",
+  magDamageTaken: "法术减伤",
+  physDefensePenetration: "破甲",
+  magDefensePenetration: "破法",
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -65,23 +81,51 @@ const MODIFIER_VALUE_RANGES: Readonly<Record<TreasureModifierType, Readonly<Reco
   critRate:     { "下品": [2, 4],  "中品": [3, 6],   "上品": [5, 9],   "极品": [8, 15],  "仙品": [12, 20], "神品": [15, 25] },
   critDmg:      { "下品": [4, 8],  "中品": [6, 12],  "上品": [10, 18], "极品": [15, 28], "仙品": [22, 38], "神品": [30, 50] },
   dodgeRate:    { "下品": [1, 3],  "中品": [2, 4],   "上品": [3, 6],   "极品": [5, 9],   "仙品": [6, 12],  "神品": [8, 15] },
+  lifesteal:          { "下品": [1, 2],  "中品": [2, 3],   "上品": [3, 4],   "极品": [4, 6],   "仙品": [5, 7],   "神品": [6, 8] },
+  defensePenetration: { "下品": [2, 4],  "中品": [3, 6],   "上品": [5, 9],   "极品": [7, 13],  "仙品": [10, 16], "神品": [12, 20] },
+  physDamageDealt:          { "下品": [3, 6],  "中品": [5, 9],   "上品": [7, 13],  "极品": [11, 19], "仙品": [15, 24], "神品": [18, 30] },
+  magDamageDealt:           { "下品": [3, 6],  "中品": [5, 9],   "上品": [7, 13],  "极品": [11, 19], "仙品": [15, 24], "神品": [18, 30] },
+  physDamageTaken:          { "下品": [2, 3],  "中品": [2, 4],   "上品": [3, 6],   "极品": [5, 9],   "仙品": [7, 12],  "神品": [9, 15] },
+  magDamageTaken:           { "下品": [2, 3],  "中品": [2, 4],   "上品": [3, 6],   "极品": [5, 9],   "仙品": [7, 12],  "神品": [9, 15] },
+  physDefensePenetration:   { "下品": [3, 6],  "中品": [5, 9],   "上品": [7, 13],  "极品": [11, 19], "仙品": [15, 24], "神品": [18, 30] },
+  magDefensePenetration:    { "下品": [3, 6],  "中品": [5, 9],   "上品": [7, 13],  "极品": [11, 19], "仙品": [15, 24], "神品": [18, 30] },
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 随机分配
+// 加权随机池（通用属性高权重，专用属性低权重）
 // ═══════════════════════════════════════════════════════════════════════════
 
-const MODIFIER_POOL: readonly TreasureModifierType[] = [
-  "damageDealt", "damageTaken", "hpRecover", "mpRecover",
-  "speed", "critRate", "critDmg", "dodgeRate",
-];
+const MODIFIER_WEIGHTS: Readonly<Record<TreasureModifierType, number>> = {
+  damageDealt: 3, damageTaken: 3, hpRecover: 2, mpRecover: 2,
+  speed: 2, critRate: 2, critDmg: 2, dodgeRate: 2,
+  lifesteal: 1, defensePenetration: 1,
+  physDamageDealt: 1, magDamageDealt: 1,
+  physDamageTaken: 1, magDamageTaken: 1,
+  physDefensePenetration: 1, magDefensePenetration: 1,
+};
+
+const WEIGHTED_POOL: readonly TreasureModifierType[] = (() => {
+  const pool: TreasureModifierType[] = [];
+  for (const [type, weight] of Object.entries(MODIFIER_WEIGHTS) as [TreasureModifierType, number][]) {
+    for (let i = 0; i < weight; i++) pool.push(type);
+  }
+  return pool;
+})();
 
 export function rollTreasureFunction(grade: ItemGrade): TreasureSpecialEffect {
   const count = GRADE_MODIFIER_COUNT[grade];
   const modifiers: TreasureModifier[] = [];
+  const usedTypes = new Set<TreasureModifierType>();
 
   for (let i = 0; i < count; i++) {
-    const type = MODIFIER_POOL[Math.floor(Math.random() * MODIFIER_POOL.length)];
+    let type: TreasureModifierType;
+    let attempts = 0;
+    do {
+      type = WEIGHTED_POOL[Math.floor(Math.random() * WEIGHTED_POOL.length)];
+      attempts++;
+    } while (usedTypes.has(type) && attempts < 20);
+    usedTypes.add(type);
+
     const [lo, hi] = MODIFIER_VALUE_RANGES[type][grade];
     const value = lo + Math.floor(Math.random() * (hi - lo + 1));
     modifiers.push({ modifierType: type, value });

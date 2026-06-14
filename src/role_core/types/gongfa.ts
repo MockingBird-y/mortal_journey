@@ -108,6 +108,12 @@ const MODIFIER_LABELS: Record<string, string> = {
   critRate: "暴击率",
   critDmg: "暴击伤害",
   dodgeRate: "闪避率",
+  lifesteal: "吸血",
+  defensePenetration: "穿透",
+  physDamageTaken: "物理减伤",
+  magDamageTaken: "法术减伤",
+  physDefensePenetration: "破甲",
+  magDefensePenetration: "破法",
 };
 
 const STATUS_LABELS: Record<string, string> = {

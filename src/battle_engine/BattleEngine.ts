@@ -443,6 +443,15 @@ export class BattleEngine implements BattleEngineLike {
 
   addSecondaryDamageLogs(result: import("./types").DamageResult, source: BattleCombatant, target: BattleCombatant, turn?: number): void {
     const t = turn ?? this.state.actionCount;
+    if (result.lifestealHeal > 0) {
+      const deficit = source.stats.maxHp - source.hp;
+      const healed = Math.min(deficit, result.lifestealHeal);
+      if (healed > 0) {
+        source.hp += healed;
+        this.pushFloat(source.id, `+${healed}`, "hp");
+        this.addLog({ turn: t, actorName: source.name, action: "吸血", type: "heal", value: healed, narrative: `${source.name}吸取${healed}点生命`, team: source.team });
+      }
+    }
     if (result.reflectHpLost > 0) {
       this.addLog({ turn: t, actorName: target.name, action: "反伤", targetName: source.name, type: "damage", value: result.reflectHpLost, narrative: `${target.name}的反伤对${source.name}造成${result.reflectHpLost}点伤害`, team: target.team });
       if (result.reflectKilled) {

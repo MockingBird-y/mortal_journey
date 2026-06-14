@@ -443,6 +443,15 @@ export class EffectHandler {
   }
 
   private addSecondaryLogs(result: import("./types").DamageResult, ctx: ActionContext, entries: BattleLogEntry[]): void {
+    if (result.lifestealHeal > 0) {
+      const healed = ctx.actor.stats.maxHp - ctx.actor.hp;
+      const actual = Math.min(healed, result.lifestealHeal);
+      if (actual > 0) {
+        ctx.actor.hp += actual;
+        entries.push(log(ctx.turn, ctx.actor.name, "吸血", "heal",
+          `${ctx.actor.name}吸取${actual}点生命`, ctx.actor.team, ctx.actor.name, actual));
+      }
+    }
     if (result.reflectHpLost > 0) {
       entries.push(log(ctx.turn, ctx.target!.name, "反伤", "damage",
         `${ctx.target!.name}的反伤对${ctx.actor.name}造成${result.reflectHpLost}点伤害`, ctx.target!.team, ctx.actor.name, result.reflectHpLost));

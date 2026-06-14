@@ -13,13 +13,19 @@ export type ModifierType =
   | "physDamageDealt"
   | "magDamageDealt"
   | "damageTaken"
+  | "physDamageTaken"
+  | "magDamageTaken"
   | "healReceived"
   | "hpRecover"
   | "mpRecover"
   | "speed"
   | "critRate"
   | "critDmg"
-  | "dodgeRate";
+  | "dodgeRate"
+  | "lifesteal"
+  | "defensePenetration"
+  | "physDefensePenetration"
+  | "magDefensePenetration";
 
 // ─── 控制效果 ───
 
@@ -278,6 +284,7 @@ export interface DamageResult {
   reflectKilled: boolean;
   counterHpLost: number;
   counterKilled: boolean;
+  lifestealHeal: number;
   sharedDamages: Array<{
     targetId: string;
     targetName: string;
