@@ -481,8 +481,9 @@ export class BattleEngine implements BattleEngineLike {
   }
 
   applyMpChange(target: BattleCombatant, delta: number): number {
+    const adjusted = delta > 0 ? Math.round(delta * (target.linggenHealMult ?? 1)) : delta;
     const before = target.mp;
-    target.mp = Math.max(0, Math.min(target.stats.maxMp, target.mp + delta));
+    target.mp = Math.max(0, Math.min(target.stats.maxMp, target.mp + adjusted));
     const actual = target.mp - before;
     if (actual > 0) {
       this.pushFloat(target.id, `+${actual}`, "mp");
@@ -491,8 +492,9 @@ export class BattleEngine implements BattleEngineLike {
   }
 
   applyHeal(target: BattleCombatant, rawHeal: number): number {
+    const mult = target.linggenHealMult ?? 1;
     const deficit = target.stats.maxHp - target.hp;
-    const healed = Math.min(deficit, rawHeal);
+    const healed = Math.min(deficit, Math.round(rawHeal * mult));
     target.hp += healed;
 
     if (healed > 0) {

@@ -1,8 +1,11 @@
 import {
   ELIXIR_GRADE_EFFECT_TABLE,
+  ELIXIR_EFFECT_WEIGHTS,
   ELIXIR_PERCENT_GRADE_THRESHOLD,
   GRADE_INDEX,
+  getLinggenElementBonus,
 } from "./gameConstants";
+import type { InventoryStackItem } from "./itemInfo";
 
 export type ElixirEffectType =
   | "恢复血量" | "恢复法力"
@@ -20,14 +23,15 @@ export const VALID_ELIXIR_EFFECT_TYPES: readonly ElixirEffectType[] = [
 export interface ElixirEffects {
   value: number;
   isPercent: boolean;
+  /** 已被木灵根烘焙加成，防重复；旧存档无此字段视为未烘焙。 */
+  linggenBoosted?: boolean;
 }
 
 export function rollElixirValue(effectType: ElixirEffectType, grade: string): number {
   const arr = ELIXIR_GRADE_EFFECT_TABLE[effectType];
   if (!arr) return 1;
   const gradeIdx = GRADE_INDEX[grade] ?? 0;
-  const [lo, hi] = arr[Math.min(gradeIdx, arr.length - 1)];
-  return lo + Math.floor(Math.random() * (hi - lo + 1));
+  return arr[Math.min(gradeIdx, arr.length - 1)];
 }
 
 export function isElixirPercent(effectType: ElixirEffectType, grade: string): boolean {
@@ -37,9 +41,26 @@ export function isElixirPercent(effectType: ElixirEffectType, grade: string): bo
 }
 
 export function parseElixirEffectType(raw: unknown): ElixirEffectType {
-  if (typeof raw !== "string") return "恢复血量";
-  const trimmed = raw.trim();
-  if ((VALID_ELIXIR_EFFECT_TYPES as readonly string[]).includes(trimmed)) return trimmed as ElixirEffectType;
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if ((VALID_ELIXIR_EFFECT_TYPES as readonly string[]).includes(trimmed)) {
+      return trimmed as ElixirEffectType;
+    }
+  }
+  return rollElixirEffectType();
+}
+
+/** 按 ELIXIR_EFFECT_WEIGHTS 权重随机选取丹药效果类型。 */
+export function rollElixirEffectType(): ElixirEffectType {
+  const entries = (Object.entries(ELIXIR_EFFECT_WEIGHTS) as [string, number][])
+    .filter(([, w]) => w > 0);
+  const total = entries.reduce((sum, [, w]) => sum + w, 0);
+  if (total <= 0) return "恢复血量";
+  let roll = Math.random() * total;
+  for (const [name, w] of entries) {
+    roll -= w;
+    if (roll <= 0) return name as ElixirEffectType;
+  }
   return "恢复血量";
 }
 
@@ -66,4 +87,24 @@ export interface ElixirItemDefinition {
   count: number;
   effectType: ElixirEffectType;
   effects: ElixirEffects;
+}
+
+/**
+ * 木灵根契合：丹药获取时烘焙。若角色有木灵根且丹药尚未被烘焙过，
+ * 按当前大境界加成提升 effects.value 并打 linggenBoosted 标记。
+ * 直接修改传入的 item（原地烘焙）。
+ */
+export function applyLinggenElixirBoost(
+  item: InventoryStackItem,
+  linggen: readonly string[],
+  realmMajor: string,
+): void {
+  if (!("itemType" in item) || item.itemType !== "丹药") return;
+  const elixir = item as ElixirItemDefinition;
+  if (elixir.effects.linggenBoosted) return;
+  if (!linggen.includes("木")) return;
+  const bonus = getLinggenElementBonus(realmMajor, "木");
+  if (bonus <= 0) return;
+  elixir.effects.value = Math.round(elixir.effects.value * (1 + bonus / 100));
+  elixir.effects.linggenBoosted = true;
 }

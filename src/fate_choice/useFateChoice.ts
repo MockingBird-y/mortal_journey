@@ -160,14 +160,8 @@ function pickRandomTraits(pool: readonly TraitSample[], excludeNames: string[], 
 // ---------------------------------------------------------------------------
 
 function buildOrderedBirthKeys(): string[] {
-  const raw = Object.keys(CREATION_BIRTHS);
-  const out: string[] = [];
-  for (let i = 0; i < raw.length; i++) {
-    if (raw[i] !== "自定义") out.push(raw[i]!);
-  }
-  const idx = out.indexOf("黄枫谷弟子");
-  if (idx >= 0) out.splice(idx + 1, 0, "自定义");
-  else out.push("自定义");
+  const out = Object.keys(CREATION_BIRTHS).filter((k) => k !== "自定义");
+  out.push("自定义");
   return out;
 }
 

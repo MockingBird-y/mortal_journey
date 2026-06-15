@@ -8,7 +8,7 @@ import { protagonist } from "../role_core/Protagonist";
 import { Npc } from "../role_core/Npc";
 import { npcStore } from "../role_core/npcStore";
 import { gameLog } from "../log/gameLog";
-import { GONGFA_SLOT_COUNT, GONGFA_MASTERY_COMBAT_MULT } from "../role_core/types/gameConstants";
+import { GONGFA_SLOT_COUNT, GONGFA_MASTERY_COMBAT_MULT, computeLinggenCombatBonuses } from "../role_core/types/gameConstants";
 import { generateId as generateEffectId } from "./formulas";
 import { BASE_CRIT_DMG } from "./constants";
 
@@ -115,7 +115,7 @@ function needsTarget(eff: GongfaBattleEffect): boolean {
       return false;
   }
 }
-function buildBattleSkills(gongfaSlots: GongfaSlotsState, getStat: (key: string) => number): BattleSkill[] {
+function buildBattleSkills(gongfaSlots: GongfaSlotsState, getStat: (key: string) => number, cooldownReduce: number): BattleSkill[] {
   const skills: BattleSkill[] = [];
 
   for (const gf of gongfaSlots) {
@@ -141,7 +141,7 @@ function buildBattleSkills(gongfaSlots: GongfaSlotsState, getStat: (key: string)
       desc,
       mpCost: atLayer(gf.function.mpCost ?? 0, layer),
       actionCost: 100,
-      cooldown: gf.function.cooldown ?? 0,
+      cooldown: Math.max(0, (gf.function.cooldown ?? 0) - cooldownReduce),
       needTarget: hasNeedTarget,
       targetTeam: hasOffensive ? "enemy" : "ally",
       isAoE: false,
@@ -288,7 +288,8 @@ function createProtagonistCombatant(): BattleCombatant | null {
 
   const primaryStats = p.getPrimaryStats();
   const getStat = (key: string) => (primaryStats as Record<string, number>)[key] ?? 0;
-  const skills = buildBattleSkills(p.gongfaSlots, getStat);
+  const linggenBonus = computeLinggenCombatBonuses(p.linggen, p.realm.major);
+  const skills = buildBattleSkills(p.gongfaSlots, getStat, linggenBonus.cooldownReduce);
   const elixirs = extractRecoveryElixirs(p.inventorySlots);
   const passiveEffects: BattleEffect[] = [
     ...extractPassiveEffects(p.gongfaSlots, getStat, generateId("ally", 0)),
@@ -311,7 +312,7 @@ function createProtagonistCombatant(): BattleCombatant | null {
       physDefense: primaryStats.guard ?? 0,
       magDefense: primaryStats.resistance ?? 0,
       critRate: 0,
-      critDmg: BASE_CRIT_DMG,
+      critDmg: BASE_CRIT_DMG + linggenBonus.critDmgBonus,
     },
 
     hp: p.currentHp,
@@ -326,6 +327,8 @@ function createProtagonistCombatant(): BattleCombatant | null {
     elixirs,
 
     effects: passiveEffects,
+    linggenHealMult: linggenBonus.healMult,
+    linggenShieldMult: linggenBonus.shieldMult,
     realm: { ...p.realm },
   };
 }
@@ -333,7 +336,8 @@ function createProtagonistCombatant(): BattleCombatant | null {
 function createNpcCombatant(npc: Npc, team: "ally" | "enemy", index: number): BattleCombatant {
   const primaryStats = npc.getPrimaryStats();
   const getStat = (key: string) => (primaryStats as Record<string, number>)[key] ?? 0;
-  const skills = buildBattleSkills(npc.gongfaSlots, getStat);
+  const linggenBonus = computeLinggenCombatBonuses(npc.linggen, npc.realm.major);
+  const skills = buildBattleSkills(npc.gongfaSlots, getStat, linggenBonus.cooldownReduce);
   const elixirs = extractRecoveryElixirs(npc.inventorySlots);
   const id = generateId(team, index);
   const passiveEffects: BattleEffect[] = [
@@ -357,7 +361,7 @@ function createNpcCombatant(npc: Npc, team: "ally" | "enemy", index: number): Ba
       physDefense: primaryStats.guard ?? 0,
       magDefense: primaryStats.resistance ?? 0,
       critRate: 0,
-      critDmg: BASE_CRIT_DMG,
+      critDmg: BASE_CRIT_DMG + linggenBonus.critDmgBonus,
     },
 
     hp: npc.currentHp,
@@ -372,6 +376,8 @@ function createNpcCombatant(npc: Npc, team: "ally" | "enemy", index: number): Ba
     elixirs,
 
     effects: passiveEffects,
+    linggenHealMult: linggenBonus.healMult,
+    linggenShieldMult: linggenBonus.shieldMult,
     sourceNpcName: npc.displayName,
     realm: { ...npc.realm },
     powerTier: npc.powerTier,

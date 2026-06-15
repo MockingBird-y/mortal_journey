@@ -38,6 +38,7 @@ import {
   unequipToInventory as eqUnequip,
   applyDetailAction as eqApply,
 } from "./CharacterEquip";
+import { applyLinggenElixirBoost } from "./types/elixir";
 
 const HP_PER_PHYSIQUE = 10;
 const MP_PER_SPIRIT = 10;
@@ -241,10 +242,12 @@ export class Character {
   // ===================================================================
 
   setInventorySlot(index: number, item: InventoryStackItem | null): boolean {
+    if (item) applyLinggenElixirBoost(item, this.linggen, this.realm.major);
     return invSetSlot(this, index, item);
   }
 
   addToInventory(item: InventoryStackItem): number {
+    applyLinggenElixirBoost(item, this.linggen, this.realm.major);
     return invAdd(this, item);
   }
 

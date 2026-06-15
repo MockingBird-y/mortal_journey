@@ -145,14 +145,14 @@ export const LINGGEN_ELEMENT_EFFECTS: Readonly<Record<string, string>> = {
 export const CREATION_GENDERS = ["男性", "女性"] as const;
 
 export const CREATION_BIRTHS: Readonly<Record<string, BirthDefinition>> = {
-  凡人: {
-    location: { region: "天南", country: "越国", area: "凡俗", detail: "凡人家庭" },
-    desc: "出身于凡人家庭，多务农为生，生活清苦，希望改变命运。",
-  },
   黄枫谷弟子: {
     location: { region: "天南", country: "越国", area: "黄枫谷", detail: "外门" },
     desc: "出身于越国七大宗门之一的黄枫谷外门，以剑修传承闻名，门规严谨。",
   },
+  乱星海散修: {
+    location: { region: "乱星海", country: "内海", area: "魁星岛", detail: "天都街" },
+    desc: "出身在乱星海，资源多被大小宗门与星宫势力把持。你无依无靠，灵石、丹药、功法皆需自行挣取，或冒险猎妖，或接取散修任务，稍有不慎便是身死道消。",
+  }
 };
 
 // ---------------------------------------------------------------------------

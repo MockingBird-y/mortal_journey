@@ -86,6 +86,7 @@ export class EffectManager {
         } else {
           healAmt = Math.round(eff.tickValue * stacks);
         }
+        healAmt = Math.round(healAmt * (combatant.linggenHealMult ?? 1));
         const deficit = combatant.stats.maxHp - combatant.hp;
         const healed = Math.min(deficit, healAmt);
         if (healed > 0) {
@@ -99,7 +100,7 @@ export class EffectManager {
 
     const hpRecoverMod = this.getModifierTotal(combatant, "hpRecover");
     if (hpRecoverMod > 0 && combatant.hp < combatant.stats.maxHp) {
-      const recover = Math.round(combatant.stats.maxHp * hpRecoverMod / 100);
+      const recover = Math.round(combatant.stats.maxHp * hpRecoverMod / 100 * (combatant.linggenHealMult ?? 1));
       const deficit = combatant.stats.maxHp - combatant.hp;
       const recovered = Math.min(deficit, recover);
       if (recovered > 0) {
@@ -112,7 +113,7 @@ export class EffectManager {
 
     const mpRecoverMod = this.getModifierTotal(combatant, "mpRecover");
     if (mpRecoverMod > 0 && combatant.mp < combatant.stats.maxMp) {
-      const recover = Math.round(combatant.stats.maxMp * mpRecoverMod / 100);
+      const recover = Math.round(combatant.stats.maxMp * mpRecoverMod / 100 * (combatant.linggenHealMult ?? 1));
       const deficit = combatant.stats.maxMp - combatant.mp;
       const recovered = Math.min(deficit, recover);
       if (recovered > 0) {
@@ -192,9 +193,10 @@ export class EffectManager {
   }
 
   applyInitialShields(combatant: BattleCombatant): void {
+    const mult = combatant.linggenShieldMult ?? 1;
     for (const eff of combatant.effects) {
       if (eff.specialType === "shield" && eff.specialValue) {
-        combatant.shield += eff.specialValue;
+        combatant.shield += Math.round(eff.specialValue * mult);
       }
     }
   }

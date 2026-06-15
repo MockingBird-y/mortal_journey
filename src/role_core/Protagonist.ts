@@ -48,7 +48,7 @@ import {
   type SpiritStoneName,
 } from "./types/spiritStone";
 import type { ElixirItemDefinition } from "./types/elixir";
-import { elixirEffectToStatKey } from "./types/elixir";
+import { elixirEffectToStatKey, applyLinggenElixirBoost } from "./types/elixir";
 import type { InitStateParsed } from "../ai/init_state_generate";
 import type { StateParsed } from "../ai/state_generate";
 import {
@@ -403,6 +403,9 @@ export class Protagonist extends Character {
     this.equippedSlots = buildEquippedSlotsFromParsed(parsed);
     this.gongfaSlots = buildGongfaSlotsFromParsed(parsed);
     this.inventorySlots = buildInventoryFromParsed(parsed, this.realm.major, DEFAULT_INVENTORY_SLOT_COUNT);
+    for (const slot of this.inventorySlots) {
+      if (slot) applyLinggenElixirBoost(slot, this.linggen, this.realm.major);
+    }
     compactInventorySlotsInPlace(this);
 
     const { maxHp: capH, maxMp: capM } = this.computeMaxHpMp();

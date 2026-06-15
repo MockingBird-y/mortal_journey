@@ -15,6 +15,7 @@ import { getRealmPrimaryStats, getShouyuanForRealm } from "./realmUtils";
 import type { InventoryStackItem, TreasureItemDefinition, GongfaItemDefinition } from "./types/itemInfo";
 import type { NpcNearbyEntry } from "../ai/state_generate";
 import { parseEquipObject, parseGongfaObject, parseStorageObject, rollGrade } from "../ai/parseAiItem";
+import { applyLinggenElixirBoost } from "./types/elixir";
 
 const VALID_POWER_TIERS = new Set<string>(["小怪", "精英怪", "小boss", "大boss", "普通NPC"]);
 
@@ -195,6 +196,9 @@ export class Npc extends Character {
         ...items,
         ...Array.from({ length: Math.max(0, DEFAULT_INVENTORY_SLOT_COUNT - items.length) }, () => null),
       ];
+      for (const slot of this.inventorySlots) {
+        if (slot) applyLinggenElixirBoost(slot, this.linggen, this.realm.major);
+      }
       compactInventorySlotsInPlace(this);
     }
 

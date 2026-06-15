@@ -50,6 +50,21 @@ export function extractStoryBody(raw: string): string {
   return s.slice(from, j).trim();
 }
 
+function hasCompleteStoryBody(raw: string): boolean {
+  const s = raw == null ? "" : String(raw);
+  let searchFrom = 0;
+  const tOpen = s.indexOf("<thinking>");
+  if (tOpen >= 0) {
+    const tClose = s.indexOf("</thinking>", tOpen);
+    if (tClose >= 0) {
+      searchFrom = tClose + "</thinking>".length;
+    }
+  }
+  const i = s.indexOf(MJ_STORY_BODY_OPEN, searchFrom);
+  if (i < 0) return false;
+  return s.indexOf(MJ_STORY_BODY_CLOSE, i + MJ_STORY_BODY_OPEN.length) >= 0;
+}
+
 function narrationPersonLine(person: NarrationPerson): string {
   switch (person) {
     case "first":
@@ -187,6 +202,10 @@ export function buildStoryRequestPayload(input: StoryGenerateInput): JsonChatReq
 }
 
 export async function generateStory(input: StoryGenerateInput): Promise<StoryParsed> {
-  const raw = await completeChatWithMessagesJson(buildStoryRequestPayload(input));
+  const payload = buildStoryRequestPayload(input);
+  let raw = await completeChatWithMessagesJson(payload);
+  if (!hasCompleteStoryBody(raw)) {
+    raw = await completeChatWithMessagesJson(payload);
+  }
   return { storyBody: extractStoryBody(raw) };
 }

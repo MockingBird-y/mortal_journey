@@ -130,6 +130,11 @@ export interface BattleCombatant {
 
   effects: BattleEffect[];
 
+  /** 灵根契合·火：战斗期恢复乘区（1 = 无加成）。作用于治疗/恢复接受者。 */
+  linggenHealMult?: number;
+  /** 灵根契合·土：战斗期护盾乘区（1 = 无加成）。作用于护盾接受者。 */
+  linggenShieldMult?: number;
+
   realm?: { major: string; minor: string };
   powerTier?: string;
   identity?: string;

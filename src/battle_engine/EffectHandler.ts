@@ -487,9 +487,11 @@ export class EffectHandler {
 
   private doShield(value: number, ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
     const target = ctx.target ?? ctx.actor;
-    target.shield += value;
+    const mult = target.linggenShieldMult ?? 1;
+    const amount = Math.round(value * mult);
+    target.shield += amount;
     return [log(ctx.turn, ctx.actor.name, "护盾", "shield",
-      `${ctx.actor.name}为${target.name}增加${value}点护盾`, ctx.actor.team, target.name, value)];
+      `${ctx.actor.name}为${target.name}增加${amount}点护盾`, ctx.actor.team, target.name, amount)];
   }
 
   private doStealth(duration: number, ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
@@ -505,8 +507,10 @@ export class EffectHandler {
 
   private addSecondaryLogs(result: import("./types").DamageResult, ctx: ActionContext, entries: BattleLogEntry[]): void {
     if (result.lifestealHeal > 0) {
+      const mult = ctx.actor.linggenHealMult ?? 1;
+      const boosted = Math.round(result.lifestealHeal * mult);
       const healed = ctx.actor.stats.maxHp - ctx.actor.hp;
-      const actual = Math.min(healed, result.lifestealHeal);
+      const actual = Math.min(healed, boosted);
       if (actual > 0) {
         ctx.actor.hp += actual;
         entries.push(log(ctx.turn, ctx.actor.name, "吸血", "heal",
