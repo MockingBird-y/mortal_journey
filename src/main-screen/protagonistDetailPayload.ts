@@ -378,7 +378,8 @@ export function buildGongfaDetailPayload(
 function formatElixirEffect(el: ElixirItemDefinition): string {
   const { effectType, effects } = el;
   const suffix = effects.isPercent ? "%" : "";
-  return `${effectType} ${effects.value}${suffix}`;
+  const label = effectType.startsWith("提升") ? `永久${effectType}` : effectType;
+  return `${label} ${effects.value}${suffix}`;
 }
 
 /**

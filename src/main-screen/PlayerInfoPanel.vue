@@ -5,7 +5,7 @@
  */
 import { computed, ref } from "vue";
 import { Protagonist } from "../role_core/Protagonist";
-import { PRIMARY_STAT_KEY_TO_ZH, PRIMARY_STAT_KEYS, PRIMARY_STAT_KEY_DESC, type EquipSlotKey, type PrimaryStatKey } from "../role_core/types/playInfo";
+import { PRIMARY_STAT_KEY_TO_ZH, PRIMARY_STAT_KEYS, PRIMARY_STAT_KEY_DESC, formatLinggenBonusText, type EquipSlotKey, type PrimaryStatKey } from "../role_core/types/playInfo";
 import type { GongfaItemDefinition } from "../role_core/types/itemInfo";
 import type { DerivedStatValues } from "./protagonistDetailPayload";
 import {
@@ -76,6 +76,19 @@ const inventoryBagDisplaySlots = computed(() =>
   props.protagonist ? getInventoryBagDisplaySlots(props.protagonist.inventorySlots) : [],
 );
 const shouyuanWarning = computed(() => getShouyuanWarningLevel(props.protagonist, props.worldTimeBaseline, props.worldTime));
+
+const linggenTooltip = computed(() => {
+  const p = props.protagonist;
+  if (!p) return "";
+  const major = p.realm.major;
+  return p.linggen
+    .map(el => {
+      const text = formatLinggenBonusText(el, major);
+      return text ? `${el}：${text}` : "";
+    })
+    .filter(Boolean)
+    .join("\n");
+});
 
 const detailOpen = ref(false);
 const detailPayload = ref<ProtagonistDetailPayload | null>(null);
@@ -286,7 +299,7 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
               <span class="mj-stat-k">性别</span>
               <span class="mj-stat-v">{{ protagonist.gender || "—" }}</span>
             </div>
-            <div class="mj-stat-cell">
+            <div class="mj-stat-cell" :title="linggenTooltip">
               <span class="mj-stat-k">灵根</span>
               <span class="mj-stat-v">{{ Protagonist.formatLinggenElements(protagonist.linggen) }}</span>
             </div>

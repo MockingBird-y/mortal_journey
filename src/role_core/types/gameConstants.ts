@@ -28,21 +28,21 @@ import type { GradeDropRate } from "./itemInfo";
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const REALM_PRIMARY_STATS_TABLE = [
-  { hp: 200,    mp: 100,   physique: 5,   spirit: 5,   strength: 5,   perception: 5,   guard: 3,   resistance: 3,   agility: 2,  insight: 2 },
-  { hp: 300,    mp: 150,   physique: 10,  spirit: 10,  strength: 10,  perception: 10,  guard: 5,   resistance: 5,   agility: 3,  insight: 3 },
-  { hp: 500,    mp: 250,   physique: 15,  spirit: 15,  strength: 15,  perception: 15,  guard: 8,   resistance: 8,   agility: 5,  insight: 5 },
-  { hp: 1000,   mp: 500,   physique: 25,  spirit: 25,  strength: 25,  perception: 25,  guard: 13,  resistance: 13,  agility: 7,  insight: 7 },
-  { hp: 1500,   mp: 750,   physique: 35,  spirit: 35,  strength: 35,  perception: 35,  guard: 18,  resistance: 18,  agility: 10, insight: 10 },
-  { hp: 2000,   mp: 1000,  physique: 50,  spirit: 50,  strength: 50,  perception: 50,  guard: 25,  resistance: 25,  agility: 13, insight: 13 },
-  { hp: 3000,   mp: 1500,  physique: 65,  spirit: 65,  strength: 65,  perception: 65,  guard: 33,  resistance: 33,  agility: 17, insight: 17 },
-  { hp: 4000,   mp: 2000,  physique: 85,  spirit: 85,  strength: 85,  perception: 85,  guard: 43,  resistance: 43,  agility: 22, insight: 22 },
-  { hp: 5000,   mp: 2500,  physique: 105, spirit: 105, strength: 105, perception: 105, guard: 53,  resistance: 53,  agility: 27, insight: 27 },
-  { hp: 10000,  mp: 5000,  physique: 125, spirit: 125, strength: 125, perception: 125, guard: 63,  resistance: 63,  agility: 32, insight: 32 },
-  { hp: 13000,  mp: 6500,  physique: 150, spirit: 150, strength: 150, perception: 150, guard: 75,  resistance: 75,  agility: 37, insight: 37 },
-  { hp: 15000,  mp: 7500,  physique: 175, spirit: 175, strength: 175, perception: 175, guard: 88,  resistance: 88,  agility: 43, insight: 43 },
-  { hp: 20000,  mp: 10000, physique: 185, spirit: 185, strength: 185, perception: 185, guard: 93,  resistance: 93,  agility: 46, insight: 46 },
-  { hp: 25000,  mp: 12500, physique: 195, spirit: 195, strength: 195, perception: 195, guard: 97,  resistance: 97,  agility: 48, insight: 48 },
-  { hp: 30000,  mp: 15000, physique: 200, spirit: 200, strength: 200, perception: 200, guard: 100, resistance: 100, agility: 50, insight: 50 },
+  { hp: 200,    mp: 100,   physique: 5,   spirit: 5,   strength: 25,   perception: 25,   guard: 3,   resistance: 3,   agility: 2,  insight: 2 },
+  { hp: 300,    mp: 150,   physique: 10,   spirit: 10,  strength: 50,  perception: 50,  guard: 5,   resistance: 5,   agility: 3,  insight: 3 },
+  { hp: 500,    mp: 250,   physique: 15,   spirit: 15,  strength: 75,  perception: 75,  guard: 8,   resistance: 8,   agility: 5,  insight: 5 },
+  { hp: 1000,   mp: 500,   physique: 25,  spirit: 25,  strength: 125,  perception: 125,  guard: 13,  resistance: 13,  agility: 7,  insight: 7 },
+  { hp: 1500,   mp: 750,   physique: 35,  spirit: 35,  strength: 165,  perception: 165,  guard: 18,  resistance: 18,  agility: 10, insight: 10 },
+  { hp: 2000,   mp: 1000,  physique: 50,  spirit: 50,  strength: 250,  perception: 250,  guard: 25,  resistance: 25,  agility: 13, insight: 13 },
+  { hp: 3000,   mp: 1500,  physique: 65,  spirit: 65,  strength: 325,  perception: 325,  guard: 33,  resistance: 33,  agility: 17, insight: 17 },
+  { hp: 4000,   mp: 2000,  physique: 85,  spirit: 85,  strength: 425,  perception: 425,  guard: 43,  resistance: 43,  agility: 22, insight: 22 },
+  { hp: 5000,   mp: 2500,  physique: 105, spirit: 105, strength: 525, perception: 525, guard: 53,  resistance: 53,  agility: 27, insight: 27 },
+  { hp: 10000,  mp: 5000,  physique: 125, spirit: 125, strength: 625, perception: 625, guard: 63,  resistance: 63,  agility: 32, insight: 32 },
+  { hp: 13000,  mp: 6500,  physique: 150, spirit: 150, strength: 750, perception: 750, guard: 75,  resistance: 75,  agility: 37, insight: 37 },
+  { hp: 15000,  mp: 7500,  physique: 175, spirit: 175, strength: 875, perception: 875, guard: 88,  resistance: 88,  agility: 43, insight: 43 },
+  { hp: 20000,  mp: 10000, physique: 185, spirit: 185, strength: 925, perception: 925, guard: 93,  resistance: 93,  agility: 46, insight: 46 },
+  { hp: 25000,  mp: 12500, physique: 195, spirit: 195, strength: 975, perception: 975, guard: 97,  resistance: 97,  agility: 48, insight: 48 },
+  { hp: 30000,  mp: 15000, physique: 200, spirit: 200, strength: 1000, perception: 1000, guard: 100, resistance: 100, agility: 50, insight: 50 },
 ] as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -109,6 +109,20 @@ export function getLinggenElementBonus(major: string, element: string): number {
   return LINGGEN_ELEMENT_BONUS_BY_MAJOR[major]?.[element] ?? 0;
 }
 
+/** 格式化指定大境界下某灵根元素的加成描述（用于 UI 悬停提示）。 */
+export function formatLinggenBonusText(element: string, major: string): string {
+  const bonus = getLinggenElementBonus(major, element);
+  if (bonus <= 0) return "";
+  switch (element) {
+    case "金": return `提升${bonus}%暴击伤害`;
+    case "木": return `提升${bonus}%丹药效果`;
+    case "水": return `减少${bonus}回合功法冷却`;
+    case "火": return `提升${bonus}%恢复效果`;
+    case "土": return `提升${bonus}%护盾效果`;
+    default: return "";
+  }
+}
+
 /** 计算角色全部灵根战斗加成（金/水/火/土）。木在丹药获取时单独烘焙。 */
 export function computeLinggenCombatBonuses(linggen: readonly string[], major: string) {
   const has = (el: string) => linggen.includes(el);
@@ -156,16 +170,16 @@ export const GONGFA_GRADE_ATTRI_TABLE: Readonly<Record<string, readonly (readonl
 export const ELIXIR_GRADE_EFFECT_TABLE: Readonly<Record<string, readonly number[]>> = {
   "恢复血量": [50, 100, 1000, 30, 50, 80],
   "恢复法力": [50, 100, 1000, 30, 50, 80],
-  "提升修为": [100, 500, 1000, 10, 20, 30],
-  "提升寿元": [4, 6, 10, 50, 100, 200],
+  "提升修为": [200, 1000, 5000, 10, 20, 30],
+  "提升寿元": [5, 10, 20, 50, 100, 200],
   "提升体魄": [2, 5, 8, 12, 32, 55],
   "提升灵力": [2, 5, 8, 12, 32, 55],
   "提升劲力": [2, 5, 8, 12, 32, 55],
   "提升护体": [2, 5, 8, 12, 32, 55],
   "提升灵御": [2, 5, 8, 12, 32, 55],
   "提升神识": [2, 5, 8, 12, 32, 55],
-  "提升身法": [2, 5, 8, 12, 32, 55],
-  "提升悟性": [2, 5, 8, 12, 32, 55],
+  "提升身法": [2, 5, 8, 12, 20, 30],
+  "提升悟性": [2, 5, 8, 12, 20, 30],
 };
 
 /**
@@ -173,18 +187,18 @@ export const ELIXIR_GRADE_EFFECT_TABLE: Readonly<Record<string, readonly number[
  * 恢复类（血量/法力）高概率；属性提升类中等；修为/寿元稀有。
  */
 export const ELIXIR_EFFECT_WEIGHTS: Readonly<Record<string, number>> = {
-  "恢复血量": 30,
-  "恢复法力": 30,
-  "提升体魄": 4,
-  "提升灵力": 4,
-  "提升劲力": 4,
-  "提升护体": 4,
-  "提升灵御": 4,
-  "提升神识": 4,
-  "提升身法": 4,
-  "提升悟性": 4,
-  "提升修为": 3,
-  "提升寿元": 2,
+  "恢复血量": 25,
+  "恢复法力": 25,
+  "提升体魄": 5,
+  "提升灵力": 5,
+  "提升劲力": 5,
+  "提升护体": 5,
+  "提升灵御": 5,
+  "提升神识": 5,
+  "提升身法": 5,
+  "提升悟性": 5,
+  "提升修为": 5,
+  "提升寿元": 5,
 };
 
 export const ELIXIR_PERCENT_GRADE_THRESHOLD = 3;

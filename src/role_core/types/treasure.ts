@@ -62,9 +62,9 @@ export const TREASURE_MODIFIER_NAMES: Readonly<Record<TreasureModifierType, stri
 const GRADE_MODIFIER_COUNT: Readonly<Record<ItemGrade, number>> = {
   "下品": 1,
   "中品": 2,
-  "上品": 2,
-  "极品": 3,
-  "仙品": 3,
+  "上品": 3,
+  "极品": 4,
+  "仙品": 4,
   "神品": 4,
 };
 
