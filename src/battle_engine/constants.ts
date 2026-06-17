@@ -10,7 +10,7 @@ export const FLEE_COST = 100;
 export const MIN_DAMAGE = 1;
 export const BASE_CRIT_DMG = 150;
 
-export const BATTLE_DEBUG = true;
+export const BATTLE_DEBUG = false;
 
 export const BASE_GAUGE_TIME_MS = 5000;
 export const AGILITY_DIVISOR = 100;
