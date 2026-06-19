@@ -6,6 +6,7 @@
  */
 
 import { ref, triggerRef, type Ref } from "vue";import type { FateChoiceResult } from "../fate_choice/types";
+import { resolveTraitEffect } from "../fate_choice/traitEffect";
 import type {
   CategorizedItemDefinition,
   GongfaItemDefinition,
@@ -281,18 +282,21 @@ export class Protagonist extends Character {
 
   override setGongfaSlot(index: number, item: import("./types/itemInfo").GongfaItemDefinition | null): boolean {
     const result = super.setGongfaSlot(index, item);
+    this.recomputeMaxHpMpAndClamp();
     Protagonist.notifyChanged();
     return result;
   }
 
   override unequipGongfaToInventory(gongfaSlotIndex: number): boolean {
     const result = super.unequipGongfaToInventory(gongfaSlotIndex);
+    this.recomputeMaxHpMpAndClamp();
     Protagonist.notifyChanged();
     return result;
   }
 
   override equipGongfaFromInventory(inventoryIndex: number): boolean {
     const result = super.equipGongfaFromInventory(inventoryIndex);
+    this.recomputeMaxHpMpAndClamp();
     Protagonist.notifyChanged();
     return result;
   }
@@ -300,7 +304,8 @@ export class Protagonist extends Character {
   /**
    * 按当前境界 + 主属性 + 已装备法宝特殊效果重算血量/法力上限，并夹取当前值。
    *
-   * 法宝转换效果会影响上限，故穿脱仙品/神品法宝后需调用以即时反映。
+   * 法宝转换效果、功法主属性加成（bonus × 熟练度倍率）均会影响上限，
+   * 故穿脱仙品/神品法宝、穿脱功法、功法熟练度提升后需调用以即时反映。
    */
   private recomputeMaxHpMpAndClamp(): void {
     const { maxHp, maxMp } = this.computeMaxHpMp();
@@ -332,12 +337,21 @@ export class Protagonist extends Character {
   }
 
   override applyDetailAction(a: import("./types/playInfo").ProtagonistDetailAction): boolean {
+    let result: boolean;
     if (a.id === "consumeElixir") {
-      const result = this.consumeElixir(a.inventoryIndex);
-      Protagonist.notifyChanged();
-      return result;
+      result = this.consumeElixir(a.inventoryIndex);
+    } else {
+      result = super.applyDetailAction(a);
     }
-    const result = super.applyDetailAction(a);
+    // super.applyDetailAction 经 CharacterEquip 模块函数直接改槽位（gongfaSlots/equippedSlots），
+    // 绕过了本类的 equipGongfaFromInventory / unequipGongfaToInventory / equipFromInventory /
+    // unequipToInventory 等方法覆写，故那些覆写里的 recomputeMaxHpMpAndClamp 不会触发。
+    // 这里是 UI 穿脱/服丹的真实入口，必须在此对影响主属性的动作统一重算 HP/MP。
+    if (a.id === "equipGongfaFromBag" || a.id === "unequipGongfa"
+        || a.id === "equipWearFromBag" || a.id === "unequipWear"
+        || a.id === "consumeElixir") {
+      this.recomputeMaxHpMpAndClamp();
+    }
     Protagonist.notifyChanged();
     return result;
   }
@@ -460,6 +474,8 @@ export class Protagonist extends Character {
         }
       }
     }
+    // 熟练度提升会改变功法 bonus × 熟练度倍率，进而影响主属性与 HP/MP 上限，需重算。
+    this.recomputeMaxHpMpAndClamp();
     Protagonist.notifyChanged();
   }
 
@@ -475,9 +491,15 @@ export class Protagonist extends Character {
   applyInitState(parsed: InitStateParsed): void {
     this.equippedSlots = buildEquippedSlotsFromParsed(parsed);
     this.gongfaSlots = buildGongfaSlotsFromParsed(parsed);
-    this.inventorySlots = buildInventoryFromParsed(parsed, this.realm.major, DEFAULT_INVENTORY_SLOT_COUNT);
-    for (const slot of this.inventorySlots) {
-      if (slot) applyLinggenElixirBoost(slot, this.linggen, this.realm.major);
+    // 开局状态在已有（天赋授予的）储物袋基础上「追加」AI 生成的物品，而非整体覆盖，
+    // 以保留 fromFateChoice 写入的天赋物品（法宝/功法/丹药/材料/灵石）。
+    const initInventory = buildInventoryFromParsed(parsed, this.realm.major, DEFAULT_INVENTORY_SLOT_COUNT);
+    for (const slot of initInventory) {
+      if (!slot) continue;
+      if ("itemType" in slot && slot.itemType === "丹药") {
+        applyLinggenElixirBoost(slot, this.linggen, this.realm.major);
+      }
+      this.addToInventory(slot);
     }
     compactInventorySlotsInPlace(this);
 
@@ -499,6 +521,42 @@ export class Protagonist extends Character {
       this.ageConfirmed = true;
     }
 
+    Protagonist.notifyChanged();
+  }
+
+  /**
+   * 结算天赋具体效果：在开局状态（AI 生成的装备/功法/储物袋）应用之后统一调用。
+   *
+   * 将命运抉择的天赋效果一次性结算到主角：
+   *   - 法宝/功法/丹药/材料进储物袋（丹药做木灵根烘焙）；
+   *   - 灵石进灵石格；
+   *   - 主属性加成累加进 `elixirBonuses`（由 `collectPrimaryBonuses` 读取，
+   *     同时影响 UI 显示属性与 HP/MP 上限，且突破后不会被重置）。
+   * 末尾重算 HP/MP 上限。
+   *
+   * 仅在开局流程调用一次（`useOpeningStory` 在状态生成后调用）；存档加载走 `fromJson`，
+   * 物品与 `elixirBonuses` 已在存档中，不会重复结算。
+   */
+  applyTraitEffects(): void {
+    for (const t of this.traits) {
+      if (typeof t === "string") continue;
+      const effect = t.effect;
+      if (!effect) continue;
+      const r = resolveTraitEffect(effect);
+      for (const item of r.items) {
+        if ("itemType" in item && item.itemType === "丹药") {
+          applyLinggenElixirBoost(item, this.linggen, this.realm.major);
+        }
+        this.addToInventory(item);
+      }
+      if (r.spiritStones > 0) this.addSpiritStone("灵石", r.spiritStones);
+      for (const [k, v] of Object.entries(r.statBonus)) {
+        if (typeof v === "number" && Number.isFinite(v) && v !== 0) {
+          this.elixirBonuses[k] = (this.elixirBonuses[k] ?? 0) + v;
+        }
+      }
+    }
+    this.recomputeMaxHpMpAndClamp();
     Protagonist.notifyChanged();
   }
 
@@ -804,6 +862,7 @@ export class Protagonist extends Character {
       name: t.name,
       desc: t.desc,
       rarity: t.rarity,
+      effect: t.effect,
     }));
 
     const p = new Protagonist({
@@ -833,6 +892,9 @@ export class Protagonist extends Character {
       realmComplete: false,
       breakthroughStatus: "idle",
     });
+
+    // 天赋效果（物品/灵石/属性）不在此处结算——推迟到 applyInitState 之后由
+    // applyTraitEffects() 统一生成，避免异步开局状态生成期间玩家操作天赋物品后被覆盖。
 
     const { maxHp: capH, maxMp: capM } = p.computeMaxHpMp();
     p.maxHp = capH;

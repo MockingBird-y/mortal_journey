@@ -163,6 +163,13 @@ export function useOpeningStoryFromFateChoice(
           gameLog.error("[OpeningStory] 状态生成失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));
         }
 
+        // 无论开局状态生成成功与否，统一结算天赋效果（物品/灵石/属性）：
+        // 成功时叠加在 applyInitState 之上；失败时也保住天赋物品与属性加成。
+        const traitsOwner = protagonist.value;
+        if (traitsOwner) {
+          traitsOwner.applyTraitEffects();
+        }
+
         phase.value = "ready";
       } catch (e) {
         if (ac.signal.aborted) return;

@@ -332,6 +332,10 @@ export interface SkillActionItem {
   isAoE: boolean;
   description: string;
   cooldown: number;
+  /** 是否可施放（法力足 + 未冷却 + 未被沉默）；false 时 UI 置灰。 */
+  usable: boolean;
+  /** 不可用原因文案（法力不足 / 冷却中N回合 / 被沉默）；可用时为 undefined。 */
+  disabledReason?: string;
 }
 
 export interface ElixirActionItem {

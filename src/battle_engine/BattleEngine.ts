@@ -379,23 +379,38 @@ export class BattleEngine implements BattleEngineLike {
     const canUseSkills = this.effectManager.canUseSkills(actor);
 
     const skills: SkillActionItem[] = [];
-    if (canUseSkills) {
-      for (let i = 0; i < actor.skills.length; i++) {
-        const skill = actor.skills[i];
-        if (actor.cooldowns[i] > 0) continue;
-        if (skill.mpCost > actor.mp) continue;
-
-        skills.push({
-          skillIndex: i,
-          name: skill.name,
-          mpCost: skill.mpCost,
-          needTarget: skill.needTarget,
-          targetTeam: skill.targetTeam,
-          isAoE: skill.isAoE,
-          description: skill.desc,
-          cooldown: actor.cooldowns[i],
-        });
+    for (let i = 0; i < actor.skills.length; i++) {
+      const skill = actor.skills[i];
+      const cd = actor.cooldowns[i] > 0 ? actor.cooldowns[i] : 0;
+      // 不再隐藏任何功法：被沉默 / 冷却中 / 法力不足 均置灰展示并标注原因。
+      let usable: boolean;
+      let disabledReason: string | undefined;
+      if (!canUseSkills) {
+        usable = false;
+        disabledReason = "被沉默";
+      } else if (cd > 0) {
+        usable = false;
+        disabledReason = `冷却中 ${cd}回合`;
+      } else if (skill.mpCost > actor.mp) {
+        usable = false;
+        disabledReason = "法力不足";
+      } else {
+        usable = true;
+        disabledReason = undefined;
       }
+
+      skills.push({
+        skillIndex: i,
+        name: skill.name,
+        mpCost: skill.mpCost,
+        needTarget: skill.needTarget,
+        targetTeam: skill.targetTeam,
+        isAoE: skill.isAoE,
+        description: skill.desc,
+        cooldown: actor.cooldowns[i],
+        usable,
+        disabledReason,
+      });
     }
 
     const elixirs: ElixirActionItem[] = [];

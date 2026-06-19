@@ -144,8 +144,23 @@
   background: #2a2a50;
 }
 
+.battle__submenu-item:disabled,
+.battle__submenu-item--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.battle__submenu-item--disabled:hover {
+  background: transparent;
+}
+
 .battle__mp-cost {
   color: #6af;
+  font-size: 11px;
+}
+
+.battle__disabled-reason {
+  color: #c66;
   font-size: 11px;
 }
 

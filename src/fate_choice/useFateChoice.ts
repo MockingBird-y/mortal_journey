@@ -137,7 +137,7 @@ function rollTraitRarityFromWeights(rows: readonly TraitRarityWeightRow[]): Trai
 }
 
 function cloneTraitForOption(t: TraitSample): TraitOption {
-  return { name: t.name, rarity: t.rarity, desc: t.desc };
+  return { name: t.name, rarity: t.rarity, desc: t.desc, effect: t.effect };
 }
 
 function pickRandomTraits(pool: readonly TraitSample[], excludeNames: string[], count: number): TraitOption[] {
@@ -323,6 +323,7 @@ export function useFateChoice() {
         name: t.name,
         rarity: t.rarity,
         desc: t.desc,
+        effect: t.effect,
       })),
     };
   }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TraitOption } from "./useFateChoice";
+import { describeTraitEffect } from "./traitEffect";
 
 defineProps<{
   trait: TraitOption | null;
@@ -34,6 +35,10 @@ const emit = defineEmits<{
             <div class="mj-trait-modal-section">
               <span class="mj-trait-modal-k">简述</span>
               <div class="mj-trait-modal-v">{{ trait.desc }}</div>
+            </div>
+            <div v-if="describeTraitEffect(trait.effect)" class="mj-trait-modal-section">
+              <span class="mj-trait-modal-k">效果</span>
+              <div class="mj-trait-modal-v">{{ describeTraitEffect(trait.effect) }}</div>
             </div>
           </div>
         </div>

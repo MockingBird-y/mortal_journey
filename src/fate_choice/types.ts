@@ -4,6 +4,7 @@
  */
 
 import type { TraitRarity } from "./traits";
+import type { TraitEffect } from "./traitEffect";
 import type { WorldLocation } from "../role_core/types/worldLocation";
 
 // ---------------------------------------------------------------------------
@@ -41,6 +42,8 @@ export interface FateChoiceTrait {
   name: string;
   rarity: string;
   desc: string;
+  /** 具体效果；开局时由 `Protagonist.fromFateChoice` 结算。 */
+  effect?: TraitEffect;
 }
 
 /**
@@ -170,9 +173,9 @@ export const TRAIT_RARITY_WEIGHTS: readonly TraitRarityWeightRow[] = [
   { rarity: "平庸", weight: 50 },
   { rarity: "普通", weight: 25 },
   { rarity: "稀有", weight: 15 },
-  { rarity: "史诗", weight: 9 },
-  { rarity: "传说", weight: 0.9 },
-  { rarity: "神迹", weight: 0.1 },
+  { rarity: "史诗", weight: 7 },
+  { rarity: "传说", weight: 2 },
+  { rarity: "神迹", weight: 1 },
 ];
 
 // ---------------------------------------------------------------------------

@@ -178,6 +178,8 @@ export type TraitEntry =
       name: string;
       desc: string;
       rarity: string;
+      /** 天赋具体效果（仅主角开局天赋携带；旧存档无此字段视为已结算/无效果）。 */
+      effect?: import("../../fate_choice/traitEffect").TraitEffect;
     };
 
 export interface CharacterPlayInfoCommon {

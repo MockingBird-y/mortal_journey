@@ -70,6 +70,7 @@ function onNormalAttack() {
 }
 
 function onSkillSelect(item: SkillActionItem) {
+  if (!item.usable) return;
   selectAction({ type: "skill", skillIndex: item.skillIndex, targetId: "" });
 }
 
@@ -244,9 +245,11 @@ function toggleElixirSubmenu() {
                         v-for="item in actionOptions.skills"
                         :key="item.skillIndex"
                         class="battle__submenu-item"
+                        :class="{ 'battle__submenu-item--disabled': !item.usable }"
+                        :disabled="!item.usable"
                         @click="onSkillSelect(item)"
                       >
-                        <span class="battle__submenu-name">{{ item.name }} <span v-if="item.isAoE" class="battle__aoe-tag">群</span> <span class="battle__mp-cost">MP:{{ item.mpCost }}</span></span>
+                        <span class="battle__submenu-name">{{ item.name }} <span v-if="item.isAoE" class="battle__aoe-tag">群</span> <span class="battle__mp-cost">MP:{{ item.mpCost }}</span> <span v-if="!item.usable" class="battle__disabled-reason">{{ item.disabledReason }}</span></span>
                         <span class="battle__submenu-desc">{{ item.description }}</span>
                       </button>
                     </div>
