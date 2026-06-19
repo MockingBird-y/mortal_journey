@@ -329,6 +329,7 @@ export interface SkillActionItem {
   mpCost: number;
   needTarget: boolean;
   targetTeam: "ally" | "enemy";
+  isAoE: boolean;
   description: string;
   cooldown: number;
 }

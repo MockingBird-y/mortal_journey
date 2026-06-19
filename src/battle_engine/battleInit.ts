@@ -3,7 +3,8 @@ import type { BattleTriggerEntry } from "../ai/state_generate";
 import type { GongfaSlotsState, EquippedSlotsState } from "../role_core/types/playInfo";
 import type { InventoryStackItem, ElixirItemDefinition } from "../role_core/types/itemInfo";
 import type { GongfaBattleEffect, LayerValue } from "../role_core/types/gongfa";
-import { atLayer, resolveGongfaBattleEffectDesc } from "../role_core/types/gongfa";
+import type { PrimaryStatKey } from "../role_core/types/playInfo";
+import { atLayer, atLayerFloat, resolveGongfaBattleEffectDesc } from "../role_core/types/gongfa";
 import { protagonist } from "../role_core/Protagonist";
 import { Npc } from "../role_core/Npc";
 import { npcStore } from "../role_core/npcStore";
@@ -33,7 +34,7 @@ function bakeScalingValue(
     return undefined;
   }
   const bv = atLayer(eff.baseValue as LayerValue, layer);
-  const sr = atLayer(eff.scalingRatio as LayerValue, layer);
+  const sr = atLayerFloat(eff.scalingRatio as LayerValue, layer);
   const stat = getStat(eff.scalingStat);
   return Math.round((bv + sr * stat) * masteryMult);
 }
@@ -60,7 +61,7 @@ function convertBattleEffectToSkillEffect(
     case "applyModifier":
       return { type: "applyModifier", modifierType: eff.modifierType as ModifierType, value: atLayer(eff.value, layer), duration: eff.duration, maxStacks: eff.maxStacks, targetSelf: eff.targetSelf };
     case "applyCc":
-      return { type: "applyCc", ccType: eff.ccType as CcType, chance: atLayer(eff.chance, layer), duration: eff.duration };
+      return { type: "applyCc", ccType: eff.ccType as CcType, chance: atLayerFloat(eff.chance, layer), duration: eff.duration };
     case "applyStatus":
       return { type: "applyStatus", statusType: eff.statusType as StatusType, tickValue: atLayer(eff.tickValue, layer), isPercent: eff.isPercent, duration: eff.duration, maxStacks: eff.maxStacks };
     case "shield":
@@ -131,7 +132,7 @@ function buildBattleSkills(gongfaSlots: GongfaSlotsState, getStat: (key: string)
     const hasOffensive = gf.function.battleEffects.some(isTargetEnemy);
     const hasNeedTarget = gf.function.battleEffects.some(needsTarget);
 
-    const getStatForDesc = (key: "strength" | "perception") => getStat(key);
+    const getStatForDesc = (key: PrimaryStatKey) => getStat(key);
     const desc = gf.function.battleEffects
       .map(e => resolveGongfaBattleEffectDesc(e, getStatForDesc, masteryMult, layer, false))
       .join("；");
@@ -144,7 +145,7 @@ function buildBattleSkills(gongfaSlots: GongfaSlotsState, getStat: (key: string)
       cooldown: Math.max(0, (gf.function.cooldown ?? 0) - cooldownReduce),
       needTarget: hasNeedTarget,
       targetTeam: hasOffensive ? "enemy" : "ally",
-      isAoE: false,
+      isAoE: !!gf.function.isAoE,
       effects,
     });
   }

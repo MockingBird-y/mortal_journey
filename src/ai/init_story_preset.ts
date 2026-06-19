@@ -1,5 +1,5 @@
 export const INIT_STORY_SYSTEM_PRESET = `
-[输出契约]
+[输出契约-最重要]
 你必须按以下顺序输出，不得颠倒：
 1. <thinking>思考分析</thinking>
    思考内容：

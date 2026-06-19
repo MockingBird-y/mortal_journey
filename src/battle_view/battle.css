@@ -149,6 +149,16 @@
   font-size: 11px;
 }
 
+.battle__aoe-tag {
+  display: inline-block;
+  background: #a45;
+  color: #fff;
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 3px;
+  margin-right: 2px;
+}
+
 .battle__action-info {
   font-size: 11px;
   color: #99a;

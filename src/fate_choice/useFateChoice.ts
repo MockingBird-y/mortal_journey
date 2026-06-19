@@ -205,10 +205,11 @@ export function useFateChoice() {
   const selectedGender = ref<string>(CREATION_GENDERS[0]!);
 
   // ── 4. 出身 ──────────────────────────────────────────────────────────────
-  const selectedBirth = ref("凡人");
+  const birthKeysOrdered = buildOrderedBirthKeys();
+  const DEFAULT_BIRTH_KEY = birthKeysOrdered[0] ?? "自定义";
+  const selectedBirth = ref(DEFAULT_BIRTH_KEY);
   const customBirth = ref<CustomBirthPayload | null>(null);
   const birthLocation = ref<WorldLocation | null>(null);
-  const birthKeysOrdered = buildOrderedBirthKeys();
 
   /** 非「自定义」时，用当前选中的预设出生同步 `customBirth` 与 `birthLocation`。 */
   function syncCustomBirthForCurrentSelection(): void {
@@ -334,7 +335,7 @@ export function useFateChoice() {
     playerName.value = "韩立";
     narrationPerson.value = "first";
     selectedGender.value = CREATION_GENDERS[0]!;
-    selectedBirth.value = "凡人";
+    selectedBirth.value = DEFAULT_BIRTH_KEY;
     customBirth.value = null;
     birthLocation.value = null;
     currentTraitOptions.value = [];

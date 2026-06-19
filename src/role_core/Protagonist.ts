@@ -49,6 +49,8 @@ import {
 } from "./types/spiritStone";
 import type { ElixirItemDefinition } from "./types/elixir";
 import { elixirEffectToStatKey, applyLinggenElixirBoost } from "./types/elixir";
+import { craftElixirDef } from "./alchemy";
+import type { MaterialItemDefinition } from "./types/itemInfo";
 import type { InitStateParsed } from "../ai/init_state_generate";
 import type { StateParsed } from "../ai/state_generate";
 import {
@@ -358,6 +360,61 @@ export class Protagonist extends Character {
     }
     Protagonist.notifyChanged();
     return true;
+  }
+
+  // ===================================================================
+  // 炼丹
+  // ===================================================================
+
+  /**
+   * 炼丹：消耗 3 份材料产出 1 颗丹药并放入储物袋。
+   *
+   * 规则：
+   *   - 必须提供 3 个材料格下标（允许同一格重复，即从同一堆取多份）。
+   *   - 每份材料 count - 1；按被使用次数扣减，不足则整体失败。
+   *   - 100% 出丹，无失败。产出丹药品阶按材料品阶加权随机，效果类型按权重随机。
+   *   - 木灵根契合会在产出时烘焙（与剧情/AI 给丹一致）。
+   *
+   * @param slotIndices 三个材料格下标（可重复）。
+   * @returns 产出的丹药定义；参数非法（数量不对/越界/非材料/不足）时返回 null。
+   */
+  craftElixirFromMaterials(slotIndices: number[]): ElixirItemDefinition | null {
+    if (!Array.isArray(slotIndices) || slotIndices.length !== 3) return null;
+
+    // 统计每个下标被使用的次数，并校验均为材料格
+    const usage = new Map<number, number>();
+    const picks: MaterialItemDefinition[] = [];
+    for (const raw of slotIndices) {
+      if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
+      const i = Math.floor(raw);
+      if (i < 0 || i >= this.inventorySlots.length) return null;
+      const cell = this.inventorySlots[i];
+      if (!cell || !("itemType" in cell) || cell.itemType !== "材料") return null;
+      const mat = cell as MaterialItemDefinition;
+      if (typeof mat.count !== "number" || mat.count < 1) return null;
+      usage.set(i, (usage.get(i) ?? 0) + 1);
+      picks.push(mat);
+    }
+    // 校验每格存量足够
+    for (const [i, n] of usage) {
+      const mat = this.inventorySlots[i] as MaterialItemDefinition | null;
+      if (!mat || mat.count < n) return null;
+    }
+
+    const elixir = craftElixirDef(picks.map((m) => ({ grade: m.grade })));
+    applyLinggenElixirBoost(elixir as InventoryStackItem, this.linggen, this.realm.major);
+
+    // 扣除材料：按使用次数扣减，归零置 null
+    for (const [i, n] of usage) {
+      const mat = this.inventorySlots[i] as MaterialItemDefinition | null;
+      if (!mat) continue;
+      mat.count -= n;
+      if (mat.count <= 0) this.inventorySlots[i] = null;
+    }
+
+    this.addToInventory(elixir as InventoryStackItem);
+    Protagonist.notifyChanged();
+    return elixir;
   }
 
   // ===================================================================

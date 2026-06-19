@@ -13,6 +13,7 @@ import "./main-screen/worldMapModal.css";
 import "./main-screen/mainScreenPlayerPanel.css";
 import "./main-screen/protagonistDetailModal.css";
 import "./main-screen/gongfaCultivateModal.css";
+import "./main-screen/alchemyModal.css";
 import "./battle_view/battle.css";
 
 createApp(App).mount("#app");

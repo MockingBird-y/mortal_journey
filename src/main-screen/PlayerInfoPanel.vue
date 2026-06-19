@@ -7,6 +7,7 @@ import { computed, ref } from "vue";
 import { Protagonist } from "../role_core/Protagonist";
 import { PRIMARY_STAT_KEY_TO_ZH, PRIMARY_STAT_KEYS, PRIMARY_STAT_KEY_DESC, formatLinggenBonusText, type EquipSlotKey, type PrimaryStatKey } from "../role_core/types/playInfo";
 import type { GongfaItemDefinition } from "../role_core/types/itemInfo";
+import { computeLinggenCombatBonuses } from "../role_core/types/gameConstants";
 import type { DerivedStatValues } from "./protagonistDetailPayload";
 import {
   buildGongfaDetailPayload,
@@ -127,7 +128,16 @@ function getGongfaScalingStatName(gf: GongfaItemDefinition): string {
 
 function getGongfaDerivedStats(p: Protagonist): DerivedStatValues {
   const ps = p.getPrimaryStats();
-  return { strength: ps.strength, perception: ps.perception, guard: ps.guard, resistance: ps.resistance };
+  return {
+    physique: ps.physique,
+    spirit: ps.spirit,
+    strength: ps.strength,
+    perception: ps.perception,
+    guard: ps.guard,
+    resistance: ps.resistance,
+    agility: ps.agility,
+    insight: ps.insight,
+  };
 }
 
 function onTraitSlotClick(index: number) {
@@ -154,7 +164,7 @@ function onGongfaSlotClick(index: number) {
   const statGetter = () => getGongfaScalingStat(p, cell);
   const nameGetter = () => getGongfaScalingStatName(cell);
   const dsGetter = () => getGongfaDerivedStats(p);
-  openDetail(buildGongfaDetailPayload(cell, { type: "bar", gongfaIndex: index }, p.linggen, statGetter, nameGetter, dsGetter));
+  openDetail(buildGongfaDetailPayload(cell, { type: "bar", gongfaIndex: index }, p.linggen, statGetter, nameGetter, dsGetter, computeLinggenCombatBonuses(p.linggen, p.realm.major).cooldownReduce));
 }
 
 function onBagSlotClick(index: number) {
@@ -165,7 +175,7 @@ function onBagSlotClick(index: number) {
   const gfg = (gf: GongfaItemDefinition) => getGongfaScalingStat(p, gf);
   const sng = (gf: GongfaItemDefinition) => getGongfaScalingStatName(gf);
   const dsg = (gf: GongfaItemDefinition) => getGongfaDerivedStats(p);
-  openDetail(buildInventoryStackDetailPayload(cell, index, p.linggen, gfg, sng, dsg));
+  openDetail(buildInventoryStackDetailPayload(cell, index, p.linggen, gfg, sng, dsg, computeLinggenCombatBonuses(p.linggen, p.realm.major).cooldownReduce));
 }
 
 function onDetailAction(a: ProtagonistDetailAction) {

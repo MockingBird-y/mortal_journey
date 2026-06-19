@@ -13,7 +13,7 @@ import type {
   SpiritStoneInventoryStack,
   TreasureItemDefinition,
 } from "../role_core/types/itemInfo";
-import type { CultivationRealm, EquipSlotKey, TraitEntry } from "../role_core/types/playInfo";
+import type { CultivationRealm, EquipSlotKey, PrimaryStatKey, TraitEntry } from "../role_core/types/playInfo";
 import type { TreasureSpecialEffect } from "../role_core/types/treasure";
 import { TREASURE_MODIFIER_NAMES } from "../role_core/types/treasure";
 import type { GongfaSpecialEffect } from "../role_core/types/gongfa";
@@ -23,10 +23,14 @@ import { GONGFA_MASTERY_COMBAT_MULT, GONGFA_MASTERY_ATTRI_MULT } from "../role_c
 import type { ItemGrade } from "../role_core/types/itemInfo";
 
 export interface DerivedStatValues {
+  physique: number;
+  spirit: number;
   strength: number;
   perception: number;
   guard: number;
   resistance: number;
+  agility: number;
+  insight: number;
 }
 
 type ItemSpecialEffect = TreasureSpecialEffect | GongfaSpecialEffect;
@@ -40,6 +44,7 @@ function pushSpecialEffectSection(
   _system?: string,
   derivedStatsGetter?: () => DerivedStatValues,
   mastery?: number,
+  cooldownReduce?: number,
 ): void {
   if (!fn) return;
   out.push({
@@ -47,14 +52,14 @@ function pushSpecialEffectSection(
     get text() {
       if ("battleEffects" in fn) {
         const ds = derivedStatsGetter ? derivedStatsGetter() : undefined;
-        const getStat = (key: "strength" | "perception") => {
+        const getStat = (key: PrimaryStatKey) => {
           if (!ds) return 0;
           return (ds as unknown as Record<string, number>)[key] ?? 0;
         };
         const masteryMult = mastery != null && mastery >= 1
           ? GONGFA_MASTERY_COMBAT_MULT[Math.min(mastery, GONGFA_MASTERY_COMBAT_MULT.length) - 1]
           : 1.0;
-        return resolveGongfaEffectDisplay(fn, getStat, masteryMult, mastery ?? 1);
+        return resolveGongfaEffectDisplay(fn, getStat, masteryMult, mastery ?? 1, cooldownReduce ?? 0);
       }
       if ("modifiers" in fn) {
         const tFn = fn as TreasureSpecialEffect;
@@ -316,6 +321,7 @@ export function buildGongfaDetailPayload(
   primaryStatGetter?: () => number,
   statNameGetter?: () => string,
   derivedStatsGetter?: () => DerivedStatValues,
+  cooldownReduce: number = 0,
 ): ProtagonistDetailPayload {
   const sections: ProtagonistDetailSection[] = [];
   pushSec(sections, "简介", gf.desc);
@@ -336,7 +342,7 @@ export function buildGongfaDetailPayload(
   const mastery = gf.mastery ?? 1;
   const bonus = formatZhBonusWithMastery(gf.bonus as Record<string, number>, mastery);
   if (bonus) pushSec(sections, "修炼加成", bonus);
-  pushSpecialEffectSection(sections, gf.function, gf.grade, primaryStatGetter, statNameGetter, gf.system, derivedStatsGetter, mastery);
+  pushSpecialEffectSection(sections, gf.function, gf.grade, primaryStatGetter, statNameGetter, gf.system, derivedStatsGetter, mastery, cooldownReduce);
 
   const actions: ProtagonistDetailActionButton[] = [];
   if (source?.type === "bar") {
@@ -397,6 +403,7 @@ export function buildInventoryStackDetailPayload(
   primaryStatGetterForGongfa?: (gf: GongfaItemDefinition) => number,
   statNameGetterForGongfa?: (gf: GongfaItemDefinition) => string,
   derivedStatsGetterForGongfa?: (gf: GongfaItemDefinition) => DerivedStatValues,
+  cooldownReduce: number = 0,
 ): ProtagonistDetailPayload {
   if (!("itemType" in cell)) {
     const st = cell as SpiritStoneInventoryStack;
@@ -435,6 +442,7 @@ export function buildInventoryStackDetailPayload(
         gfg,
         sng,
         dsg,
+        cooldownReduce,
       );
     }
     case "丹药": {

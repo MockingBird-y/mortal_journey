@@ -263,7 +263,7 @@ export class BattleEngine implements BattleEngineLike {
       turn: this.state.actionCount, target,
     };
 
-    if (skill.isAoE && skill.needTarget) {
+    if (skill.isAoE) {
       const targets = (skill.targetTeam === "enemy" ? ctx.enemies : ctx.allies).filter(c => !c.isDead);
       for (const t of targets) {
         ctx.target = t;
@@ -276,7 +276,7 @@ export class BattleEngine implements BattleEngineLike {
     }
 
     if (skill.cooldown > 0) {
-      actor.cooldowns[skillIndex] = skill.cooldown;
+      actor.cooldowns[skillIndex] = skill.cooldown + 1;
     }
 
     this.gaugeManager.consumeGauge(actor, skill.actionCost);
@@ -391,6 +391,7 @@ export class BattleEngine implements BattleEngineLike {
           mpCost: skill.mpCost,
           needTarget: skill.needTarget,
           targetTeam: skill.targetTeam,
+          isAoE: skill.isAoE,
           description: skill.desc,
           cooldown: actor.cooldowns[i],
         });

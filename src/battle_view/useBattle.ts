@@ -91,7 +91,7 @@ export function useBattle() {
     if (action.type === "skill") {
       const opts = getPlayerActionOptions();
       const skillItem = opts.skills.find(sk => sk.skillIndex === action.skillIndex);
-      if (skillItem && !skillItem.needTarget) {
+      if (skillItem && (!skillItem.needTarget || skillItem.isAoE)) {
         s.phase = "targetSelection";
         const currentActorId = s.activeCombatantId;
         if (currentActorId) {

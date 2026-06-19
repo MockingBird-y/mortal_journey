@@ -2,6 +2,7 @@
 import { ref } from "vue";
 import type { WorldLocation } from "../role_core/types/worldLocation";
 import WorldMapModal from "./WorldMapModal.vue";
+import AlchemyModal from "./AlchemyModal.vue";
 
 const props = defineProps<{
   currentLocation?: WorldLocation | null;
@@ -13,6 +14,7 @@ const emit = defineEmits<{
 }>();
 
 const mapModalOpen = ref(false);
+const alchemyModalOpen = ref(false);
 
 function openMapModal() {
   mapModalOpen.value = true;
@@ -21,6 +23,14 @@ function openMapModal() {
 function closeMapModal() {
   mapModalOpen.value = false;
 }
+
+function openAlchemyModal() {
+  alchemyModalOpen.value = true;
+}
+
+function closeAlchemyModal() {
+  alchemyModalOpen.value = false;
+}
 </script>
 
 <template>
@@ -28,6 +38,7 @@ function closeMapModal() {
     <div class="main-panel__body">
       <div class="side-btn-group">
         <button type="button" class="main-screen__btn side-btn" @click="openMapModal">世界地图</button>
+        <button type="button" class="main-screen__btn side-btn" @click="openAlchemyModal">炼丹</button>
         <button type="button" class="main-screen__btn side-btn" @click="emit('testBattle')" :disabled="props.testDisabled">战斗测试</button>
       </div>
     </div>
@@ -35,6 +46,10 @@ function closeMapModal() {
       :open="mapModalOpen"
       :current-location="props.currentLocation"
       @close="closeMapModal"
+    />
+    <AlchemyModal
+      :open="alchemyModalOpen"
+      @close="closeAlchemyModal"
     />
   </section>
 </template>

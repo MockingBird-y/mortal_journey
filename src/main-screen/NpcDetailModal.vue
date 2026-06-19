@@ -7,6 +7,7 @@ import {
   PRIMARY_STAT_KEYS,
   type EquipSlotKey,
 } from "../role_core/types/playInfo";
+import { computeLinggenCombatBonuses } from "../role_core/types/gameConstants";
 import type { GongfaItemDefinition } from "../role_core/types/itemInfo";
 import {
   buildWearableDetailPayload,
@@ -91,7 +92,7 @@ function openGongfaDetail(index: number) {
   if (!npc) return;
   const cell = npc.gongfaSlots[index];
   if (!cell) return;
-  itemDetailPayload.value = buildGongfaDetailPayload(cell);
+  itemDetailPayload.value = buildGongfaDetailPayload(cell, undefined, npc.linggen, undefined, undefined, undefined, computeLinggenCombatBonuses(npc.linggen, npc.realm.major).cooldownReduce);
   itemDetailOpen.value = true;
 }
 
@@ -100,7 +101,7 @@ function openBagDetail(index: number) {
   if (!npc) return;
   const cell = npc.inventorySlots[index];
   if (!cell) return;
-  itemDetailPayload.value = buildInventoryStackDetailPayload(cell);
+  itemDetailPayload.value = buildInventoryStackDetailPayload(cell, undefined, npc.linggen, undefined, undefined, undefined, computeLinggenCombatBonuses(npc.linggen, npc.realm.major).cooldownReduce);
   itemDetailOpen.value = true;
 }
 

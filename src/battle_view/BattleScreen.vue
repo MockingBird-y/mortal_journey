@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, nextTick, watch } from "vue";
 import type { BattleTriggerEntry } from "../ai/state_generate";
-import type { BattleAction, BattleCombatant, BattleResult, SkillActionItem, ElixirActionItem, FloatingText } from "../battle_engine/types";
+import type { BattleAction, BattleCombatant, BattleResult, SkillActionItem, ElixirActionItem, FloatingText, BattleEffect } from "../battle_engine/types";
 import { useBattle } from "./useBattle";
 import { gameLog } from "../log/gameLog";
 import { useScrollLock } from "../composables/useScrollLock";
@@ -144,6 +144,14 @@ function logAlignClass(team?: string): string {
   return "";
 }
 
+function formatEffect(eff: BattleEffect): string {
+  const layer = eff.stacks > 1
+    ? (eff.maxStacks === Infinity ? `${eff.stacks}层` : ` ${eff.stacks}/${eff.maxStacks}层`)
+    : "";
+  const dur = eff.remainingDuration >= 99 ? "永久" : eff.remainingDuration;
+  return `${eff.name}${layer}(${dur})`;
+}
+
 function logTypeClass(type: string): string {
   switch (type) {
     case "damage": case "dot": return "battle__log--damage";
@@ -238,7 +246,7 @@ function toggleElixirSubmenu() {
                         class="battle__submenu-item"
                         @click="onSkillSelect(item)"
                       >
-                        <span class="battle__submenu-name">{{ item.name }} <span class="battle__mp-cost">MP:{{ item.mpCost }}</span></span>
+                        <span class="battle__submenu-name">{{ item.name }} <span v-if="item.isAoE" class="battle__aoe-tag">群</span> <span class="battle__mp-cost">MP:{{ item.mpCost }}</span></span>
                         <span class="battle__submenu-desc">{{ item.description }}</span>
                       </button>
                     </div>
@@ -315,7 +323,7 @@ function toggleElixirSubmenu() {
                   </div>
                   <div v-if="ally.effects.some(e => !e.hidden)" class="battle__card-effects">
                     <span v-for="eff in ally.effects.filter(e => !e.hidden)" :key="eff.id" class="battle__effect-tag" :class="'battle__effect-tag--' + eff.category">
-                      {{ eff.name }}({{ eff.remainingDuration }})
+                      {{ formatEffect(eff) }}
                     </span>
                   </div>
                 </div>
@@ -371,7 +379,7 @@ function toggleElixirSubmenu() {
                   </div>
                   <div v-if="enemy.effects.some(e => !e.hidden)" class="battle__card-effects">
                     <span v-for="eff in enemy.effects.filter(e => !e.hidden)" :key="eff.id" class="battle__effect-tag" :class="'battle__effect-tag--' + eff.category">
-                      {{ eff.name }}({{ eff.remainingDuration }})
+                      {{ formatEffect(eff) }}
                     </span>
                   </div>
                 </div>
