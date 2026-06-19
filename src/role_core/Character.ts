@@ -39,6 +39,7 @@ import {
   applyDetailAction as eqApply,
 } from "./CharacterEquip";
 import { applyLinggenElixirBoost } from "./types/elixir";
+import { applyStatConversions, applyResourceConversions, type TreasureConversion } from "./types/treasure";
 
 const HP_PER_PHYSIQUE = 10;
 const MP_PER_SPIRIT = 10;
@@ -153,7 +154,28 @@ export class Character {
     for (const [k, v] of Object.entries(this.elixirBonuses)) {
       if (typeof v === "number" && v !== 0) primaryStats[k] = (primaryStats[k] ?? 0) + v;
     }
+    // 法宝特殊效果：主属性转换（仅仙品/神品法宝生效）
+    const statConversions = this.collectEquippedConversions().filter(c => c.target === "stat");
+    if (statConversions.length > 0) {
+      const converted = applyStatConversions(primaryStats as Record<PrimaryStatKey, number>, statConversions);
+      for (const k of PRIMARY_STAT_KEYS) primaryStats[k] = converted[k];
+    }
     return primaryStats;
+  }
+
+  /**
+   * 汇总当前已装备法宝的特殊效果转换项。
+   *
+   * @returns 所有已装备法宝 `specialEffect.conversions` 的扁平列表。
+   */
+  protected collectEquippedConversions(): TreasureConversion[] {
+    const out: TreasureConversion[] = [];
+    for (const tr of this.equippedSlots) {
+      if (tr && tr.specialEffect) {
+        for (const c of tr.specialEffect.conversions) out.push(c);
+      }
+    }
+    return out;
   }
 
   getComputedPrimaryStats(): Readonly<Record<PrimaryStatKey, number>> {
@@ -169,8 +191,15 @@ export class Character {
     const realmRow = this.getRealmRow();
     const baseHp = realmRow?.hp ?? 200;
     const baseMp = realmRow?.mp ?? 100;
-    const maxHp = Math.max(1, Math.round((baseHp + stats.physique * HP_PER_PHYSIQUE) * (1 + stats.physique / 1000)));
-    const maxMp = Math.max(1, Math.round((baseMp + stats.spirit * MP_PER_SPIRIT) * (1 + stats.spirit / 1000)));
+    let maxHp = Math.max(1, Math.round((baseHp + stats.physique * HP_PER_PHYSIQUE) * (1 + stats.physique / 1000)));
+    let maxMp = Math.max(1, Math.round((baseMp + stats.spirit * MP_PER_SPIRIT) * (1 + stats.spirit / 1000)));
+    // 法宝特殊效果：血量/法力上限转换（仅仙品/神品法宝生效）
+    const resConversions = this.collectEquippedConversions().filter(c => c.target === "mpToHp" || c.target === "hpToMp");
+    if (resConversions.length > 0) {
+      const r = applyResourceConversions(maxHp, maxMp, resConversions);
+      maxHp = r.maxHp;
+      maxMp = r.maxMp;
+    }
     return { maxHp, maxMp };
   }
 

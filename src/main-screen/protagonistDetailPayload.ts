@@ -14,7 +14,8 @@ import type {
   TreasureItemDefinition,
 } from "../role_core/types/itemInfo";
 import type { CultivationRealm, EquipSlotKey, PrimaryStatKey, TraitEntry } from "../role_core/types/playInfo";
-import type { TreasureSpecialEffect } from "../role_core/types/treasure";
+import { PRIMARY_STAT_KEY_TO_ZH } from "../role_core/types/playInfo";
+import type { TreasureSpecialEffect, TreasureConversion, TreasureConversionEffect } from "../role_core/types/treasure";
 import { TREASURE_MODIFIER_NAMES } from "../role_core/types/treasure";
 import type { GongfaSpecialEffect } from "../role_core/types/gongfa";
 import { resolveGongfaEffectDisplay } from "../role_core/types/gongfa";
@@ -70,6 +71,70 @@ function pushSpecialEffectSection(
       return "";
     },
   });
+}
+
+/**
+ * 将单条法宝转换格式化为可读文案。
+ *
+ * - bonus：`dest +ratio%×source`
+ * - transfer：`将ratio%source转为dest`
+ *
+ * @param c 单条转换。
+ * @returns 中文展示文案。
+ */
+function formatTreasureConversion(c: TreasureConversion): string {
+  if (c.target === "stat") {
+    const from = PRIMARY_STAT_KEY_TO_ZH[c.from];
+    const to = PRIMARY_STAT_KEY_TO_ZH[c.to];
+    return c.mode === "transfer"
+      ? `将${c.ratio}%${from}转为${to}`
+      : `${to} +${c.ratio}%×${from}`;
+  }
+  if (c.target === "mpToHp") {
+    return c.mode === "transfer"
+      ? `将${c.ratio}%法力上限转为血量上限`
+      : `血量上限 +${c.ratio}%×法力上限`;
+  }
+  return c.mode === "transfer"
+    ? `将${c.ratio}%血量上限转为法力上限`
+    : `法力上限 +${c.ratio}%×血量上限`;
+}
+
+/**
+ * 追加法宝「属性加成」段落（原 modifiers 战斗修正展示）。
+ *
+ * @param out 段落数组（原地修改）。
+ * @param fn 法宝 function；为空则不追加。
+ */
+function pushTreasureAttributeBonusSection(
+  out: ProtagonistDetailSection[],
+  fn: TreasureSpecialEffect | undefined,
+): void {
+  if (!fn) return;
+  out.push({
+    label: "属性加成",
+    text: fn.modifiers
+      .map(m => `${TREASURE_MODIFIER_NAMES[m.modifierType]}+${m.value}%`)
+      .join("\n"),
+  });
+}
+
+/**
+ * 追加法宝「特殊效果」段落（仙品/神品的转换型效果）。
+ *
+ * @param out 段落数组（原地修改）。
+ * @param se 法宝 specialEffect；为空则不追加。
+ */
+function pushTreasureSpecialEffectSection(
+  out: ProtagonistDetailSection[],
+  se: TreasureConversionEffect | undefined,
+): void {
+  if (!se) return;
+  const lines: string[] = [];
+  if (se.name) lines.push(se.name);
+  if (se.intro) lines.push(se.intro);
+  for (const c of se.conversions) lines.push(formatTreasureConversion(c));
+  out.push({ label: "特殊效果", text: lines.filter(Boolean).join("\n") });
 }
 
 /**
@@ -271,7 +336,8 @@ export function buildWearableDetailPayload(
   const sections: ProtagonistDetailSection[] = [];
   pushSec(sections, "简介", it.desc);
   pushSec(sections, "品级", it.grade);
-  pushSpecialEffectSection(sections, it.function, it.grade);
+  pushTreasureAttributeBonusSection(sections, it.function);
+  pushTreasureSpecialEffectSection(sections, it.specialEffect);
 
   const actions: ProtagonistDetailActionButton[] = [];
   if (source?.type === "equipped") {

@@ -13,7 +13,7 @@ import type {
   TreasureItemDefinition,
 } from "./types/itemInfo";
 import type { TreasureSpecialEffect } from "./types/treasure";
-import { rollTreasureFunction } from "./types/treasure";
+import { rollTreasureFunction, rollTreasureSpecialEffect } from "./types/treasure";
 import type { GongfaSpecialEffect, GongfaSystem } from "./types/gongfa";
 import { rollGongfaFunction, normalizeGongfaSystem, normalizeGongfaRole } from "./types/gongfa";
 import { GONGFA_GRADE_ATTRI_TABLE, rollGradeAttriValue } from "./types/gameConstants";
@@ -297,20 +297,36 @@ export class Protagonist extends Character {
     return result;
   }
 
+  /**
+   * 按当前境界 + 主属性 + 已装备法宝特殊效果重算血量/法力上限，并夹取当前值。
+   *
+   * 法宝转换效果会影响上限，故穿脱仙品/神品法宝后需调用以即时反映。
+   */
+  private recomputeMaxHpMpAndClamp(): void {
+    const { maxHp, maxMp } = this.computeMaxHpMp();
+    this.maxHp = maxHp;
+    this.maxMp = maxMp;
+    if (this.currentHp > maxHp) this.currentHp = maxHp;
+    if (this.currentMp > maxMp) this.currentMp = maxMp;
+  }
+
   override setEquippedSlot(slot: import("./types/playInfo").EquipSlotKey, item: import("./types/itemInfo").TreasureItemDefinition | null): boolean {
     const result = super.setEquippedSlot(slot, item);
+    this.recomputeMaxHpMpAndClamp();
     Protagonist.notifyChanged();
     return result;
   }
 
   override equipFromInventory(inventoryIndex: number): boolean {
     const result = super.equipFromInventory(inventoryIndex);
+    this.recomputeMaxHpMpAndClamp();
     Protagonist.notifyChanged();
     return result;
   }
 
   override unequipToInventory(slot: import("./types/playInfo").EquipSlotKey): boolean {
     const result = super.unequipToInventory(slot);
+    this.recomputeMaxHpMpAndClamp();
     Protagonist.notifyChanged();
     return result;
   }
@@ -538,9 +554,11 @@ export class Protagonist extends Character {
       if (item.type === "灵石") continue;
       const itemType = VALID_ITEM_TYPES.has(item.type) ? item.type as CategorizedItemDefinition["itemType"] : "杂物";
       let fn: SpecialEffect | undefined;
+      let se: import("./types/treasure").TreasureConversionEffect | undefined;
       const grade = item.grade as import("./types/itemInfo").ItemGrade;
       if (itemType === "法宝") {
         fn = rollTreasureFunction(grade);
+        se = rollTreasureSpecialEffect(grade);
       } else if (itemType === "功法") {
         const itemRec = item as unknown as Record<string, unknown>;
         const system = normalizeGongfaSystem(itemRec.system);
@@ -572,6 +590,7 @@ export class Protagonist extends Character {
         count: item.count,
         itemType,
         ...(fn ? { function: fn } : {}),
+        ...(se ? { specialEffect: se } : {}),
       } as InventoryStackItem);
     }
 

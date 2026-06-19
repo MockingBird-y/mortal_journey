@@ -16,7 +16,7 @@ import type {
   GradeDropRate,
 } from "../role_core/types/itemInfo";
 import { GRADE_DROP_TABLE } from "../role_core/types/itemInfo";
-import { rollTreasureFunction } from "../role_core/types/treasure";
+import { rollTreasureFunction, rollTreasureSpecialEffect } from "../role_core/types/treasure";
 import { rollGongfaFunction, normalizeGongfaSystem, normalizeGongfaRole, type GongfaRole } from "../role_core/types/gongfa";
 import {
   parseElixirEffectType,
@@ -126,6 +126,7 @@ export function parseEquipObject(e: unknown, realmMajor: string, realmMinor: str
     grade,
     count: 1,
     function: rollTreasureFunction(grade),
+    specialEffect: rollTreasureSpecialEffect(grade),
   };
 }
 
@@ -171,7 +172,7 @@ export function parseStorageObject(e: unknown, realmMajor: string, realmMinor: s
 
   switch (itemType) {
     case "法宝": {
-      return { itemType: "法宝", name, desc, grade, count, function: rollTreasureFunction(grade) } as TreasureItemDefinition;
+      return { itemType: "法宝", name, desc, grade, count, function: rollTreasureFunction(grade), specialEffect: rollTreasureSpecialEffect(grade) } as TreasureItemDefinition;
     }
     case "丹药": {
       const effectType = parseElixirEffectType(obj.effectType);
