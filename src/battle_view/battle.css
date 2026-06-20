@@ -437,6 +437,24 @@
   font-size: 15px;
 }
 
+.battle__loot {
+  margin-top: 12px;
+  padding: 10px 16px;
+  border-top: 1px dashed #6c5ce7;
+  text-align: left;
+}
+
+.battle__loot-title {
+  color: #f0c040 !important;
+  font-weight: 600;
+  margin-bottom: 4px !important;
+}
+
+.battle__loot-item {
+  color: #a8e6cf !important;
+  margin: 2px 0 !important;
+}
+
 .battle__float-layer {
   position: absolute;
   top: 0;

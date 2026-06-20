@@ -14,7 +14,8 @@ import {
   type WorldLocation,
 } from "../role_core/types/playInfo";
 import { formatWorldLocationDash, parseWorldLocationFromDash } from "../role_core/types/worldLocation";
-import type { NpcNearbyEntry } from "./state_generate";
+import type { NpcNearbyEntry, ActionSuggestions } from "./state_generate";
+import { parseActionOptions } from "./state_generate";
 
 export interface InitStateApiConfig {
   apiUrl: string;
@@ -41,6 +42,7 @@ export interface InitStateParsed {
   nearbyNpcs: NpcNearbyEntry[];
   storySnapshot: string;
   protagonistAge: number | null;
+  actionOptions: ActionSuggestions | null;
 }
 
 const DEFAULT_INIT_STATE_TEMPERATURE = 0.55;
@@ -101,7 +103,9 @@ function parseInitNearbyNpcs(raw: string): NpcNearbyEntry[] {
         : typeof linggenRaw === "string"
           ? linggenRaw.split("").filter((c: string) => "金木水火土".includes(c))
           : [];
+      const npcIdRaw = typeof o.npcId === "string" ? o.npcId.trim() : "";
       return {
+        npcId: npcIdRaw || undefined,
         displayName,
         identity: String(o.identity || ""),
         isDead: o.isDead === true,
@@ -173,7 +177,9 @@ export function parseInitStateAiResponse(raw: string, realmMajor: string, realmM
     if (!isNaN(parsed) && parsed > 0) protagonistAge = parsed;
   }
 
-  return { equips, gongfas, storage, worldLocation, hpPercent, mpPercent, nearbyNpcs, storySnapshot, protagonistAge };
+  const actionOptions = parseActionOptions(raw);
+
+  return { equips, gongfas, storage, worldLocation, hpPercent, mpPercent, nearbyNpcs, storySnapshot, protagonistAge, actionOptions };
 }
 
 export function buildEquippedSlotsFromParsed(parsed: InitStateParsed): EquippedSlotsState {

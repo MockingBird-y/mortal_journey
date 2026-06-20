@@ -14,6 +14,7 @@ import {
   buildGongfaDetailPayload,
   buildInventoryStackDetailPayload,
   type ProtagonistDetailPayload,
+  type DerivedStatValues,
 } from "./protagonistDetailPayload";
 import {
   treasureCellName,
@@ -78,6 +79,20 @@ function switchTab(tab: NpcTab) {
   }
 }
 
+function getNpcDerivedStats(npc: Npc): DerivedStatValues {
+  const ps = npc.getPrimaryStats();
+  return {
+    physique: ps.physique,
+    spirit: ps.spirit,
+    strength: ps.strength,
+    perception: ps.perception,
+    guard: ps.guard,
+    resistance: ps.resistance,
+    agility: ps.agility,
+    insight: ps.insight,
+  };
+}
+
 function openEquipDetail(key: EquipSlotKey) {
   const npc = props.npc;
   if (!npc) return;
@@ -92,7 +107,7 @@ function openGongfaDetail(index: number) {
   if (!npc) return;
   const cell = npc.gongfaSlots[index];
   if (!cell) return;
-  itemDetailPayload.value = buildGongfaDetailPayload(cell, undefined, npc.linggen, undefined, undefined, undefined, computeLinggenCombatBonuses(npc.linggen, npc.realm.major).cooldownReduce);
+  itemDetailPayload.value = buildGongfaDetailPayload(cell, undefined, npc.linggen, undefined, undefined, () => getNpcDerivedStats(npc), computeLinggenCombatBonuses(npc.linggen, npc.realm.major).cooldownReduce);
   itemDetailOpen.value = true;
 }
 
@@ -101,7 +116,7 @@ function openBagDetail(index: number) {
   if (!npc) return;
   const cell = npc.inventorySlots[index];
   if (!cell) return;
-  itemDetailPayload.value = buildInventoryStackDetailPayload(cell, undefined, npc.linggen, undefined, undefined, undefined, computeLinggenCombatBonuses(npc.linggen, npc.realm.major).cooldownReduce);
+  itemDetailPayload.value = buildInventoryStackDetailPayload(cell, undefined, npc.linggen, undefined, undefined, () => getNpcDerivedStats(npc), computeLinggenCombatBonuses(npc.linggen, npc.realm.major).cooldownReduce);
   itemDetailOpen.value = true;
 }
 

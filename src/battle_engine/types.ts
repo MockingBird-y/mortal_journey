@@ -394,6 +394,15 @@ export interface BattleResult {
   allyNames: string[];
   enemyNames: string[];
   triggerKind: "active" | "passive";
+  /** 战斗胜利时从每个被击杀敌人身上随机缴获的一件法宝/功法（纯游戏性，不经 AI）。 */
+  loot: LootEntry[];
+}
+
+/** 单件战利品记录：来自哪个敌人、是法宝还是功法、物品名。 */
+export interface LootEntry {
+  enemyName: string;
+  itemKind: "法宝" | "功法";
+  itemName: string;
 }
 
 // ─── 引擎接口（内部模块间引用） ───

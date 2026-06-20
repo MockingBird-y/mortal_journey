@@ -338,6 +338,11 @@ export class BattleEngine implements BattleEngineLike {
       this.addLogEntries(entries);
       if (this.checkBattleEnd()) return;
     }
+    // on_turn_end 时，召唤物攻击完成后才递减其剩余回合（先攻击后递减，
+    // 确保最后一次攻击不会被「减到0即移除」跳过）。
+    if (trigger === "on_turn_end") {
+      this.effectManager.tickSummonDurations(actor);
+    }
   }
 
   checkBattleEnd(): boolean {

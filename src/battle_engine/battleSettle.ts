@@ -1,7 +1,36 @@
-import type { BattleState, BattleResult, BattleCombatant, BattleOutcome } from "./types";
+import type { BattleState, BattleResult, BattleCombatant, BattleOutcome, LootEntry } from "./types";
 import { protagonist } from "../role_core/Protagonist";
 import { npcStore } from "../role_core/npcStore";
+import type { Npc } from "../role_core/Npc";
+import type { InventoryStackItem, TreasureItemDefinition, GongfaItemDefinition } from "../role_core/types/itemInfo";
 import type { BattleTriggerEntry } from "../ai/state_generate";
+import { gameLog } from "../log/gameLog";
+
+/**
+ * 从 NPC 的 equippedSlots（法宝）+ gongfaSlots（功法）中随机抽取一件作为战利品。
+ *
+ * 纯游戏性掉落，不经过 AI。候选池为空（敌人既无法宝也无功法）返回 null。
+ * 采用浅拷贝 + 重置 count/mastery，避免共享引用污染 NPC 数据（NPC 槽位不移除）。
+ */
+function rollLootFromNpc(npc: Npc): { item: InventoryStackItem; kind: "法宝" | "功法" } | null {
+  const candidates: Array<{ item: InventoryStackItem; kind: "法宝" | "功法" }> = [];
+  for (const tr of npc.equippedSlots) {
+    if (tr) candidates.push({ item: tr as TreasureItemDefinition, kind: "法宝" });
+  }
+  for (const gf of npc.gongfaSlots) {
+    if (gf) candidates.push({ item: gf as GongfaItemDefinition, kind: "功法" });
+  }
+  if (candidates.length === 0) return null;
+
+  const pick = candidates[Math.floor(Math.random() * candidates.length)];
+  const loot = { ...pick.item, count: 1 } as InventoryStackItem;
+  if (pick.kind === "功法") {
+    const g = loot as GongfaItemDefinition;
+    g.mastery = 1;
+    g.masteryExp = 0;
+  }
+  return { item: loot, kind: pick.kind };
+}
 
 export function settleBattle(state: BattleState): BattleResult {
   const trigger = state.triggerEntry as BattleTriggerEntry;
@@ -60,11 +89,33 @@ export function settleBattle(state: BattleState): BattleResult {
     }
   }
 
+  const loot: LootEntry[] = [];
+  const lootRecipient = p;
   for (const enemy of state.enemies) {
     if (enemy.isDead && enemy.sourceNpcName) {
       const npc = npcStore.getNpc(enemy.sourceNpcName);
       if (npc) {
+        // 战斗结算是受控的程序逻辑，直接赋值（不构成数据漂移）。
+        // 与 applyCoreChange 的 death 事件语义保持一致：死亡时清零 HP。
         npc.isDead = true;
+        npc.currentHp = 0;
+
+        // 战利品掉落：每个被击杀敌人随机掉落一件法宝/功法（纯游戏性，不经 AI）。
+        if (state.phase === "victory" && lootRecipient) {
+          const rolled = rollLootFromNpc(npc);
+          if (rolled) {
+            const idx = lootRecipient.addToInventory(rolled.item);
+            if (idx >= 0) {
+              loot.push({
+                enemyName: enemy.sourceNpcName,
+                itemKind: rolled.kind,
+                itemName: rolled.item.name,
+              });
+            } else {
+              gameLog.warn(`[settleBattle] 储物袋已满，无法收取战利品「${rolled.item.name}」（来自 ${enemy.sourceNpcName}）`);
+            }
+          }
+        }
       }
     }
   }
@@ -76,6 +127,7 @@ export function settleBattle(state: BattleState): BattleResult {
 
     if (ally.isDead) {
       npc.isDead = true;
+      npc.currentHp = 0;
     } else {
       const hpPct = ally.stats.maxHp > 0 ? Math.round(ally.hp / ally.stats.maxHp * 100) : 0;
       const mpPct = ally.stats.maxMp > 0 ? Math.round(ally.mp / ally.stats.maxMp * 100) : 0;
@@ -102,5 +154,6 @@ export function settleBattle(state: BattleState): BattleResult {
     allyNames: trigger.allies.map(a => a.displayName),
     enemyNames: trigger.enemies.map(e => e.displayName),
     triggerKind: trigger.triggerKind,
+    loot,
   };
 }

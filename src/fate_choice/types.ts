@@ -153,7 +153,7 @@ export const CREATION_BIRTHS: Readonly<Record<string, BirthDefinition>> = {
     desc: "出身于越国七大宗门之一的黄枫谷外门，以剑修传承闻名，门规严谨。",
   },
   乱星海散修: {
-    location: { region: "乱星海", country: "内海", area: "魁星岛", detail: "天都街" },
+    location: { region: "乱星海", country: "魁星岛", area: "天都街", detail: "街道" },
     desc: "出身在乱星海，资源多被大小宗门与星宫势力把持。你无依无靠，灵石、丹药、功法皆需自行挣取，或冒险猎妖，或接取散修任务，稍有不慎便是身死道消。",
   }
 };
@@ -170,12 +170,12 @@ export interface TraitRarityWeightRow {
 
 /** 命运抉择随机词条：各稀有度权重（与主工程分布意图一致）。 */
 export const TRAIT_RARITY_WEIGHTS: readonly TraitRarityWeightRow[] = [
-  { rarity: "平庸", weight: 50 },
+  { rarity: "平庸", weight: 40 },
   { rarity: "普通", weight: 25 },
   { rarity: "稀有", weight: 15 },
-  { rarity: "史诗", weight: 7 },
-  { rarity: "传说", weight: 2 },
-  { rarity: "神迹", weight: 1 },
+  { rarity: "史诗", weight: 10 },
+  { rarity: "传说", weight: 6 },
+  { rarity: "神迹", weight: 4 },
 ];
 
 // ---------------------------------------------------------------------------

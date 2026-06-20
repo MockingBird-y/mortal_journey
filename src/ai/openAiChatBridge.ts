@@ -142,7 +142,7 @@ export function normalizeBaseUrl(url: string): string {
  * 从非流式 `chat/completions` 响应 JSON 中提取助手正文。
  *
  * 与 `bridge.js` 中 `extractOpenAiNonStreamMessageText` 的路径一致：`choices[0].message.content`、
- * `reasoning_content`、以及旧式 `choices[0].text`。
+ * 以及旧式 `choices[0].text`。
  *
  * @param data 解析后的响应体；非法或非对象时视为无正文。
  * @return 拼接后的助手文本；可能为空字符串。
@@ -151,7 +151,7 @@ export function extractOpenAiNonStreamMessageText(data: unknown): string {
   if (!data || typeof data !== "object") return "";
   const d = data as {
     choices?: Array<{
-      message?: { content?: unknown; reasoning_content?: unknown };
+      message?: { content?: unknown };
       text?: unknown;
     }>;
   };
@@ -162,8 +162,6 @@ export function extractOpenAiNonStreamMessageText(data: unknown): string {
   if (msg) {
     const c = msg.content;
     if (c != null && String(c) !== "") parts.push(String(c));
-    const rc = msg.reasoning_content;
-    if (rc != null && String(rc) !== "") parts.push(String(rc));
   }
   const legacy = ch0.text;
   if (legacy != null && String(legacy) !== "") parts.push(String(legacy));
@@ -341,7 +339,7 @@ export async function callChatCompletionNonStream(params: CallChatCompletionNonS
     const out = extractOpenAiNonStreamMessageText(data);
     if (!out && data && typeof data === "object") {
       console.warn(
-        "[OpenAI Bridge] 非流式响应中未解析到 choices[0].message.content / reasoning_content / text，请对照上游 JSON。",
+        "[OpenAI Bridge] 非流式响应中未解析到 choices[0].message.content / text，请对照上游 JSON。",
       );
     }
     logAiInbound(out);

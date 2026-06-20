@@ -1,20 +1,22 @@
 import { ref, type Ref } from "vue";
 import type { WorldLocation } from "./types/worldLocation";
-import { formatWorldLocationDash } from "./types/worldLocation";
 
 export type LocationTree = Record<string, Record<string, Record<string, string[]>>>;
-export type LocationNpcMap = Record<string, string[]>;
 
 export interface WorldMapSerialData {
   locationTree: LocationTree;
-  locationNpcMap: LocationNpcMap;
 }
 
 export function useWorldMapStore() {
   const locationTree = ref<LocationTree>({});
-  const locationNpcMap = ref<LocationNpcMap>({});
 
-  function addLocation(loc: WorldLocation, npcNames: string[]): void {
+  /**
+   * 登记一个地点（四级结构累加进 locationTree）。
+   *
+   * NPC 名单不再由此处维护——世界地图改为直接查 `npcStore` 按 `currentLocation` 过滤，
+   * 单一数据源避免字段与名单不一致。
+   */
+  function addLocation(loc: WorldLocation): void {
     const { region, country, area, detail } = loc;
     if (!region) return;
 
@@ -28,11 +30,6 @@ export function useWorldMapStore() {
           tree[region][country][area].push(detail);
         }
       }
-    }
-
-    const key = formatWorldLocationDash(loc);
-    if (key) {
-      locationNpcMap.value[key] = [...npcNames];
     }
   }
 
@@ -52,37 +49,27 @@ export function useWorldMapStore() {
     return locationTree.value[region]?.[country]?.[area] ?? [];
   }
 
-  function getNpcNamesAt(loc: WorldLocation): string[] {
-    const key = formatWorldLocationDash(loc);
-    return locationNpcMap.value[key] ?? [];
-  }
-
   function serializeWorldMap(): WorldMapSerialData {
     return {
       locationTree: JSON.parse(JSON.stringify(locationTree.value)),
-      locationNpcMap: JSON.parse(JSON.stringify(locationNpcMap.value)),
     };
   }
 
   function restoreWorldMap(data: WorldMapSerialData | null | undefined): void {
     locationTree.value = data?.locationTree ? JSON.parse(JSON.stringify(data.locationTree)) : {};
-    locationNpcMap.value = data?.locationNpcMap ? JSON.parse(JSON.stringify(data.locationNpcMap)) : {};
   }
 
   function clearWorldMap(): void {
     locationTree.value = {};
-    locationNpcMap.value = {};
   }
 
   return {
     locationTree,
-    locationNpcMap,
     addLocation,
     getRegions,
     getCountries,
     getAreas,
     getDetails,
-    getNpcNamesAt,
     serializeWorldMap,
     restoreWorldMap,
     clearWorldMap,

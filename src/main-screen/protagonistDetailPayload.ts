@@ -22,6 +22,7 @@ import { resolveGongfaEffectDisplay } from "../role_core/types/gongfa";
 import { gradeToTraitRarity, getGongfaMasteryProgress } from "./protagonistPanelDisplay";
 import { GONGFA_MASTERY_COMBAT_MULT, GONGFA_MASTERY_ATTRI_MULT } from "../role_core/types/gameConstants";
 import type { ItemGrade } from "../role_core/types/itemInfo";
+import { describeTraitEffect } from "../fate_choice/traitEffect";
 
 export interface DerivedStatValues {
   physique: number;
@@ -131,8 +132,6 @@ function pushTreasureSpecialEffectSection(
 ): void {
   if (!se) return;
   const lines: string[] = [];
-  if (se.name) lines.push(se.name);
-  if (se.intro) lines.push(se.intro);
   for (const c of se.conversions) lines.push(formatTreasureConversion(c));
   out.push({ label: "特殊效果", text: lines.filter(Boolean).join("\n") });
 }
@@ -301,6 +300,8 @@ export function buildTraitDetailPayload(t: TraitEntry): ProtagonistDetailPayload
   }
   const sections: ProtagonistDetailSection[] = [];
   pushSec(sections, "简述", t.desc);
+  const effectDesc = describeTraitEffect(t.effect);
+  if (effectDesc) pushSec(sections, "效果", effectDesc);
   const sub = t.rarity?.trim() ? `品质：${t.rarity.trim()}` : "天赋";
   return {
     title: t.name || "—",

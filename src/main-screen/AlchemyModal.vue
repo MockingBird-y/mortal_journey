@@ -240,7 +240,6 @@ onUnmounted(() => {
                       :data-rarity="gradeToTraitRarity(o.grade)"
                     >{{ o.grade }} {{ o.percent }}%</span>
                   </div>
-                  <div class="alchemy-preview-note">效果类型按丹方随机（恢复类概率较高）</div>
                 </div>
 
                 <!-- 材料列表 -->

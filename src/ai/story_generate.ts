@@ -2,7 +2,7 @@ import { STORY_SYSTEM_PRESET } from "./story_preset";
 import { PRESET } from "./preset";
 import { completeChatWithMessagesJson, type JsonChatRequestPayload, type ChatMessage } from "./openAiChatBridge";
 import { Protagonist } from "../role_core/Protagonist";
-import type { ProtagonistPlayInfo, NarrationPerson, EquippedSlotsState, GongfaSlotsState, InventoryStackItem, TraitEntry } from "../role_core/types/playInfo";
+import type { ProtagonistPlayInfo, NarrationPerson, EquippedSlotsState, GongfaSlotsState, InventoryStackItem } from "../role_core/types/playInfo";
 import { formatWorldLocationDash } from "../role_core/types/worldLocation";
 
 export interface StoryChatEntry {
@@ -20,6 +20,10 @@ export interface StoryGenerateInput {
   signal?: AbortSignal;
   protagonist: ProtagonistPlayInfo;
   chatHistory: StoryChatEntry[];
+  /** 当前场景在场 NPC 快照文本（让剧情描写与场景 NPC 行为一致）。 */
+  sceneNpcSnapshot?: string;
+  /** 当前所在地点（让剧情 AI 感知场景）。 */
+  currentWorldLocation?: string;
 }
 
 export interface StoryParsed {
@@ -115,18 +119,16 @@ function formatInventorySlots(slots: Array<InventoryStackItem | null>): string {
   return items.map(formatInventoryItem).join("、");
 }
 
-function formatTrait(t: TraitEntry): string {
-  if (typeof t === "string") return t;
-  const d = t.desc?.trim();
-  return d ? `${t.name}：${d}` : t.name;
-}
-
-function buildStoryUserContent(p: ProtagonistPlayInfo): string {
-  const traits = p.traits.length > 0
-    ? p.traits.map(formatTrait).join("\n")
-    : "无";
+function buildStoryUserContent(p: ProtagonistPlayInfo, sceneNpcSnapshot?: string, currentWorldLocation?: string): string {
   const origin = p.originStory?.trim() || "—";
   const birthPlace = p.birthPlace ? formatWorldLocationDash(p.birthPlace) : "—";
+
+  const locationLine = currentWorldLocation
+    ? `\n当前所在地点：${currentWorldLocation}`
+    : "";
+  const npcLine = sceneNpcSnapshot?.trim()
+    ? `\n\n【当前场景在场NPC】\n${sceneNpcSnapshot.trim()}`
+    : "";
 
   return [
     "【主角摘要 · 请据此与历史剧情继续生成后续剧情】",
@@ -141,13 +143,11 @@ function buildStoryUserContent(p: ProtagonistPlayInfo): string {
     `寿元：${p.shouyuan}`,
     `当前血量：${p.currentHp}/${p.maxHp}`,
     `当前法力：${p.currentMp}/${p.maxMp}`,
+    locationLine,
     "",
     "【出身背景】",
     `出身地点：${birthPlace}`,
     origin,
-    "",
-    "【天赋】",
-    traits,
     "",
     "【装备】",
     formatEquippedSlots(p.equippedSlots),
@@ -157,6 +157,7 @@ function buildStoryUserContent(p: ProtagonistPlayInfo): string {
     "",
     "【储物袋】",
     formatInventorySlots(p.inventorySlots),
+    npcLine,
     "",
   ].join("\n");
 }
@@ -182,7 +183,7 @@ export function buildStoryRequestPayload(input: StoryGenerateInput): JsonChatReq
 
   messages.push({
     role: "user",
-    content: buildStoryUserContent(input.protagonist),
+    content: buildStoryUserContent(input.protagonist, input.sceneNpcSnapshot, input.currentWorldLocation),
   });
 
   if (lastUserContent != null) {

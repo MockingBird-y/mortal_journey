@@ -3,6 +3,7 @@ import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from "vue";
 import { worldMapStore } from "../role_core/worldMapStore";
 import { npcStore } from "../role_core/npcStore";
 import type { WorldLocation } from "../role_core/types/worldLocation";
+import { isWorldLocationEqual } from "../role_core/types/worldLocation";
 import type { Npc } from "../role_core/Npc";
 import { useScrollLock } from "../composables/useScrollLock";
 import NpcDetailModal from "./NpcDetailModal.vue";
@@ -53,23 +54,13 @@ const selectedFullLocation = computed<WorldLocation | null>(() => {
   };
 });
 
-const npcNamesAtLocation = computed(() => {
+// 直接查 npcStore 按 currentLocation 过滤——单一数据源，避免与 locationNpcMap 不同步。
+const npcEntries = computed(() => {
   const loc = selectedFullLocation.value;
   if (!loc) return [];
-  return worldMapStore.getNpcNamesAt(loc);
-});
-
-const npcEntries = computed(() => {
-  const names = npcNamesAtLocation.value;
-  const result: Array<{
-    npc: ReturnType<typeof npcStore.getNpc>;
-    name: string;
-  }> = [];
-  for (const name of names) {
-    const npc = npcStore.getNpc(name);
-    result.push({ npc, name });
-  }
-  return result;
+  return npcStore.allNpcs()
+    .filter(n => n.currentLocation && isWorldLocationEqual(n.currentLocation, loc))
+    .map(npc => ({ npc, name: npc.displayName }));
 });
 
 function selectRegion(r: string) {
@@ -101,6 +92,36 @@ function autoSelectCurrentLocation() {
   if (loc.country) selectedCountry.value = loc.country;
   if (loc.area) selectedArea.value = loc.area;
   if (loc.detail) selectedDetail.value = loc.detail;
+}
+
+function isCurrentRegion(r: string): boolean {
+  const loc = props.currentLocation;
+  return !!loc && !!loc.region && r === loc.region;
+}
+
+function isCurrentCountry(c: string): boolean {
+  const loc = props.currentLocation;
+  return !!loc && selectedRegion.value === loc.region && !!loc.country && c === loc.country;
+}
+
+function isCurrentArea(a: string): boolean {
+  const loc = props.currentLocation;
+  return (
+    !!loc &&
+    selectedRegion.value === loc.region &&
+    selectedCountry.value === loc.country &&
+    !!loc.area &&
+    a === loc.area
+  );
+}
+
+function isCurrentDetail(d: string): boolean {
+  const loc = props.currentLocation;
+  if (!loc) return false;
+  return isWorldLocationEqual(
+    { region: selectedRegion.value, country: selectedCountry.value, area: selectedArea.value, detail: d },
+    loc,
+  );
 }
 
 function openNpcDetail(npc: NonNullable<ReturnType<typeof npcStore.getNpc>>) {
@@ -186,7 +207,7 @@ onUnmounted(() => {
                       :key="r"
                       type="button"
                       class="map-loc-btn"
-                      :class="{ 'map-loc-btn--active': selectedRegion === r }"
+                      :class="{ 'map-loc-btn--active': selectedRegion === r, 'map-loc-btn--current': isCurrentRegion(r) }"
                       @click="selectRegion(r)"
                     >{{ r }}</button>
                     <div v-if="regions.length === 0" class="map-panel__empty">暂无</div>
@@ -200,7 +221,7 @@ onUnmounted(() => {
                       :key="c"
                       type="button"
                       class="map-loc-btn"
-                      :class="{ 'map-loc-btn--active': selectedCountry === c }"
+                      :class="{ 'map-loc-btn--active': selectedCountry === c, 'map-loc-btn--current': isCurrentCountry(c) }"
                       @click="selectCountry(c)"
                     >{{ c }}</button>
                     <div v-if="countries.length === 0" class="map-panel__empty">—</div>
@@ -214,7 +235,7 @@ onUnmounted(() => {
                       :key="a"
                       type="button"
                       class="map-loc-btn"
-                      :class="{ 'map-loc-btn--active': selectedArea === a }"
+                      :class="{ 'map-loc-btn--active': selectedArea === a, 'map-loc-btn--current': isCurrentArea(a) }"
                       @click="selectArea(a)"
                     >{{ a }}</button>
                     <div v-if="areas.length === 0" class="map-panel__empty">—</div>
@@ -228,7 +249,7 @@ onUnmounted(() => {
                       :key="d"
                       type="button"
                       class="map-loc-btn"
-                      :class="{ 'map-loc-btn--active': selectedDetail === d }"
+                      :class="{ 'map-loc-btn--active': selectedDetail === d, 'map-loc-btn--current': isCurrentDetail(d) }"
                       @click="selectDetail(d)"
                     >{{ d }}</button>
                     <div v-if="details.length === 0" class="map-panel__empty">—</div>
@@ -281,7 +302,6 @@ onUnmounted(() => {
                             :style="{ width: (entry.npc.maxHp > 0 ? Math.round(entry.npc.currentHp / entry.npc.maxHp * 100) : 0) + '%' }"
                           />
                         </div>
-                        <span class="map-npc-bar-nums">{{ entry.npc.currentHp }}/{{ entry.npc.maxHp }}</span>
                       </div>
                       <div class="map-npc-bar-row">
                         <span class="map-npc-bar-label">MP</span>
@@ -291,7 +311,6 @@ onUnmounted(() => {
                             :style="{ width: (entry.npc.maxMp > 0 ? Math.round(entry.npc.currentMp / entry.npc.maxMp * 100) : 0) + '%' }"
                           />
                         </div>
-                        <span class="map-npc-bar-nums">{{ entry.npc.currentMp }}/{{ entry.npc.maxMp }}</span>
                       </div>
                     </div>
                   </div>

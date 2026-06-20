@@ -14,6 +14,7 @@ import type {
   InventoryStackItem,
 } from "./itemInfo";
 import type { WorldLocation } from "./worldLocation";
+import type { WorldTime } from "../worldTime";
 
 import {
   REALM_PRIMARY_STATS_TABLE,
@@ -216,6 +217,15 @@ export interface ProtagonistPlayInfo extends CharacterPlayInfoCommon {
 
 export type PowerTier = "小怪" | "精英怪" | "小boss" | "大boss" | "普通NPC";
 
+/**
+ * NPC 在场状态机：
+ * - active   当前在主角所在地点，参与剧情 sim。
+ * - dormant  归属本地点但主角暂时离开；保留全部数据，回归时唤醒。
+ * - departed 因剧情离开原地点云游（预留状态，目前与 dormant 同义）。
+ * - dead     已死亡。
+ */
+export type NpcPresence = "active" | "dormant" | "departed" | "dead";
+
 export interface NpcPlayInfo extends CharacterPlayInfoCommon {
   role: "npc";
   identity: string;
@@ -229,6 +239,14 @@ export interface NpcPlayInfo extends CharacterPlayInfoCommon {
   personality: string;
   traits: TraitEntry[];
   xiuwei: number;
+  /** 当前所在地点（权威位置字段，由状态 AI 每回合维护；用于在场判定/地图展示/迁移）。 */
+  currentLocation?: WorldLocation | null;
+  /** 在场状态机。 */
+  presence?: NpcPresence;
+  /** 上次被主角见到的世界时间（时间驱动重评估用）。 */
+  lastSeenWorldTime?: WorldTime | null;
+  /** 累计相遇次数。 */
+  encounterCount?: number;
 }
 
 export type EquipSlotKey = number;

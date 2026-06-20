@@ -48,6 +48,16 @@ export class EffectManager {
   ): BattleLogEntry[] {
     const entries: BattleLogEntry[] = [];
 
+    // 先递减所有非召唤物 effect 的剩余回合（d<0 才移除，d==0 本回合仍生效）。
+    // 召唤物的 duration 在 triggerSummons 攻击后单独递归（见 tickSummonDurations）。
+    for (let i = combatant.effects.length - 1; i >= 0; i--) {
+      if (combatant.effects[i].category === "summon") continue;
+      combatant.effects[i].remainingDuration--;
+      if (combatant.effects[i].remainingDuration < 0) {
+        combatant.effects.splice(i, 1);
+      }
+    }
+
     for (const eff of combatant.effects) {
       if (eff.category === "dot" && eff.tickValue != null && eff.tickValue > 0) {
         const stacks = eff.stacks || 1;
@@ -124,14 +134,22 @@ export class EffectManager {
       }
     }
 
+    return entries;
+  }
+
+  /**
+   * 递减角色所有召唤物的剩余回合，到0则移除。
+   * 在 triggerSummons 触发召唤物攻击之后调用（先攻击，后递减），
+   * 确保召唤物不会在最后一次攻击前被提前移除。
+   */
+  tickSummonDurations(combatant: BattleCombatant): void {
     for (let i = combatant.effects.length - 1; i >= 0; i--) {
+      if (combatant.effects[i].category !== "summon") continue;
       combatant.effects[i].remainingDuration--;
       if (combatant.effects[i].remainingDuration <= 0) {
         combatant.effects.splice(i, 1);
       }
     }
-
-    return entries;
   }
 
   getModifierTotal(combatant: BattleCombatant, type: ModifierType): number {

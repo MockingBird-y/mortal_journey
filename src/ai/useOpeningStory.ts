@@ -5,6 +5,7 @@
 import { ref, watch, type ComputedRef, type Ref } from "vue";
 import { generateInitStory } from "./init_story_generate";
 import { generateInitState } from "./init_state_generate";
+import type { ActionSuggestions } from "./state_generate";
 import { gameLog } from "../log/gameLog";
 import {
   cloneWorldTime,
@@ -44,6 +45,7 @@ export function useOpeningStoryFromFateChoice(
   worldTimeBaseline: Ref<WorldTime>;
   worldLocation: Ref<WorldLocation | null>;
   initSnapshot: Ref<string>;
+  initActionOptions: Ref<ActionSuggestions | null>;
 } {
   const storyBody = ref("");
   const phase = ref<OpeningStoryPhase>("idle");
@@ -52,6 +54,7 @@ export function useOpeningStoryFromFateChoice(
   const worldTimeBaseline = ref<WorldTime>(cloneWorldTime(worldTime.value));
   const worldLocation = ref<WorldLocation | null>(null);
   const initSnapshot = ref("");
+  const initActionOptions = ref<ActionSuggestions | null>(null);
 
   let abortCtl: AbortController | null = null;
 
@@ -61,6 +64,7 @@ export function useOpeningStoryFromFateChoice(
     worldTimeBaseline.value = cloneWorldTime(w);
     worldLocation.value = null;
     initSnapshot.value = "";
+    initActionOptions.value = null;
   }
 
   function resetStoryOnly(): void {
@@ -145,19 +149,23 @@ export function useOpeningStoryFromFateChoice(
             initSnapshot.value = stateResult.storySnapshot.trim();
           }
 
+          if (stateResult.actionOptions) {
+            initActionOptions.value = stateResult.actionOptions;
+          }
+
           const current = protagonist.value;
           if (current) {
             current.applyInitState(stateResult);
           }
           if (stateResult.nearbyNpcs.length > 0) {
-            npcStore.applyNpcUpdates(stateResult.nearbyNpcs, p.linggen);
+            npcStore.applyNpcUpdates(stateResult.nearbyNpcs, p.linggen, {
+              currentLocation: stateResult.worldLocation ?? null,
+              currentWorldTime: worldTime.value,
+            });
           }
 
           if (stateResult.worldLocation && !isEmptyWorldLocation(stateResult.worldLocation)) {
-            worldMapStore.addLocation(
-              stateResult.worldLocation,
-              stateResult.nearbyNpcs.map(n => n.displayName),
-            );
+            worldMapStore.addLocation(stateResult.worldLocation);
           }
         } catch (stateErr) {
           gameLog.error("[OpeningStory] 状态生成失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));
@@ -183,5 +191,5 @@ export function useOpeningStoryFromFateChoice(
     { immediate: true },
   );
 
-  return { storyBody, phase, errorMessage, worldTime, worldTimeBaseline, worldLocation, initSnapshot };
+  return { storyBody, phase, errorMessage, worldTime, worldTimeBaseline, worldLocation, initSnapshot, initActionOptions };
 }

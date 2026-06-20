@@ -396,6 +396,12 @@ function toggleElixirSubmenu() {
                 <h2 v-else-if="state.phase === 'fled'">🏃 成功撤退</h2>
                 <p v-if="result">共 {{ result.actionCount }} 次行动 | 主角 HP: {{ result.protagonistHpPercent }}% | MP: {{ result.protagonistMpPercent }}%</p>
                 <p v-if="result && result.enemiesKilled.length > 0">击杀：{{ result.enemiesKilled.join("、") }}</p>
+                <div v-if="state.phase === 'victory' && result && result.loot.length > 0" class="battle__loot">
+                  <p class="battle__loot-title">战利品：</p>
+                  <p v-for="(loot, idx) in result.loot" :key="idx" class="battle__loot-item">
+                    {{ loot.enemyName }} → {{ loot.itemKind }}「{{ loot.itemName }}」
+                  </p>
+                </div>
                 <button class="battle__action-btn" @click="onBattleEnd">返回</button>
               </div>
             </div>

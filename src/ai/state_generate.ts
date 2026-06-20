@@ -15,6 +15,7 @@ import {
 } from "../role_core/types/playInfo";
 import { type WorldTime, type TimeDelta, formatWorldTimeZhDisplay } from "../role_core/worldTime";
 import { formatWorldLocationDash, parseWorldLocationFromDash } from "../role_core/types/worldLocation";
+import type { NpcCoreChangeEvent } from "../role_core/npcCoreChange";
 
 export interface StateGenerateInput {
   apiUrl: string;
@@ -73,6 +74,7 @@ export interface ItemRemoveEntry {
 }
 
 export interface NpcNearbyEntry {
+  npcId?: string;
   displayName: string;
   identity: string;
   isDead: boolean;
@@ -88,6 +90,8 @@ export interface NpcNearbyEntry {
   realm: { major: string; minor: string };
   hpPercent: number;
   mpPercent: number;
+  /** 当前所在地点（状态 AI 显式输出；用于维护 NPC 位置，判定在场/迁移）。 */
+  currentLocation?: WorldLocation;
   equippedSlots?: unknown[];
   gongfaSlots?: unknown[];
   inventorySlots?: unknown[];
@@ -108,6 +112,14 @@ export interface BattleTriggerEntry {
   isTestBattle?: boolean;
 }
 
+/** 四个倾向的玩家行动建议（由状态 AI 顺便输出，供快捷选择）。 */
+export interface ActionSuggestions {
+  aggressive: string;
+  moderate: string;
+  cautious: string;
+  veryCautious: string;
+}
+
 export interface StateParsed {
   worldLocation: WorldLocation | null;
   hpMp: HpMpState | null;
@@ -118,8 +130,10 @@ export interface StateParsed {
   itemAdds: ItemAddEntry[];
   itemRemoves: ItemRemoveEntry[];
   nearbyNpcs: NpcNearbyEntry[];
+  npcCoreChanges: NpcCoreChangeEvent[];
   battleTrigger: BattleTriggerEntry | null;
   storySnapshot: string;
+  actionOptions: ActionSuggestions | null;
 }
 
 const DEFAULT_TEMPERATURE = 0.55;
@@ -137,10 +151,14 @@ const TAG_ITEM_REMOVE_OPEN = "<ITEM_REMOVE_TAG>";
 const TAG_ITEM_REMOVE_CLOSE = "</ITEM_REMOVE_TAG>";
 const TAG_NPC_NEARBY_OPEN = "<NPC_NEARBY_TAG>";
 const TAG_NPC_NEARBY_CLOSE = "</NPC_NEARBY_TAG>";
+const TAG_NPC_CORE_CHANGE_OPEN = "<MJ_NPC_CORE_CHANGE_TAG>";
+const TAG_NPC_CORE_CHANGE_CLOSE = "</MJ_NPC_CORE_CHANGE_TAG>";
 const TAG_BATTLE_TRIGGER_OPEN = "<BATTLE_TRIGGER_TAG>";
 const TAG_BATTLE_TRIGGER_CLOSE = "</BATTLE_TRIGGER_TAG>";
 const TAG_STORY_SNAPSHOT_OPEN = "<mj_story_snapshot>";
 const TAG_STORY_SNAPSHOT_CLOSE = "</mj_story_snapshot>";
+const TAG_ACTION_OPTIONS_OPEN = "<MJ_ACTION_OPTIONS_TAG>";
+const TAG_ACTION_OPTIONS_CLOSE = "</MJ_ACTION_OPTIONS_TAG>";
 const TAG_HP_MP_OPEN = "<MJ_HP_MP_TAG>";
 const TAG_HP_MP_CLOSE = "</MJ_HP_MP_TAG>";
 const TAG_TIME_OPEN = "<MJ_TIME_TAG>";
@@ -180,6 +198,34 @@ function sanitizeRealm(realm: unknown): { major: string; minor: string } {
   };
 }
 
+/**
+ * 解析 NPC 的 currentLocation 字段。兼容两种 AI 输出形式：
+ * - 对象：{ region, country, area, detail }（推荐）
+ * - 字符串：四级 dash（如 "天南-越国-黄枫谷-外门"）
+ *
+ * 解析失败返回 undefined，由上游用主角当前地点兜底。
+ */
+function sanitizeNpcCurrentLocation(raw: unknown): WorldLocation | undefined {
+  if (!raw) return undefined;
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) return undefined;
+    return parseWorldLocationFromDash(trimmed) ?? undefined;
+  }
+  if (typeof raw === "object") {
+    const cl = raw as { region?: unknown; country?: unknown; area?: unknown; detail?: unknown };
+    const region = typeof cl.region === "string" ? cl.region.trim() : "";
+    if (!region) return undefined;
+    return {
+      region,
+      country: typeof cl.country === "string" ? cl.country.trim() : "",
+      area: typeof cl.area === "string" ? cl.area.trim() : "",
+      detail: typeof cl.detail === "string" ? cl.detail.trim() : "",
+    };
+  }
+  return undefined;
+}
+
 function parseNearbyNpcs(raw: string): NpcNearbyEntry[] {
   const text = extractTagContent(raw, TAG_NPC_NEARBY_OPEN, TAG_NPC_NEARBY_CLOSE);
   const arr = tryParseJsonArray(text) ?? [];
@@ -196,7 +242,9 @@ function parseNearbyNpcs(raw: string): NpcNearbyEntry[] {
         : typeof linggenRaw === "string"
           ? linggenRaw.split("").filter((c: string) => "金木水火土".includes(c))
           : [];
+      const npcIdRaw = typeof o.npcId === "string" ? o.npcId.trim() : "";
       return {
+        npcId: npcIdRaw || undefined,
         displayName,
         identity: String(o.identity || ""),
         isDead: o.isDead === true,
@@ -212,12 +260,82 @@ function parseNearbyNpcs(raw: string): NpcNearbyEntry[] {
         realm,
         hpPercent: typeof o.hpPercent === "number" ? Math.max(0, Math.min(100, Math.round(o.hpPercent))) : 100,
         mpPercent: typeof o.mpPercent === "number" ? Math.max(0, Math.min(100, Math.round(o.mpPercent))) : 100,
+        currentLocation: sanitizeNpcCurrentLocation(o.currentLocation),
         equippedSlots: Array.isArray(o.equippedSlots) ? o.equippedSlots : undefined,
         gongfaSlots: Array.isArray(o.gongfaSlots) ? o.gongfaSlots : undefined,
         inventorySlots: Array.isArray(o.inventorySlots) ? o.inventorySlots : undefined,
       };
     })
     .filter((e): e is NpcNearbyEntry => e !== null);
+}
+
+const VALID_CORE_SLOTS = new Set<string>(["equipped", "gongfa", "inventory"]);
+
+/**
+ * 解析 `<MJ_NPC_CORE_CHANGE_TAG>` —— AI 声明的 NPC 核心层变更事件。
+ *
+ * 这是「严格事件驱动」策略的入口：核心字段（境界/法宝/功法/储物袋/生死）默认冻结，
+ * 只有在此标签里显式声明的事件才会被精确应用。AI 不应在 nearbyNpcs 里直接修改
+ * 这些字段。
+ *
+ * 支持的 event 类型：
+ *  - realm_breakthrough  境界突破（含小境界推进）
+ *  - equipment_acquired  获得法宝/功法/储物物品
+ *  - equipment_lost      失去法宝/功法/储物物品
+ *  - combat_damage       战斗伤害/治疗（增量）
+ *  - death               死亡
+ */
+function parseNpcCoreChanges(raw: string): NpcCoreChangeEvent[] {
+  const text = extractTagContent(raw, TAG_NPC_CORE_CHANGE_OPEN, TAG_NPC_CORE_CHANGE_CLOSE);
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  const arr = tryParseJsonArray(text) ?? [];
+  const out: NpcCoreChangeEvent[] = [];
+  for (const e of arr) {
+    if (!e || typeof e !== "object") continue;
+    const o = e as Record<string, unknown>;
+    const npcId = typeof o.npcId === "string" ? o.npcId.trim() : "";
+    if (!npcId) continue;
+    const event = typeof o.event === "string" ? o.event.trim() : "";
+    switch (event) {
+      case "realm_breakthrough": {
+        const newRealm = sanitizeRealm(o.newRealm);
+        out.push({ kind: "realm_breakthrough", npcId, newRealm });
+        break;
+      }
+      case "equipment_acquired": {
+        const slot = typeof o.slot === "string" && VALID_CORE_SLOTS.has(o.slot) ? o.slot as "equipped" | "gongfa" | "inventory" : "inventory";
+        if (o.data != null) {
+          out.push({ kind: "equipment_acquired", npcId, slot, data: o.data });
+        }
+        break;
+      }
+      case "equipment_lost": {
+        const slot = typeof o.slot === "string" && VALID_CORE_SLOTS.has(o.slot) ? o.slot as "equipped" | "gongfa" | "inventory" : "inventory";
+        const slotIndex = typeof o.slotIndex === "number" ? Math.floor(o.slotIndex) : undefined;
+        const itemName = typeof o.itemName === "string" ? o.itemName.trim() : undefined;
+        const count = typeof o.count === "number" ? Math.max(1, Math.floor(o.count)) : undefined;
+        out.push({ kind: "equipment_lost", npcId, slot, slotIndex, itemName, count });
+        break;
+      }
+      case "combat_damage": {
+        const hpDelta = typeof o.hpDelta === "number" ? Math.round(o.hpDelta) : undefined;
+        const mpDelta = typeof o.mpDelta === "number" ? Math.round(o.mpDelta) : undefined;
+        if (hpDelta !== undefined || mpDelta !== undefined) {
+          out.push({ kind: "combat_damage", npcId, hpDelta, mpDelta });
+        }
+        break;
+      }
+      case "death": {
+        out.push({ kind: "death", npcId });
+        break;
+      }
+      default:
+        // 未知事件类型忽略
+        break;
+    }
+  }
+  return out;
 }
 
 function parseCombatantList(arr: unknown[]): BattleCombatant[] {
@@ -232,8 +350,7 @@ function parseCombatantList(arr: unknown[]): BattleCombatant[] {
     .filter((e): e is BattleCombatant => e !== null);
 }
 
-function parseBattleTrigger(raw: string): BattleTriggerEntry | null {
-  const text = extractTagContent(raw, TAG_BATTLE_TRIGGER_OPEN, TAG_BATTLE_TRIGGER_CLOSE);
+function parseBattleTrigger(raw: string): BattleTriggerEntry | null {  const text = extractTagContent(raw, TAG_BATTLE_TRIGGER_OPEN, TAG_BATTLE_TRIGGER_CLOSE);
   if (!text.trim()) return null;
   const obj = safeJsonParse(text);
   if (!obj || typeof obj !== "object") return null;
@@ -245,6 +362,31 @@ function parseBattleTrigger(raw: string): BattleTriggerEntry | null {
   const enemies = Array.isArray(o.enemies) ? parseCombatantList(o.enemies) : [];
   if (allies.length === 0 || enemies.length === 0) return null;
   return { shouldEnterBattle: true, triggerKind, triggerReason, allies, enemies };
+}
+
+/**
+ * 解析 `<MJ_ACTION_OPTIONS_TAG>` —— 状态 AI 顺便输出的四个倾向行动建议。
+ *
+ * 容错策略：标签缺失 / 解析失败 / 任一字段缺失或为空 → 返回 null（前端隐藏按钮区）。
+ * 此标签为可选输出，缺失不影响其他状态字段。
+ */
+export function parseActionOptions(raw: string): ActionSuggestions | null {
+  const text = extractTagContent(raw, TAG_ACTION_OPTIONS_OPEN, TAG_ACTION_OPTIONS_CLOSE);
+  if (!text.trim()) return null;
+  const obj = safeJsonParse(text);
+  if (!obj || typeof obj !== "object") return null;
+  const o = obj as Record<string, unknown>;
+  const pickStr = (k: string): string => {
+    const v = o[k];
+    return typeof v === "string" ? v.trim() : "";
+  };
+  const aggressive = pickStr("aggressive");
+  const moderate = pickStr("moderate");
+  const cautious = pickStr("cautious");
+  const veryCautious = pickStr("veryCautious");
+  // 任一字段为空即视为残缺，整体丢弃（避免显示不完整的选项组）。
+  if (!aggressive || !moderate || !cautious || !veryCautious) return null;
+  return { aggressive, moderate, cautious, veryCautious };
 }
 
 function parseHpMp(raw: string): HpMpState | null {
@@ -384,9 +526,13 @@ export function parseStateAiResponse(raw: string): StateParsed {
 
   const nearbyNpcs = parseNearbyNpcs(raw);
 
+  const npcCoreChanges = parseNpcCoreChanges(raw);
+
   const battleTrigger = parseBattleTrigger(raw);
 
   const storySnapshot = extractTagContent(raw, TAG_STORY_SNAPSHOT_OPEN, TAG_STORY_SNAPSHOT_CLOSE);
+
+  const actionOptions = parseActionOptions(raw);
 
   return {
     worldLocation,
@@ -398,8 +544,10 @@ export function parseStateAiResponse(raw: string): StateParsed {
     itemAdds,
     itemRemoves,
     nearbyNpcs,
+    npcCoreChanges,
     battleTrigger,
     storySnapshot,
+    actionOptions,
   };
 }
 
@@ -452,7 +600,7 @@ function buildStateUserContent(input: StateGenerateInput): string {
     : "";
 
   const locationHint = input.currentWorldLocation
-    ? `\n当前世界地点：${formatWorldLocationDash(input.currentWorldLocation)}`
+    ? `\n主角当前所在地点（本轮剧情发生前·出发点）：${formatWorldLocationDash(input.currentWorldLocation)}`
     : "";
 
   const timeHint = input.currentWorldTime

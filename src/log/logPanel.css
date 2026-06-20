@@ -97,6 +97,7 @@
 
 #mj-log-panel.mj-log-panel--collapsed {
   max-height: none;
+  width: 150px;
 }
 
 .mj-log-line {

@@ -5,7 +5,7 @@ import {
   type JsonChatRequestPayload,
   type ChatMessage,
 } from "./openAiChatBridge";
-import type { ProtagonistPlayInfo, EquippedSlotsState, GongfaSlotsState, InventoryStackItem, TraitEntry } from "../role_core/types/playInfo";
+import type { ProtagonistPlayInfo, EquippedSlotsState, GongfaSlotsState, InventoryStackItem } from "../role_core/types/playInfo";
 import type { StoryChatEntry } from "./story_generate";
 import { formatWorldLocationDash } from "../role_core/types/worldLocation";
 import type { WorldLocation } from "../role_core/types/worldLocation";
@@ -92,11 +92,6 @@ function formatInventory(slots: Array<InventoryStackItem | null>): string {
   }).join("、");
 }
 
-function formatTraits(traits: TraitEntry[]): string {
-  if (traits.length === 0) return "无";
-  return traits.map(t => typeof t === "string" ? t : (t.desc?.trim() ? `${t.name}：${t.desc}` : t.name)).join("\n");
-}
-
 function buildTimePreview(months: number): string {
   if (months <= 0) return "无";
   const years = Math.floor(months / 12);
@@ -136,9 +131,6 @@ function buildCultivationUserContent(input: CultivationStoryInput): string {
     `灵根：${(p as { linggen?: string[] }).linggen?.join("") || "无"}`,
     `当前血量：${p.currentHp}/${p.maxHp}`,
     `当前法力：${p.currentMp}/${p.maxMp}`,
-    "",
-    "【天赋】",
-    formatTraits(p.traits),
     "",
     "【装备】",
     formatEquipSlots(p.equippedSlots),

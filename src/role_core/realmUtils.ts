@@ -16,6 +16,7 @@ import {
   realmStageIndex,
   type RealmPrimaryStatsRow,
   type RealmMajor,
+  type GongfaSlotsState,
 } from "./types/playInfo";
 
 let _byKey: Record<string, RealmPrimaryStatsRow> | null = null;
@@ -202,4 +203,53 @@ export function addGongfaMasteryExp(
   gongfa.masteryExp = exp;
 
   return { leveledUp, newMastery: mastery };
+}
+
+/**
+ * 给定一门功法的熟练度预算，按 `GONGFA_MASTERY_THRESHOLDS` 阈值表反推它应处的
+ * mastery 层数（1-10）与剩余 masteryExp。
+ *
+ * 用于 NPC 新建/重评估时，按境界修为总量均分给各功法，推算合理的功法层数，
+ * 使 NPC 功法强度与其境界匹配（而非一律 1 层）。
+ */
+export function computeGongfaMasteryFromBudget(budget: number): { mastery: number; masteryExp: number } {
+  if (!Number.isFinite(budget) || budget <= 0) return { mastery: 1, masteryExp: 0 };
+  let mastery = 1;
+  let exp = Math.floor(budget);
+  while (mastery < 10) {
+    const threshold = getGongfaMasteryThreshold(mastery);
+    if (exp < threshold) break;
+    exp -= threshold;
+    mastery++;
+  }
+  if (mastery >= 10) {
+    mastery = 10;
+    exp = 0;
+  }
+  return { mastery, masteryExp: Math.max(0, exp) };
+}
+
+/**
+ * 按 NPC 当前境界的修为总量，均分给所有非空功法，设置每门功法的 mastery 与
+ * masteryExp，使 NPC 功法层数与其境界匹配。
+ *
+ * - 修为总量取自 `getCultivationRequired(realmMajor, realmMinor)`（该境界阶段的累计修为阈值）。
+ * - 均分给 gongfaSlots 中所有非空功法（功法越多每门层数越低——精力分散）。
+ * - 境界无效或无功法时直接返回，不做改动。
+ */
+export function applyNpcGongfaMasteryByRealm(
+  gongfaSlots: GongfaSlotsState,
+  realmMajor: string,
+  realmMinor: string,
+): void {
+  const totalBudget = getCultivationRequired(realmMajor, realmMinor);
+  if (totalBudget == null || totalBudget <= 0) return;
+  const gongfas = gongfaSlots.filter((g): g is GongfaItemDefinition => g !== null);
+  if (gongfas.length === 0) return;
+  const perGongfa = totalBudget / gongfas.length;
+  for (const gf of gongfas) {
+    const { mastery, masteryExp } = computeGongfaMasteryFromBudget(perGongfa);
+    gf.mastery = mastery;
+    gf.masteryExp = masteryExp;
+  }
 }

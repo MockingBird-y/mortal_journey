@@ -31,7 +31,7 @@ const apiSlice = computed(() => ({
   apiModel: apiModel.value,
 }));
 
-const { storyBody, phase, errorMessage, worldTime, worldTimeBaseline, worldLocation, initSnapshot } =
+const { storyBody, phase, errorMessage, worldTime, worldTimeBaseline, worldLocation, initSnapshot, initActionOptions } =
   useOpeningStoryFromFateChoice(fateChoiceRef, apiSlice);
 
 const emit = defineEmits<{
@@ -154,6 +154,7 @@ function startTestBattle() {
           :error-message="errorMessage"
           :current-world-location="worldLocation"
           :init-snapshot="initSnapshot"
+          :init-action-options="initActionOptions"
           :battle-result="props.battleResult"
           :cultivation-input="pendingCultivation"
           v-model:world-time="worldTime"

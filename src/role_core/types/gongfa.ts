@@ -200,7 +200,7 @@ function formatScaledValue(
   const bv = atLayer(eff.baseValue as LayerValue, layer);
   const ss = (eff as { scalingStat: GongfaScalingStat }).scalingStat;
   const statLabel = PRIMARY_STAT_KEY_TO_ZH[ss] ?? ss;
-  return `${v}（${bv} + ${sr}×${statLabel}）`;
+  return `${v}（${bv} + ${Number(sr.toFixed(2))}×${statLabel}）`;
 }
 
 export function resolveGongfaBattleEffectDesc(
@@ -232,8 +232,11 @@ export function resolveGongfaBattleEffectDesc(
       return `${isAoE ? "群体" : ""}恢复${sv}点生命`;
     case "lifesteal": {
       const dt = DMG_TYPE_LABELS[eff.damageType] ?? "物理";
+      const atkLabel = eff.damageType === "magical"
+        ? PRIMARY_STAT_KEY_TO_ZH.perception
+        : PRIMARY_STAT_KEY_TO_ZH.strength;
       const pct = atLayer(eff.damagePercent, layer);
-      return `${isAoE ? "群体" : ""}造成${dt}伤害并吸取${pct}%生命`;
+      return `${isAoE ? "群体" : ""}造成${atkLabel}${pct}%的${dt}伤害，并恢复等量生命`;
     }
     case "applyModifier": {
       const label = MODIFIER_LABELS[eff.modifierType] ?? eff.modifierType;
@@ -677,33 +680,33 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       { name: "追风剑法", intro: "散修剑客所创的追击剑法，出剑时剑光如风、连绵不绝", mpCost: [50, 500], cooldown: 1,
         battleEffects: [
           { type: "dealDamage", damageType: "physical", baseValue: [20, 375], scalingRatio: [0.3, 1.25], scalingStat: "strength" },
-          { type: "applyModifier", modifierType: "critRate", value: [8, 15], duration: 2, maxStacks: 1, targetSelf: true }
+          { type: "applyModifier", modifierType: "critRate", value: [5, 25], duration: 3, maxStacks: 1, targetSelf: true }
         ], type: "主动"
       },
       { name: "破甲剑法", intro: "据传源自上古力修剑客，剑劲凝练、专破护身宝甲", mpCost: [50, 500], cooldown: 1,
         battleEffects: [
           { type: "dealDamage", damageType: "physical", baseValue: [20, 375], scalingRatio: [0.3, 1.25], scalingStat: "strength" },
-          { type: "applyModifier", modifierType: "physDefensePenetration", value: [10, 20], duration: 2, maxStacks: 1, targetSelf: true }
+          { type: "applyModifier", modifierType: "physDefensePenetration", value: [8, 30], duration: 2, maxStacks: 1, targetSelf: true }
         ], type: "主动"
       },
       { name: "凝剑诀", intro: "剑客入门所悟剑意心法，修炼时神识凝于一柄虚剑", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "critRate", value: [5, 10], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "critRate", value: [8, 25], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "锐锋诀", intro: "散修剑客砥砺剑锋的辅助心法，行功时剑刃泛起冷芒", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "physDamageDealt", value: [8, 15], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "physDamageDealt", value: [5, 25], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "疾风步法", intro: "据传承自上古风修剑客，运转时足下生风、身形如电", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "speed", value: [5, 10], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "speed", value: [10, 30], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "横扫剑", intro: "各派剑客入门范围剑式，剑光横扫、伤及周遭", mpCost: [50, 500], cooldown: 1,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [13, 225], scalingRatio: [0.25, 1.0], scalingStat: "strength" }
+          { type: "dealDamage", damageType: "physical", baseValue: [15, 225], scalingRatio: [0.25, 1.0], scalingStat: "strength" }
         ], type: "主动", isAoE: true
       }
     ],
@@ -716,29 +719,29 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       { name: "凌厉剑诀", intro: "散修刺客剑客秘传，一剑直指要害、凌厉无匹", mpCost: [75, 750], cooldown: 2,
         battleEffects: [
           { type: "dealDamage", damageType: "physical", baseValue: [53, 504], scalingRatio: [0.47, 1.82], scalingStat: "strength" },
-          { type: "applyModifier", modifierType: "critRate", value: [10, 18], duration: 2, maxStacks: 1, targetSelf: true }
+          { type: "applyModifier", modifierType: "critRate", value: [10, 30], duration: 2, maxStacks: 1, targetSelf: true }
         ], type: "主动"
       },
       { name: "连环剑法", intro: "据传得自上古连环剑宗，剑光首尾相衔、绵绵不绝", mpCost: [75, 750], cooldown: 2,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [44, 441], scalingRatio: [0.29, 1.3], scalingStat: "agility" },
-          { type: "extraAction", chance: 0.10 }
+          { type: "dealDamage", damageType: "physical", baseValue: [44, 441], scalingRatio: [0.8, 2.5], scalingStat: "agility" },
+          { type: "extraAction", chance: 0.30 }
         ], type: "主动"
       },
       { name: "剑心诀", intro: "上古剑仙顿悟所创心法，修炼时剑心空明、万剑由心", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "critRate", value: [8, 15], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "critDmg", value: [10, 20], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "critRate", value: [8, 25], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "critDmg", value: [10, 50], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "穿云剑诀", intro: "传闻承自上古穿云剑仙，剑意可贯穿云霄、无远弗届", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "physDefensePenetration", value: [8, 15], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "physDefensePenetration", value: [8, 25], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "疾影诀", intro: "散修剑客身法残卷，运转时身形化作数道残影", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "speed", value: [8, 15], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "speed", value: [8, 25], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "剑气扫", intro: "追风剑法演化而来的范围剑术，剑气横扫全场", mpCost: [75, 750], cooldown: 2,
@@ -760,36 +763,36 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       },
       { name: "御剑术", intro: "上古剑仙根本御剑法门，可驱飞剑离手、千里取人", mpCost: [100, 1000], cooldown: 4,
         battleEffects: [
-          { type: "summon", name: "飞剑", trigger: "on_attack", summonDamage: [68, 480], duration: 3 }
+          { type: "summon", name: "飞剑", trigger: "on_attack", summonDamage: [50, 500], duration: 5 }
         ], type: "主动"
       },
       { name: "无影剑诀", intro: "传闻为暗影剑仙所悟，剑意无形无影、杀机暗藏", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "critRate", value: [10, 20], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "critDmg", value: [15, 30], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "critRate", value: [10, 25], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "critDmg", value: [15, 60], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "御风剑诀", intro: "上古风修剑客身法真传，运转时身随意动、动若长风", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "dodgeRate", value: [5, 10], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "speed", value: [8, 15], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "dodgeRate", value: [5, 20], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "speed", value: [10, 25], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "反剑诀", intro: "据传承自上古守剑剑仙，受击时剑光反噬、以攻代守", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "counter", baseValue: [68, 480], scalingRatio: [0.24, 1.33], scalingStat: "agility", duration: 99 }
+          { type: "counter", baseValue: [30, 300], scalingRatio: [0.24, 2.33], scalingStat: "agility", duration: 99 }
         ], type: "被动"
       },
       { name: "千剑诀", intro: "上古剑宗范围杀伐之术，千剑齐发、剑气冲霄", mpCost: [100, 1000], cooldown: 4,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [68, 450], scalingRatio: [0.45, 1.6], scalingStat: "strength" }
+          { type: "dealDamage", damageType: "physical", baseValue: [70, 550], scalingRatio: [0.45, 2.6], scalingStat: "strength" }
         ], type: "主动", isAoE: true
       }
     ],
     "极品": [
       { name: "天剑诀", intro: "上古天剑宗镇宗杀伐秘术，一剑引动九天剑气", mpCost: [200, 2000], cooldown: 6,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [225, 1350], scalingRatio: [1.1, 3.8], scalingStat: "strength" }
+          { type: "dealDamage", damageType: "physical", baseValue: [225, 1350], scalingRatio: [1.1, 2.8], scalingStat: "strength" }
         ], type: "主动"
       },
       { name: "封喉剑诀", intro: "传闻为上古刺客剑仙所创，一剑封喉、十步杀人", mpCost: [200, 2000], cooldown: 6,
@@ -799,26 +802,26 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       },
       { name: "万剑归宗法", intro: "上古御剑宗至高心法，万剑听令、归宗而出", mpCost: [200, 2000], cooldown: 6,
         battleEffects: [
-          { type: "summon", name: "飞剑", trigger: "on_attack", summonDamage: [135, 920], duration: 4 },
-          { type: "extraAction", chance: 0.15 }
+          { type: "summon", name: "飞剑", trigger: "on_attack", summonDamage: [100, 1000], duration: 5 },
+          { type: "extraAction", chance: 0.2 }
         ], type: "主动"
       },
       { name: "剑神功", intro: "据传悟自剑神残留剑意，修炼时周身剑韵流转", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "critRate", value: [12, 22], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "critDmg", value: [20, 40], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "critRate", value: [15, 30], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "critDmg", value: [20, 70], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "破灭剑诀", intro: "上古毁灭剑仙传承，剑意所至、万物破灭", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "physDamageDealt", value: [15, 25], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "physDefensePenetration", value: [12, 22], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "physDamageDealt", value: [10, 25], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "physDefensePenetration", value: [10, 30], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "疾电诀", intro: "传闻承自上古雷修剑客，身形快逾闪电、动若惊雷", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "speed", value: [12, 22], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "dodgeRate", value: [6, 12], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "speed", value: [15, 30], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "dodgeRate", value: [6, 25], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "万剑横空", intro: "上古天剑宗范围秘术，万剑横空、剑气纵横", mpCost: [200, 2000], cooldown: 6,
@@ -830,19 +833,19 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
     "仙品": [
       { name: "诛仙剑法", intro: "上古诛仙剑仙传承的杀伐秘术，剑光一闪、仙佛皆杀", mpCost: [300, 3000], cooldown: 8,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [340, 1800], scalingRatio: [1.3, 4.4], scalingStat: "strength" }
+          { type: "dealDamage", damageType: "physical", baseValue: [340, 1800], scalingRatio: [1.0, 3.4], scalingStat: "strength" }
         ], type: "主动"
       },
       { name: "万杀剑诀", intro: "传闻为上古杀剑真传，一剑既出、万生皆灭", mpCost: [300, 3000], cooldown: 8,
         battleEffects: [
-          { type: "dealDamageExecute", damageType: "physical", baseValue: [283, 1680], scalingRatio: [0.65, 2.44], scalingStat: "strength", threshold: 0.4, bonusPercent: 60 },
-          { type: "applyModifier", modifierType: "critRate", value: [15, 25], duration: 2, maxStacks: 1, targetSelf: true }
+          { type: "dealDamageExecute", damageType: "physical", baseValue: [283, 1680], scalingRatio: [0.85, 3.44], scalingStat: "strength", threshold: 0.4, bonusPercent: 60 },
+          { type: "applyModifier", modifierType: "critRate", value: [15, 35], duration: 3, maxStacks: 1, targetSelf: true }
         ], type: "主动"
       },
       { name: "剑影遁法", intro: "上古暗影剑仙秘传身法，剑影随身、遁形无踪", mpCost: [300, 3000], cooldown: 8,
         battleEffects: [
           { type: "stealth", duration: 2 },
-          { type: "dealDamage", damageType: "physical", baseValue: [227, 1500], scalingRatio: [0.65, 2.44], scalingStat: "strength" }
+          { type: "dealDamage", damageType: "physical", baseValue: [227, 1500], scalingRatio: [0.85, 3.44], scalingStat: "strength" }
         ], type: "主动"
       },
       { name: "归心剑诀", intro: "太古剑仙至高心法，万剑归心、剑意通神", mpCost: 0, cooldown: 0,
@@ -865,21 +868,21 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       },
       { name: "万剑诛仙", intro: "诛仙剑仙范围秘术，万剑诛仙、剑光覆世", mpCost: [300, 3000], cooldown: 8,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [170, 900], scalingRatio: [0.65, 2.2], scalingStat: "strength" }
+          { type: "dealDamage", damageType: "physical", baseValue: [170, 900], scalingRatio: [0.75, 2.5], scalingStat: "strength" }
         ], type: "主动", isAoE: true
       }
     ],
     "神品": [
       { name: "开天剑法", intro: "据传承自太古开天剑祖，一剑可裂苍穹、开辟天地", mpCost: [500, 5000], cooldown: 10,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [450, 2250], scalingRatio: [1.5, 5.0], scalingStat: "strength" }
+          { type: "dealDamage", damageType: "physical", baseValue: [450, 2250], scalingRatio: [1.5, 4.0], scalingStat: "strength" }
         ], type: "主动"
       },
       { name: "诛仙归宗法", intro: "诛仙剑仙至高传承，万剑归宗、诛仙灭佛", mpCost: [500, 5000], cooldown: 10,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [270, 1800], scalingRatio: [0.48, 2.08], scalingStat: "strength" },
-          { type: "summon", name: "飞剑", trigger: "on_crit", summonDamage: [180, 1350], duration: 4 },
-          { type: "extraAction", chance: 0.20 }
+          { type: "dealDamage", damageType: "physical", baseValue: [270, 1800], scalingRatio: [0.48, 3.08], scalingStat: "strength" },
+          { type: "summon", name: "飞剑", trigger: "on_crit", summonDamage: [180, 1350], duration: 5 },
+          { type: "extraAction", chance: 0.30 }
         ], type: "主动"
       },
       { name: "破法剑诀", intro: "太古剑祖顿悟所创，一剑破万法、万法皆空", mpCost: [500, 5000], cooldown: 10,
@@ -890,14 +893,14 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       },
       { name: "天道剑功", intro: "据传以天道碎片淬炼剑体而成，剑韵通天、万法不侵", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "critRate", value: [18, 35], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "critDmg", value: [30, 60], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "critRate", value: [18, 45], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "critDmg", value: [30, 80], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "万速诀", intro: "传闻承自太古风修剑祖，身分万影、速逾鬼神", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "speed", value: [15, 28], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "dodgeRate", value: [10, 20], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "speed", value: [15, 35], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "dodgeRate", value: [10, 30], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "不灭剑诀", intro: "太古不灭剑宗传承，剑意不灭、斩尽万象", mpCost: 0, cooldown: 0,
@@ -936,17 +939,17 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       },
       { name: "铁壁功", intro: "上古力修遗刻所载护身法门，修炼时周身如铸铁壁", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "damageTaken", value: [-15, -30], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "damageTaken", value: [-5, -20], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "蛮力诀", intro: "传闻源自上古蛮族力修，行功时气血翻涌、力大无穷", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "damageDealt", value: [8, 15], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "damageDealt", value: [5, 15], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "回春功", intro: "据传得自上古药修力修，行功时血脉温润、生机暗生", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "hpRecover", value: [2, 4], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "hpRecover", value: [1, 10], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "震地拳", intro: "外门弟子范围杀伐之术，一拳震地、波及周遭", mpCost: [50, 500], cooldown: 1,
@@ -980,12 +983,12 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       },
       { name: "噬血功", intro: "传闻源自魔道血修，行功时气血反哺、以血养身", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "lifesteal", value: [5, 10], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "lifesteal", value: [3, 10], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "体罡功", intro: "上古力修遗刻所载护身法门，行功时周身罡气流转", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "shield", baseValue: [95, 840], scalingRatio: [0.2, 1.1], scalingStat: "guard" }
+          { type: "shield", baseValue: [50, 500], scalingRatio: [0.3, 1.1], scalingStat: "guard" }
         ], type: "被动"
       },
       { name: "崩地震", intro: "崩山诀演化而来的范围术法，震地震荡、伤敌一片", mpCost: [75, 750], cooldown: 2,
@@ -1002,7 +1005,7 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       },
       { name: "嗜血功", intro: "魔道血修秘传杀伐之术，拳锋所触、吸血噬魂", mpCost: [100, 1000], cooldown: 4,
         battleEffects: [
-          { type: "lifesteal", damageType: "physical", damagePercent: [40, 60] }
+          { type: "lifesteal", damageType: "physical", damagePercent: [50, 100] }
         ], type: "主动"
       },
       { name: "霸王功", intro: "据传承自上古霸王力修，一拳霸道、震慑群敌", mpCost: [100, 1000], cooldown: 4,
@@ -1014,19 +1017,19 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       },
       { name: "霸体功", intro: "上古力修顿悟所创护身法门，受击时罡气反震", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "counter", baseValue: [120, 960], scalingRatio: [0.27, 1.8], scalingStat: "physique", duration: 99 }
+          { type: "counter", baseValue: [120, 960], scalingRatio: [0.3, 1.5], scalingStat: "physique", duration: 99 }
         ], type: "被动"
       },
       { name: "不屈功", intro: "传闻为上古不屈力修传承，行功时生机勃勃、百折不屈", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "hpRecover", value: [4, 7], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "hpRecover", value: [3, 10], duration: 99, maxStacks: 1 },
           { type: "applyModifier", modifierType: "healReceived", value: [15, 30], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "铁骨功", intro: "上古力修遗刻所载，修炼后骨如铁铸、皮如铜浇", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "damageTaken", value: [-15, -25], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "physDamageTaken", value: [-10, -20], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "damageTaken", value: [-10, -25], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "physDamageTaken", value: [-10, -25], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "裂地罡", intro: "上古力修范围秘术，罡气裂地、震荡八方", mpCost: [100, 1000], cooldown: 4,
@@ -1056,12 +1059,12 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       { name: "不灭金身功", intro: "上古佛修力修至高护身法门，金身不灭、万法难伤", mpCost: 0, cooldown: 0,
         battleEffects: [
           { type: "deathWard", duration: 99 },
-          { type: "applyModifier", modifierType: "damageTaken", value: [-25, -45], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "damageTaken", value: [-15, -45], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "反震功", intro: "据传承自上古反震力修，受击时劲气反弹、以彼之道", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "reflect", percent: [25, 40], duration: 99 },
+          { type: "reflect", percent: [10, 30], duration: 99 },
           { type: "applyModifier", modifierType: "damageTaken", value: [-10, -20], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
@@ -1086,18 +1089,18 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       { name: "碎空功", intro: "传闻承自太古灭世力修，一拳碎裂虚空、灭世灭生", mpCost: [300, 3000], cooldown: 8,
         battleEffects: [
           { type: "dealDamageExecute", damageType: "physical", baseValue: [287, 1917], scalingRatio: [0.28, 1.44], scalingStat: "strength", threshold: 0.5, bonusPercent: 50 },
-          { type: "applyModifier", modifierType: "damageDealt", value: [30, 60], duration: 2, maxStacks: 3, targetSelf: true }
+          { type: "applyModifier", modifierType: "damageDealt", value: [10, 20], duration: 2, maxStacks: 3, targetSelf: true }
         ], type: "主动"
       },
       { name: "吞天魔功", intro: "魔道血祖传承杀伐秘术，血雾吞天、噬血无量", mpCost: [300, 3000], cooldown: 8,
         battleEffects: [
           { type: "dealDamage", damageType: "physical", baseValue: [287, 1917], scalingRatio: [0.44, 1.64], scalingStat: "strength" },
-          { type: "lifesteal", damageType: "physical", damagePercent: [50, 75] }
+          { type: "lifesteal", damageType: "physical", damagePercent: [50, 100] }
         ], type: "主动"
       },
       { name: "万象归元功", intro: "太古力修至高心法，万象劲气归元、反哺己身", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "reflect", percent: [30, 50], duration: 99 },
+          { type: "reflect", percent: [10, 50], duration: 99 },
           { type: "applyModifier", modifierType: "damageTaken", value: [-15, -30], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
@@ -1111,7 +1114,7 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
         battleEffects: [
           { type: "applyModifier", modifierType: "damageDealt", value: [15, 25], duration: 99, maxStacks: 1 },
           { type: "applyModifier", modifierType: "physDamageDealt", value: [15, 25], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "lifesteal", value: [8, 15], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "lifesteal", value: [5, 15], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "怒目震天", intro: "上古佛修力修范围秘术，怒目震天、金光四射", mpCost: [300, 3000], cooldown: 8,
@@ -1144,7 +1147,7 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
         battleEffects: [
           { type: "deathWard", duration: 99 },
           { type: "counter", baseValue: [360, 2240], scalingRatio: [0.26, 1.5], scalingStat: "strength", duration: 99 },
-          { type: "reflect", percent: [20, 40], duration: 99 }
+          { type: "reflect", percent: [20, 50], duration: 99 }
         ], type: "被动"
       },
       { name: "万劫功", intro: "太古力修至高护身法门，历经万劫、金刚不灭", mpCost: 0, cooldown: 0,
@@ -1200,7 +1203,7 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       },
       { name: "冥想术", intro: "据传源自上古禅修，静坐时灵台空明、灵气暗生", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "mpRecover", value: [2, 4], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "mpRecover", value: [2, 6], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "灵散术", intro: "御气修士入门范围术法，灵气四散、波及周遭", mpCost: [50, 500], cooldown: 1,
@@ -1234,12 +1237,12 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       },
       { name: "寒冰功", intro: "据传承自上古冰修，修炼时周身寒霜凝结", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "damageTaken", value: [-15, -30], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "damageTaken", value: [-10, -30], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "回流诀", intro: "散修气修所悟养气法门，行功时灵元往复回流", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "mpRecover", value: [3, 5], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "mpRecover", value: [3, 6], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "灵海潮", intro: "灵海术演化而来的范围术法，灵海潮涌、席卷全场", mpCost: [75, 750], cooldown: 2,
@@ -1257,7 +1260,7 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       { name: "冰封术", intro: "据传承自上古冰修真传，一念冰封万物、寒彻九幽", mpCost: [100, 1000], cooldown: 4,
         battleEffects: [
           { type: "applyCc", ccType: "freeze", chance: [0.50, 0.80], duration: 2 },
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [30, 55], duration: 2, maxStacks: 1, targetSelf: true }
+          { type: "applyModifier", modifierType: "magDamageDealt", value: [15, 55], duration: 2, maxStacks: 1, targetSelf: true }
         ], type: "主动"
       },
       { name: "破灭术", intro: "上古毁灭术修传承杀伐之术，灵元所至、万物破灭", mpCost: [100, 1000], cooldown: 4,
@@ -1268,12 +1271,12 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       },
       { name: "聚灵诀", intro: "上古御气修士阵韵所悟增益法门，行功时周身灵阵流转", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [20, 45], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "magDamageDealt", value: [15, 45], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "澎湃诀", intro: "据传承自上古气修真传，行功时灵元如潮澎湃", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "mpRecover", value: [5, 8], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "mpRecover", value: [4, 8], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "法盾术", intro: "上古御气修士护身法门深修，身周浮起厚实法盾", mpCost: 0, cooldown: 0,
@@ -1307,13 +1310,13 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       },
       { name: "万法功", intro: "太古术修至高增益心法，行功时万法之韵流转", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [25, 50], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "magDefensePenetration", value: [15, 25], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "magDamageDealt", value: [20, 50], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "magDefensePenetration", value: [10, 25], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "无限诀", intro: "传闻承自上古气修真传，灵元生生不息、几近无限", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "mpRecover", value: [8, 12], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "mpRecover", value: [6, 10], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "冰心诀", intro: "据传源自上古冰修禅修，修炼时心如冰晶、万法难侵", mpCost: 0, cooldown: 0,
@@ -1355,13 +1358,13 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       },
       { name: "灵泉诀", intro: "上古气修所悟养气至高心法，丹田如灵泉涌动", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "mpRecover", value: [10, 15], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "mpRecover", value: [8, 10], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "法天功", intro: "据传悟自天道法则，行功时法韵镇身、巍然不动", mpCost: 0, cooldown: 0,
         battleEffects: [
           { type: "applyModifier", modifierType: "damageTaken", value: [-20, -35], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "magDamageTaken", value: [-15, -25], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "magDamageTaken", value: [-15, -35], duration: 99, maxStacks: 1 },
           { type: "applyModifier", modifierType: "speed", value: [8, 15], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
@@ -1381,7 +1384,7 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
         battleEffects: [
           { type: "dealDamage", damageType: "magical", baseValue: [360, 2070], scalingRatio: [0.41, 1.83], scalingStat: "perception" },
           { type: "lifesteal", damageType: "magical", damagePercent: [50, 80] },
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [40, 70], duration: 3, maxStacks: 3, targetSelf: true }
+          { type: "applyModifier", modifierType: "magDamageDealt", value: [30, 70], duration: 3, maxStacks: 3, targetSelf: true }
         ], type: "主动"
       },
       { name: "焚世诀", intro: "太古火祖至高杀伐秘术，天火降世、焚尽万物", mpCost: [500, 5000], cooldown: 10,
@@ -1393,14 +1396,14 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       },
       { name: "法道至尊功", intro: "据传悟自法道至尊碎片，行功时万法臣服", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [35, 60], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "magDefensePenetration", value: [25, 40], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "magDamageDealt", value: [25, 60], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "magDefensePenetration", value: [25, 50], duration: 99, maxStacks: 1 },
           { type: "applyModifier", modifierType: "damageDealt", value: [15, 25], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "灵法天成功", intro: "传闻以天道灵法淬体，护身之法浑然天成", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "mpRecover", value: [12, 18], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "mpRecover", value: [10, 15], duration: 99, maxStacks: 1 },
           { type: "applyModifier", modifierType: "magDamageTaken", value: [-20, -35], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
@@ -1428,17 +1431,17 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       { name: "蚀骨术", intro: "南疆巫修残卷所载，黑雾蚀骨、毒素侵心", mpCost: [50, 500], cooldown: 1,
         battleEffects: [
           { type: "dealDamage", damageType: "magical", baseValue: [20, 333], scalingRatio: [0.27, 1.13], scalingStat: "spirit" },
-          { type: "applyStatus", statusType: "poison", tickValue: [13, 133], isPercent: false, duration: 3, maxStacks: 3 }
+          { type: "applyStatus", statusType: "poison", tickValue: [1, 5], isPercent: true, duration: 5, maxStacks: 5 }
         ], type: "主动"
       },
       { name: "召虫术", intro: "南疆蛊修秘传御虫法门，可召唤毒虫助战", mpCost: [50, 500], cooldown: 1,
         battleEffects: [
-          { type: "summon", name: "毒虫", trigger: "on_turn_start", summonDamage: [20, 333], duration: 3 }
+          { type: "summon", name: "毒虫", trigger: "on_turn_start", summonDamage: [20, 333], duration: 5 }
         ], type: "主动"
       },
       { name: "毒体功", intro: "传闻承自南疆蛊修，行功时血脉中隐有毒素流转", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "lifesteal", value: [5, 10], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "lifesteal", value: [2, 10], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "蚀体功", intro: "南疆蛊修遗刻所载增益法门，行功时周身毒韵流转", mpCost: 0, cooldown: 0,
@@ -1466,18 +1469,18 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       { name: "腐蚀术", intro: "南疆巫修秘传杀伐之术，毒雾腐蚀、金石皆朽", mpCost: [75, 750], cooldown: 2,
         battleEffects: [
           { type: "dealDamage", damageType: "magical", baseValue: [49, 448], scalingRatio: [0.27, 1.38], scalingStat: "spirit" },
-          { type: "applyStatus", statusType: "poison", tickValue: [17, 224], isPercent: false, duration: 3, maxStacks: 5 }
+          { type: "applyStatus", statusType: "poison", tickValue: [1.5, 5.5], isPercent: true, duration: 5, maxStacks: 5 }
         ], type: "主动"
       },
       { name: "噬魂术", intro: "魔道毒道中人秘传，毒丝噬魂、令人心悸", mpCost: [75, 750], cooldown: 2,
         battleEffects: [
-          { type: "applyStatus", statusType: "mpDrain", tickValue: [3, 4], isPercent: false, duration: 3, maxStacks: 3 },
+          { type: "applyStatus", statusType: "mpDrain", tickValue: [2, 8], isPercent: true, duration: 3, maxStacks: 3 },
           { type: "applyCc", ccType: "fear", chance: [0.30, 0.50], duration: 1 }
         ], type: "主动"
       },
       { name: "吸星毒功", intro: "传闻承自魔道蛊修，行功时吸星噬血、以毒养身", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "lifesteal", value: [8, 15], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "lifesteal", value: [5, 15], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "毒抗功", intro: "南疆蛊修遗刻所载，修炼后百毒不侵、生机暗养", mpCost: 0, cooldown: 0,
@@ -1504,7 +1507,7 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       },
       { name: "毒域术", intro: "南疆蛊修秘传禁制，毒域成笼、剧毒弥漫", mpCost: [100, 1000], cooldown: 4,
         battleEffects: [
-          { type: "applyStatus", statusType: "poison", tickValue: [5, 12], isPercent: true, duration: 4, maxStacks: 8 },
+          { type: "applyStatus", statusType: "poison", tickValue: [2, 6], isPercent: true, duration: 5, maxStacks: 8 },
           { type: "applyStatus", statusType: "bleed", tickValue: [27, 267], isPercent: false, duration: 3, maxStacks: 5 }
         ], type: "主动"
       },
@@ -1517,7 +1520,7 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       },
       { name: "万毒功", intro: "据传承自上古万毒蛊修，万毒不侵、噬血养身", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "lifesteal", value: [10, 18], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "lifesteal", value: [5, 20], duration: 99, maxStacks: 1 },
           { type: "applyModifier", modifierType: "healReceived", value: [15, 25], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
@@ -1525,11 +1528,6 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
         battleEffects: [
           { type: "applyModifier", modifierType: "magDamageDealt", value: [15, 25], duration: 99, maxStacks: 1 },
           { type: "applyModifier", modifierType: "mpRecover", value: [4, 6], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "蛊巢术", intro: "南疆蛊修秘传御虫心法，可暗中驱使蛊虫助战", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "summon", name: "毒虫", trigger: "on_attack", summonDamage: [80, 533], duration: 4 }
         ], type: "被动"
       },
       { name: "毒云术", intro: "南疆蛊修范围秘术，毒云压顶、毒贯群敌", mpCost: [100, 1000], cooldown: 4,
@@ -1547,19 +1545,19 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       { name: "蚀魂毒术", intro: "传闻承自九幽蛊修，毒蚀神魂、九幽同悲", mpCost: [200, 2000], cooldown: 6,
         battleEffects: [
           { type: "dealDamage", damageType: "magical", baseValue: [150, 1023], scalingRatio: [0.28, 1.36], scalingStat: "perception" },
-          { type: "applyStatus", statusType: "poison", tickValue: [8, 18], isPercent: true, duration: 4, maxStacks: 10 },
-          { type: "applyStatus", statusType: "mpDrain", tickValue: [5, 7], isPercent: false, duration: 3, maxStacks: 5 }
+          { type: "applyStatus", statusType: "poison", tickValue: [3, 7], isPercent: true, duration: 5, maxStacks: 10 },
+          { type: "applyStatus", statusType: "mpDrain", tickValue: [5, 7], isPercent: true, duration: 3, maxStacks: 5 }
         ], type: "主动"
       },
       { name: "噬灵毒术", intro: "魔道蛊修秘传，蛊虫噬灵、毒血交加", mpCost: [200, 2000], cooldown: 6,
         battleEffects: [
           { type: "lifesteal", damageType: "magical", damagePercent: [45, 65] },
-          { type: "applyStatus", statusType: "poison", tickValue: [6, 14], isPercent: true, duration: 3, maxStacks: 5 }
+          { type: "applyStatus", statusType: "poison", tickValue: [3, 7], isPercent: true, duration: 3, maxStacks: 5 }
         ], type: "主动"
       },
       { name: "万毒噬生功", intro: "太古蛊修至高心法，万毒噬生、反哺己身", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "lifesteal", value: [12, 22], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "lifesteal", value: [6, 22], duration: 99, maxStacks: 1 },
           { type: "applyModifier", modifierType: "healReceived", value: [20, 35], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
@@ -1571,7 +1569,7 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       },
       { name: "血毒诀", intro: "南疆血蛊修秘传，血毒共鸣、相互反哺", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "lifesteal", value: [10, 18], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "lifesteal", value: [6, 18], duration: 99, maxStacks: 1 },
           { type: "applyModifier", modifierType: "mpRecover", value: [5, 8], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
@@ -1591,19 +1589,19 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
         battleEffects: [
           { type: "dealDamage", damageType: "magical", baseValue: [250, 1493], scalingRatio: [0.48, 1.78], scalingStat: "perception" },
           { type: "lifesteal", damageType: "magical", damagePercent: [50, 75] },
-          { type: "applyStatus", statusType: "poison", tickValue: [10, 22], isPercent: true, duration: 4, maxStacks: 12 }
+          { type: "applyStatus", statusType: "poison", tickValue: [4, 8], isPercent: true, duration: 5, maxStacks: 10 }
         ], type: "主动"
       },
       { name: "噬心蛊术", intro: "南疆蛊祖至高御虫秘术，万蛊噬心、防不胜防", mpCost: [300, 3000], cooldown: 8,
         battleEffects: [
-          { type: "applyStatus", statusType: "poison", tickValue: [12, 25], isPercent: true, duration: 5, maxStacks: 15 },
+          { type: "applyStatus", statusType: "poison", tickValue: [4, 8], isPercent: true, duration: 5, maxStacks: 15 },
           { type: "applyStatus", statusType: "bleed", tickValue: [53, 533], isPercent: false, duration: 4, maxStacks: 8 },
           { type: "applyCc", ccType: "confusion", chance: [0.40, 0.60], duration: 2 }
         ], type: "主动"
       },
       { name: "不灭毒功", intro: "据传以太古不灭之毒淬体，毒身不灭、噬血养身", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "lifesteal", value: [15, 28], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "lifesteal", value: [6, 28], duration: 99, maxStacks: 1 },
           { type: "applyModifier", modifierType: "healReceived", value: [25, 40], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
@@ -1612,11 +1610,6 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
           { type: "applyModifier", modifierType: "magDamageDealt", value: [22, 35], duration: 99, maxStacks: 1 },
           { type: "applyModifier", modifierType: "damageDealt", value: [12, 20], duration: 99, maxStacks: 1 },
           { type: "applyModifier", modifierType: "mpRecover", value: [8, 12], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "万蛊术", intro: "南疆蛊祖至高御虫心法，万蛊听令、随召唤而出", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "summon", name: "毒虫", trigger: "on_turn_start", summonDamage: [200, 1333], duration: 5 }
         ], type: "被动"
       },
       { name: "灭世毒瘴", intro: "太古蛊修范围秘术，灭世毒瘴、覆世灭生", mpCost: [300, 3000], cooldown: 8,
@@ -1634,22 +1627,22 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
       { name: "归宗毒法", intro: "太古毒祖至高杀伐秘术，万毒归宗、毒霸天下", mpCost: [500, 5000], cooldown: 10,
         battleEffects: [
           { type: "dealDamage", damageType: "magical", baseValue: [280, 1890], scalingRatio: [0.43, 1.88], scalingStat: "perception" },
-          { type: "applyStatus", statusType: "poison", tickValue: [15, 30], isPercent: true, duration: 5, maxStacks: 20 },
+          { type: "applyStatus", statusType: "poison", tickValue: [5, 10], isPercent: true, duration: 5, maxStacks: 20 },
           { type: "applyStatus", statusType: "bleed", tickValue: [63, 630], isPercent: false, duration: 4, maxStacks: 10 },
           { type: "applyCc", ccType: "fear", chance: [0.45, 0.70], duration: 2 }
         ], type: "主动"
       },
       { name: "噬天蛊术", intro: "魔道毒祖秘传，蛊虫噬天、毒血蚀魂", mpCost: [500, 5000], cooldown: 10,
         battleEffects: [
-          { type: "lifesteal", damageType: "magical", damagePercent: [60, 85] },
-          { type: "applyStatus", statusType: "poison", tickValue: [12, 28], isPercent: true, duration: 5, maxStacks: 15 },
-          { type: "applyStatus", statusType: "mpDrain", tickValue: [5, 8], isPercent: false, duration: 3, maxStacks: 8 },
+          { type: "lifesteal", damageType: "magical", damagePercent: [100, 200] },
+          { type: "applyStatus", statusType: "poison", tickValue: [5, 10], isPercent: true, duration: 5, maxStacks: 15 },
+          { type: "applyStatus", statusType: "mpDrain", tickValue: [5, 8], isPercent: true, duration: 3, maxStacks: 8 },
           { type: "applyCc", ccType: "confusion", chance: [0.40, 0.65], duration: 2 }
         ], type: "主动"
       },
       { name: "万毒不灭功", intro: "据传以太古万毒之力淬体，毒身不灭、万毒反哺", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "lifesteal", value: [18, 35], duration: 99, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "lifesteal", value: [8, 25], duration: 99, maxStacks: 1 },
           { type: "applyModifier", modifierType: "healReceived", value: [30, 50], duration: 99, maxStacks: 1 },
           { type: "applyModifier", modifierType: "mpRecover", value: [10, 15], duration: 99, maxStacks: 1 }
         ], type: "被动"
@@ -1658,13 +1651,7 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
         battleEffects: [
           { type: "applyModifier", modifierType: "magDamageDealt", value: [25, 40], duration: 99, maxStacks: 1 },
           { type: "applyModifier", modifierType: "damageDealt", value: [15, 25], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "lifesteal", value: [12, 22], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "万蛊天巢术", intro: "太古蛊祖至高御虫心法，万蛊天巢、蛊虫不绝", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "summon", name: "毒虫", trigger: "on_turn_start", summonDamage: [240, 1680], duration: 5 },
-          { type: "summon", name: "毒虫", trigger: "on_attack", summonDamage: [160, 1260], duration: 5 }
+          { type: "applyModifier", modifierType: "lifesteal", value: [8, 22], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "天毒归宗", intro: "太古毒祖范围禁术，万毒归宗、毒霸天下", mpCost: [500, 5000], cooldown: 10,

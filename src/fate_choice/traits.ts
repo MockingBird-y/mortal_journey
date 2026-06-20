@@ -69,7 +69,7 @@ export const TRAIT_RARITY_TO_GRADE: Readonly<Record<TraitRarity, ItemGrade>> = {
 const STAT_TRAIT_NAMES: Readonly<Record<PrimaryStatKey, readonly string[]>> = {
   physique:   ["皮糙肉厚", "筋骨强健", "铜皮铁骨", "金刚之躯", "不灭宝体", "不朽金身"],
   spirit:     ["灵气微薄", "灵台初开", "灵根深厚", "法力浑厚", "灵台通明", "灵力无穷"],
-  strength:   ["天生蛮力", "膂力过人", "力能扛鼎", "霸王之力", "摧山劲力", "擎天巨力"],
+  strength:   ["天生蛮力", "臂力过人", "力能扛鼎", "霸王之力", "摧山劲力", "擎天巨力"],
   perception: ["六识敏锐", "神识初成", "洞察秋毫", "神识广博", "神识通天", "洞明万物"],
   guard:      ["皮韧肉实", "护体有成", "护体真气", "护体罡气", "护体神光", "万法难伤"],
   resistance: ["略有灵御", "灵御初成", "御灵有道", "御法精深", "万法辟易", "诸邪不侵"],
@@ -195,7 +195,7 @@ function defineStatTraits(rarity: TraitRarity): readonly TraitRow[] {
 export const traitSamplesPingyong = defineTraits("平庸", [
   { name: "囊中羞涩", desc: "出身清贫，随身仅有几十颗灵石，聊作盘缠。", effect: { kind: "spiritStones", count: 50 } },
   { name: "意外之财", desc: "行路时捡得一只旧钱袋，倒出几十颗灵石。", effect: { kind: "spiritStones", count: 80 } },
-  { name: "采药童子", desc: "自幼随长辈进山采药，识得几味下品灵草。", effect: { kind: "materials", grade: "下品", count: 3 } },
+  { name: "采药童子", desc: "自幼随长辈进山采药，识得几味下品灵草。", effect: { kind: "materials", grade: "下品", count: 9 } },
   { name: "伤药一瓶", desc: "怀中常备一瓶粗制的伤药，危急时可救急。", effect: { kind: "elixir", grade: "下品", count: 1, effectType: "恢复血量" } },
   { name: "凝气散方", desc: "得来一散低阶丹方，服之可稍聚灵气。", effect: { kind: "elixir", grade: "下品", count: 1, effectType: "恢复法力" } },
   { name: "乡野把式", desc: "跟乡间老叟学过几手粗浅的通用吐纳法门。", effect: { kind: "gongfa", system: "通用", grade: "下品" } },
@@ -206,7 +206,7 @@ export const traitSamplesPingyong = defineTraits("平庸", [
 /** 普通词条池（对应「中品」量级）。 */
 export const traitSamplesPutong = defineTraits("普通", [
   { name: "小有积蓄", desc: "多年攒下些许身家，随身带有数百灵石。", effect: { kind: "spiritStones", count: 200 } },
-  { name: "药田收成", desc: "家中有一小片灵药田，此番收成几份中品灵草。", effect: { kind: "materials", grade: "中品", count: 3 } },
+  { name: "药田收成", desc: "家中有一小片灵药田，此番收成几份中品灵草。", effect: { kind: "materials", grade: "中品", count: 6 } },
   { name: "筑基丹方", desc: "偶得一份筑基丹方，服之可助凝练真元、增进修为。", effect: { kind: "elixir", grade: "中品", count: 1, effectType: "提升修为" } },
   { name: "锻体秘方", desc: "得传一份锻体丹方，服之可强筋健骨、增长体魄。", effect: { kind: "elixir", grade: "中品", count: 1, effectType: "提升体魄" } },
   { name: "通灵丹方", desc: "手握一份通灵丹方，服之可通达灵台、增益灵力。", effect: { kind: "elixir", grade: "中品", count: 1, effectType: "提升灵力" } },
@@ -219,7 +219,7 @@ export const traitSamplesPutong = defineTraits("普通", [
 /** 稀有词条池（对应「上品」量级）。 */
 export const traitSamplesXiyou = defineTraits("稀有", [
   { name: "灵石矿脉", desc: "名下有一处小型灵石矿脉，变卖后得数百灵石。", effect: { kind: "spiritStones", count: 500 } },
-  { name: "珍稀药草", desc: "机缘之下采得几份上品珍稀灵草，药香扑鼻。", effect: { kind: "materials", grade: "上品", count: 3 } },
+  { name: "珍稀药草", desc: "机缘之下采得几份上品珍稀灵草，药香扑鼻。", effect: { kind: "materials", grade: "上品", count: 6 } },
   { name: "益寿丹方", desc: "得一份上品益寿丹方，服之可延寿百年、固本培元。", effect: { kind: "elixir", grade: "上品", count: 1, effectType: "提升寿元" } },
   { name: "淬体秘药", desc: "手中有一份上品淬体秘药，服之脱胎换骨、体魄大增。", effect: { kind: "elixir", grade: "上品", count: 1, effectType: "提升体魄" } },
   { name: "寻缘法器", desc: "游历时寻得一件上品法器，灵光隐现，颇有不凡。", effect: { kind: "treasure", grade: "上品" } },
@@ -245,7 +245,7 @@ export const traitSamplesShishi = defineTraits("史诗", [
 /** 传说词条池（对应「仙品」量级）。 */
 export const traitSamplesChuanshuo = defineTraits("传说", [
   { name: "灵石宝库", desc: "继承了一处上古灵石宝库，一夜之间富甲一方。", effect: { kind: "spiritStones", count: 5000 } },
-  { name: "仙草灵根", desc: "于秘境中采得几株仙品灵根，仙气氤氲不散。", effect: { kind: "materials", grade: "仙品", count: 2 } },
+  { name: "仙草灵根", desc: "于秘境中采得几株仙品灵根，仙气氤氲不散。", effect: { kind: "materials", grade: "仙品", count: 3 } },
   { name: "元婴丹方", desc: "得一份仙品元婴丹方，服之一粒抵数十年苦修。", effect: { kind: "elixir", grade: "仙品", count: 1, effectType: "提升修为" } },
   { name: "松鹤秘药", desc: "手中有一份仙品松鹤丹方，服之寿逾千载、松鹤延年。", effect: { kind: "elixir", grade: "仙品", count: 1, effectType: "提升寿元" } },
   { name: "仙家遗宝", desc: "有缘得了一件仙家遗落的命名法宝，仙韵流转、威力惊人。", effect: { kind: "treasure", grade: "仙品" } },
@@ -259,7 +259,7 @@ export const traitSamplesChuanshuo = defineTraits("传说", [
 /** 神迹词条池（对应「神品」量级）。 */
 export const traitSamplesShenji = defineTraits("神迹", [
   { name: "富可敌国", desc: "坐拥一处上古神石宝库，灵石之多富可敌国。", effect: { kind: "spiritStones", count: 10000 } },
-  { name: "神材天降", desc: "天降一份神品天材，神韵流转、近乎不朽。", effect: { kind: "materials", grade: "神品", count: 1 } },
+  { name: "神材天降", desc: "天降一份神品天材，神韵流转、近乎不朽。", effect: { kind: "materials", grade: "神品", count: 3 } },
   { name: "造化神丹", desc: "得一颗夺天地造化的神品神丹，一步登天、修为暴涨。", effect: { kind: "elixir", grade: "神品", count: 1, effectType: "提升修为" } },
   { name: "与天同寿", desc: "手中有一颗神品与天同寿丹，服之寿元无穷、近乎不死。", effect: { kind: "elixir", grade: "神品", count: 1, effectType: "提升寿元" } },
   { name: "神界至宝", desc: "有缘得了一件神界流传的命名至宝，神光万丈、举世无双。", effect: { kind: "treasure", grade: "神品" } },

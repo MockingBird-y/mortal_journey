@@ -25,6 +25,16 @@ export interface TimeDelta {
 
 const DAYS_PER_MONTH = 30;
 const MONTHS_PER_YEAR = 12;
+export const DAYS_PER_YEAR = DAYS_PER_MONTH * MONTHS_PER_YEAR; // 360
+
+/**
+ * NPC 长期间隔触发「核心层重评估」的阈值（年）。
+ *
+ * 当主角重新回到某地点，对一个 dormant NPC 计算 `worldTimeYearsBetween(lastSeen, now)`，
+ * 若 ≥ 该阈值，则批量请求 AI 合理推进该 NPC 的境界/装备/功法（闭关突破、历练寻宝等）。
+ * 全局统一阈值（不按 powerTier 分级）。
+ */
+export const NPC_REEVALUATION_THRESHOLD_YEARS = 1;
 
 export function createDefaultWorldTime(): WorldTime {
   return { year: 1, month: 1, day: 1, hour: 8 };
@@ -127,6 +137,21 @@ export function advanceWorldTime(base: WorldTime, delta: TimeDelta): WorldTime {
   };
 
   return normalizeWorldTime(raw);
+}
+
+/**
+ * 将 WorldTime 折算为总天数（含小数，用于精确比较两个时间点的间隔）。
+ */
+export function worldTimeToDays(t: WorldTime): number {
+  return (t.year - 1) * DAYS_PER_YEAR + (t.month - 1) * DAYS_PER_MONTH + (t.day - 1) + t.hour / 24;
+}
+
+/**
+ * 计算两个世界时间之间的年数间隔（小数，`to` 晚于 `from` 时为正）。
+ * 用于判断 dormant NPC 是否需要触发核心层重评估。
+ */
+export function worldTimeYearsBetween(from: WorldTime, to: WorldTime): number {
+  return (worldTimeToDays(to) - worldTimeToDays(from)) / DAYS_PER_YEAR;
 }
 
 /**
