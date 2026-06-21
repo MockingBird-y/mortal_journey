@@ -1,33 +1,24 @@
 import { computed, onMounted, type ComputedRef, type Ref, ref } from "vue";
-import { safeJsonParse } from "../ai/openAiChatBridge";
 import {
   useApiConfig,
   isApiConfigured,
   API_OVERRIDE_KEY,
 } from "../ai/useApiConfig";
 import type { ApiOverrideStored } from "../ai/useApiConfig";
+import {
+  readSaveIndex as readIndexFromGameSave,
+  readSave,
+  removeSave as removeSaveFromGameSave,
+  clearAllSaves as clearAllSavesFromGameSave,
+  type MjSavePayload,
+  type SaveIndexEntry,
+} from "../save/gameSave";
 
 export { API_OVERRIDE_KEY } from "../ai/useApiConfig";
 export type { ApiOverrideStored } from "../ai/useApiConfig";
 export { isApiConfigured } from "../ai/useApiConfig";
-
-export const SAVE_INDEX_KEY = "MJ_SAVES_INDEX_V1";
-export const SAVE_PREFIX = "MJ_SAVE_V1:";
-export const ACTIVE_SAVE_ID_KEY = "MJ_ACTIVE_SAVE_ID_V1";
-export const BOOTSTRAP_KEY = "vue_splash_bootstrap_v1";
-export const LAST_SESSION_MIRROR_KEY = "vue_splash_last_session_v1";
-
-export interface SaveIndexEntry {
-  id: string;
-  name?: string;
-  updatedAt?: number;
-  createdAt?: number;
-}
-
-interface SavePayload {
-  fateChoice?: unknown;
-  [key: string]: unknown;
-}
+export { SAVE_INDEX_KEY, SAVE_PREFIX } from "../save/gameSave";
+export type { SaveIndexEntry, MjSavePayload } from "../save/gameSave";
 
 export interface UseSplashReturn {
   apiModalOpen: Ref<boolean>;
@@ -50,7 +41,7 @@ export interface UseSplashReturn {
   openSaveLoad: () => void;
   closeSaveLoad: () => void;
   refreshSaveList: () => void;
-  loadSave: (it: SaveIndexEntry) => void;
+  loadSave: (it: SaveIndexEntry) => { id: string; payload: MjSavePayload } | null;
   deleteSave: (it: SaveIndexEntry) => void;
   deleteAllSaves: () => void;
 }
@@ -102,24 +93,6 @@ export function useSplash(): UseSplashReturn {
     });
   }
 
-  function readSaveIndex(): SaveIndexEntry[] {
-    try {
-      const raw = localStorage.getItem(SAVE_INDEX_KEY);
-      const arr = raw ? safeJsonParse<unknown>(raw, []) : [];
-      return Array.isArray(arr) ? (arr as SaveIndexEntry[]) : [];
-    } catch {
-      return [];
-    }
-  }
-
-  function writeSaveIndex(arr: SaveIndexEntry[]): void {
-    try {
-      localStorage.setItem(SAVE_INDEX_KEY, JSON.stringify(Array.isArray(arr) ? arr : []));
-    } catch {
-      /* ignore */
-    }
-  }
-
   function fmtTime(ts: number | undefined): string {
     const n = Number(ts);
     if (!isFinite(n) || n <= 0) return "—";
@@ -139,9 +112,7 @@ export function useSplash(): UseSplashReturn {
   }
 
   function refreshSaveList(): void {
-    const idx = readSaveIndex();
-    idx.sort((a, b) => Number(b?.updatedAt) - Number(a?.updatedAt));
-    saves.value = idx.filter((x): x is SaveIndexEntry => Boolean(x && x.id));
+    saves.value = readIndexFromGameSave();
   }
 
   function openSaveLoad(): void {
@@ -159,30 +130,19 @@ export function useSplash(): UseSplashReturn {
     saveStatusOk.value = !!ok;
   }
 
-  function loadSave(it: SaveIndexEntry): void {
+  /** 读取存档；成功返回 {id, payload} 供上层（App）恢复游戏，失败返回 null 并设置状态。 */
+  function loadSave(it: SaveIndexEntry): { id: string; payload: MjSavePayload } | null {
     try {
-      const raw = localStorage.getItem(SAVE_PREFIX + String(it.id));
-      if (!raw) {
-        setSaveStatus("读取失败：存档内容不存在。", false);
-        return;
+      const payload = readSave(it.id);
+      if (!payload || !payload.fateChoice) {
+        setSaveStatus("读取失败：存档内容不存在或已损坏。", false);
+        return null;
       }
-      const data = safeJsonParse<SavePayload | null>(raw, null);
-      if (!data || !data.fateChoice) {
-        setSaveStatus("读取失败：存档内容损坏。", false);
-        return;
-      }
-      try {
-        localStorage.removeItem(LAST_SESSION_MIRROR_KEY);
-      } catch {
-        /* ignore */
-      }
-      sessionStorage.setItem(BOOTSTRAP_KEY, JSON.stringify(data));
-      sessionStorage.setItem(ACTIVE_SAVE_ID_KEY, String(it.id));
-      localStorage.setItem(ACTIVE_SAVE_ID_KEY, String(it.id));
-      setSaveStatus("主界面尚未接入；已写入会话启动数据，后续接上主工程后可从此继续。", true);
+      return { id: it.id, payload };
     } catch (e) {
       const err = e instanceof Error ? e.message : "未知错误";
       setSaveStatus("读取失败：" + err, false);
+      return null;
     }
   }
 
@@ -190,18 +150,7 @@ export function useSplash(): UseSplashReturn {
     const msg = "确定删除存档「" + String(it.name || it.id) + "」？\n此操作不可撤销。";
     if (!window.confirm(msg)) return;
     try {
-      localStorage.removeItem(SAVE_PREFIX + String(it.id));
-      const idx2 = readSaveIndex().filter((x) => x && String(x.id || "") !== String(it.id));
-      writeSaveIndex(idx2);
-      try {
-        const curAct = localStorage.getItem(ACTIVE_SAVE_ID_KEY) || "";
-        if (curAct && String(curAct) === String(it.id)) {
-          localStorage.removeItem(ACTIVE_SAVE_ID_KEY);
-          localStorage.removeItem(LAST_SESSION_MIRROR_KEY);
-        }
-      } catch {
-        /* ignore */
-      }
+      removeSaveFromGameSave(it.id);
       refreshSaveList();
       setSaveStatus("已删除。", true);
     } catch (e) {
@@ -214,11 +163,7 @@ export function useSplash(): UseSplashReturn {
     const msg = "确定清空全部存档？\n此操作不可撤销。";
     if (!window.confirm(msg)) return;
     try {
-      const idx3 = readSaveIndex();
-      for (let i = 0; i < idx3.length; i++) {
-        if (idx3[i]?.id) localStorage.removeItem(SAVE_PREFIX + String(idx3[i].id));
-      }
-      writeSaveIndex([]);
+      clearAllSavesFromGameSave();
       refreshSaveList();
       setSaveStatus("已清空。", true);
     } catch (e) {

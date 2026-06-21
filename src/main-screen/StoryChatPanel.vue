@@ -3,13 +3,15 @@ import { ref, watch, computed, nextTick } from "vue";
 import type { OpeningStoryPhase } from "../ai/useOpeningStory";
 import { useApiConfig } from "../ai/useApiConfig";
 import { generateStory, type StoryChatEntry } from "../ai/story_generate";
-import { generateState, type StateParsed, type BattleTriggerEntry, type ActionSuggestions } from "../ai/state_generate";
+import { generateState, type StateParsed, type BattleTriggerEntry } from "../ai/state_generate";
 import { generateCultivationStory } from "../ai/cultivation_story_generate";
 import { generateNpcReevaluation } from "../ai/npc_reevaluation_generate";
 import type { CultivationInput } from "../ai/cultivation_types";
 import { protagonist } from "../role_core/Protagonist";
 import { npcStore } from "../role_core/npcStore";
 import { worldMapStore } from "../role_core/worldMapStore";
+import { storyStore } from "../role_core/storyStore";
+import { writeActiveSave } from "../save/gameSave";
 import { Character } from "../role_core/Character";
 import { gameLog } from "../log/gameLog";
 import {
@@ -26,26 +28,20 @@ import type { Npc } from "../role_core/Npc";
 
 const props = withDefaults(
   defineProps<{
-    storyText?: string;
     phase?: OpeningStoryPhase;
     errorMessage?: string;
     currentWorldLocation?: WorldLocation | null;
     worldTime?: WorldTime;
     battleResult?: BattleResult | null;
-    initSnapshot?: string;
     cultivationInput?: CultivationInput | null;
-    initActionOptions?: ActionSuggestions | null;
   }>(),
   {
-    storyText: "",
     phase: "idle",
     errorMessage: "",
     currentWorldLocation: null,
     worldTime: undefined,
     battleResult: undefined,
-    initSnapshot: "",
     cultivationInput: null,
-    initActionOptions: null,
   },
 );
 
@@ -60,19 +56,13 @@ const emit = defineEmits<{
   "generatingChange": [value: boolean];
 }>();
 
-interface ChatMessage {
-  type: "story" | "user";
-  content: string;
-  snapshot?: string;
-}
-
-const chatMessages = ref<ChatMessage[]>([]);
+const chatMessages = storyStore.chatMessages;
 const inputText = ref("");
 const generating = ref(false);
 const generatingPhase = ref<"story" | "state">("story");
 const genError = ref("");
 /** 当前显示的四个行动建议（来自状态 AI）。null 时隐藏按钮区。 */
-const actionOptions = ref<ActionSuggestions | null>(null);
+const actionOptions = storyStore.actionOptions;
 
 function beginGenerating(): void {
   generating.value = true;
@@ -96,14 +86,6 @@ function useActionOption(text: string): void {
   nextTick(() => autoResizeTextarea());
 }
 
-// 开局选项：从 prop 同步到内部 ref（仅开局触发一次）。
-watch(
-  () => props.initActionOptions,
-  (opts) => {
-    if (opts) actionOptions.value = opts;
-  },
-);
-
 let abortCtl: AbortController | null = null;
 
 function buildChatHistory(): StoryChatEntry[] {
@@ -125,20 +107,6 @@ function buildChatHistory(): StoryChatEntry[] {
     };
   });
 }
-
-watch(
-  () => props.storyText,
-  (text) => {
-    if (text?.trim() && chatMessages.value.length === 0) {
-      chatMessages.value.push({
-        type: "story",
-        content: text.trim(),
-        snapshot: props.initSnapshot?.trim() || undefined,
-      });
-    }
-  },
-  { immediate: true },
-);
 
 watch(generating, (val) => {
   emit("generatingChange", val);
@@ -373,6 +341,7 @@ async function handleSend(): Promise<void> {
             last.snapshot = stateResult.storySnapshot.trim();
           }
         }
+        writeActiveSave();
       } catch (stateErr) {
         gameLog.error("[StoryChat] 状态更新失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));
       }
@@ -563,6 +532,7 @@ watch(
             last.snapshot = stateResult.storySnapshot.trim();
           }
         }
+        writeActiveSave();
       } catch (stateErr) {
         gameLog.error("[StoryChat] 修炼状态更新失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));
       }
@@ -648,6 +618,7 @@ watch(
             last.snapshot = stateResult.storySnapshot.trim();
           }
         }
+        writeActiveSave();
       } catch (stateErr) {
         gameLog.error("[StoryChat] 战斗后状态更新失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));
       }

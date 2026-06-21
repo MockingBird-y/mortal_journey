@@ -23,7 +23,7 @@ import type { PrimaryStatKey } from "../role_core/types/playInfo";
 import { PRIMARY_STAT_KEY_TO_ZH } from "../role_core/types/playInfo";
 import type { ElixirEffectType } from "../role_core/types/elixir";
 import { rollElixirValue, isElixirPercent } from "../role_core/types/elixir";
-import type { GongfaSystem } from "../role_core/types/gongfa";
+import type { GongfaSystem, GongfaSpecialEffect } from "../role_core/types/gongfa";
 import { rollGongfaFunction } from "../role_core/types/gongfa";
 import { rollTreasureFunction, rollTreasureSpecialEffect } from "../role_core/types/treasure";
 import { GONGFA_GRADE_ATTRI_TABLE, rollGradeAttriValue } from "../role_core/types/gameConstants";
@@ -136,6 +136,16 @@ function pickRandomBonusName(): string {
   return keys[Math.floor(Math.random() * keys.length)];
 }
 
+/** 根据功法战斗效果的 scalingStat 决定属性加成；效果无属性加成时回退随机。 */
+function pickGongfaBonusName(fn: GongfaSpecialEffect): string {
+  for (const e of fn.battleEffects) {
+    if ("scalingStat" in e) {
+      return PRIMARY_STAT_KEY_TO_ZH[e.scalingStat];
+    }
+  }
+  return pickRandomBonusName();
+}
+
 /**
  * 将一条 {@link TraitEffect} 解析为可写入主角的聚合结果。
  *
@@ -208,8 +218,8 @@ export function resolveTraitEffect(effect: TraitEffect): ResolvedTraitEffect {
     case "gongfa": {
       const grade = effect.grade;
       const fn = rollGongfaFunction(effect.system, grade);
-      // 随机一条主属性加成（数值按品阶 roll），与 AI 掉落功法行为一致。
-      const bonusName = pickRandomBonusName();
+      // 根据战斗效果的 scalingStat 决定属性加成；效果无属性加成时回退随机。
+      const bonusName = pickGongfaBonusName(fn);
       const bonus = { [bonusName]: rollGradeAttriValue(bonusName, grade, GONGFA_GRADE_ATTRI_TABLE) };
       const item: GongfaItemDefinition = {
         itemType: "功法",

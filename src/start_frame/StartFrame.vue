@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
-import { useSplash, type SaveIndexEntry } from "./useSplash";
+import { useSplash, type SaveIndexEntry, type MjSavePayload } from "./useSplash";
 import { useScrollLock } from "../composables/useScrollLock";
 import "./start_frame.css";
 
@@ -10,7 +10,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "start-new-life"): void;
-  (e: "save-loaded"): void;
+  (e: "save-loaded", value: { id: string; payload: MjSavePayload }): void;
 }>();
 
 const scrollLock = useScrollLock();
@@ -60,8 +60,8 @@ function onStartNewLife() {
 }
 
 function onLoadSave(it: SaveIndexEntry) {
-  loadSave(it);
-  emit("save-loaded");
+  const res = loadSave(it);
+  if (res) emit("save-loaded", res);
 }
 </script>
 
@@ -180,7 +180,7 @@ function onLoadSave(it: SaveIndexEntry) {
   >
     <div class="splash-modal-backdrop" tabindex="-1" @click="closeSaveLoad"></div>
     <Transition name="mj-modal" appear>
-      <div class="splash-modal" role="dialog" aria-modal="true" aria-labelledby="save-load-title">
+      <div class="splash-modal splash-modal--wide" role="dialog" aria-modal="true" aria-labelledby="save-load-title">
       <button type="button" class="splash-modal-close" aria-label="关闭" @click="closeSaveLoad">×</button>
       <h3 id="save-load-title" class="splash-modal-title">读取人生</h3>
       <p class="splash-modal-sub">选择一个存档继续修行（存档保存在本机浏览器中）。</p>
@@ -189,7 +189,8 @@ function onLoadSave(it: SaveIndexEntry) {
         <div v-for="it in saves" :key="it.id" class="save-load-row">
           <div class="save-load-info">
             <p class="save-load-name">{{ it.name || it.id }}</p>
-            <p class="save-load-meta">更新：{{ fmtTime(it.updatedAt) }} · 创建：{{ fmtTime(it.createdAt) }}</p>
+            <p v-if="it.realm || it.location" class="save-load-meta">{{ it.realm }}<template v-if="it.realm && it.location"> · </template>{{ it.location }}</p>
+            <p class="save-load-meta">创建：{{ fmtTime(it.createdAt) }} · 更新：{{ fmtTime(it.updatedAt) }}</p>
           </div>
           <div class="save-load-actions">
             <button type="button" class="splash-btn" @click="onLoadSave(it)">读取</button>

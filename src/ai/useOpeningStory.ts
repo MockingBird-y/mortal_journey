@@ -1,5 +1,11 @@
 /**
  * 命运抉择确认后：同步写入主角、请求开局剧情 AI、维护剧情正文与阶段状态。
+ *
+ * 全部持久化剧情状态存放在 {@link storyStore} 模块单例（与世界地图/NPC 单例对齐），
+ * 本 composable 只负责「开局 AI 流程」并把结果写入 storyStore。`errorMessage` 为
+ * 非持久化的 UI 状态，留在本地。
+ *
+ * 读档会话下（`storyStore.restored === true`）本 composable 既不清空状态也不重跑 AI。
  */
 
 import { ref, watch, type ComputedRef, type Ref } from "vue";
@@ -15,6 +21,8 @@ import {
 import { Protagonist, protagonist } from "../role_core/Protagonist";
 import { npcStore } from "../role_core/npcStore";
 import { worldMapStore } from "../role_core/worldMapStore";
+import { storyStore } from "../role_core/storyStore";
+import { writeActiveSave } from "../save/gameSave";
 import type { FateChoiceResult } from "../fate_choice/types";
 import type { WorldLocation } from "../role_core/types/worldLocation";
 import { isEmptyWorldLocation } from "../role_core/types/worldLocation";
@@ -30,6 +38,8 @@ export interface OpeningStoryApiSlice {
 
 /**
  * 监听 `fateChoice`：非空时 `Protagonist.loadFromFateChoice` 并拉取开局剧情；空时清空主角与剧情 UI。
+ *
+ * 读档会话下（`storyStore.restored`）直接返回——状态已由 `restoreSave` 灌满。
  *
  * @param fateChoice - 通常 `toRef(props, "fateChoice")`
  * @param api - 通常 `computed(() => ({ apiUrl, apiKey, apiModel }))`，在发起请求时读取最新值
@@ -47,31 +57,37 @@ export function useOpeningStoryFromFateChoice(
   initSnapshot: Ref<string>;
   initActionOptions: Ref<ActionSuggestions | null>;
 } {
-  const storyBody = ref("");
-  const phase = ref<OpeningStoryPhase>("idle");
   const errorMessage = ref("");
-  const worldTime = ref<WorldTime>(createDefaultWorldTime());
-  const worldTimeBaseline = ref<WorldTime>(cloneWorldTime(worldTime.value));
-  const worldLocation = ref<WorldLocation | null>(null);
-  const initSnapshot = ref("");
-  const initActionOptions = ref<ActionSuggestions | null>(null);
 
   let abortCtl: AbortController | null = null;
 
   function resetWorldClock(): void {
     const w = createDefaultWorldTime();
-    worldTime.value = w;
-    worldTimeBaseline.value = cloneWorldTime(w);
-    worldLocation.value = null;
-    initSnapshot.value = "";
-    initActionOptions.value = null;
+    storyStore.worldTime.value = w;
+    storyStore.worldTimeBaseline.value = cloneWorldTime(w);
+    storyStore.worldLocation.value = null;
+    storyStore.initSnapshot.value = "";
+    storyStore.actionOptions.value = null;
   }
 
   function resetStoryOnly(): void {
-    storyBody.value = "";
+    storyStore.storyBody.value = "";
     errorMessage.value = "";
-    phase.value = "idle";
+    storyStore.phase.value = "idle";
+    storyStore.chatMessages.value = [];
     resetWorldClock();
+  }
+
+  /** 开局状态完成后：把开局正文灌入 chatMessages[0]（携带开局快照）。 */
+  function seedOpeningChatMessage(): void {
+    const body = storyStore.storyBody.value.trim();
+    if (!body) return;
+    if (storyStore.chatMessages.value.length > 0) return;
+    storyStore.chatMessages.value.push({
+      type: "story",
+      content: body,
+      snapshot: storyStore.initSnapshot.value.trim() || undefined,
+    });
   }
 
   watch(
@@ -80,6 +96,9 @@ export function useOpeningStoryFromFateChoice(
       abortCtl?.abort();
       abortCtl = null;
 
+      // 读档会话：storyStore 已由 restoreSave 灌满，既不清空也不重跑 AI。
+      if (storyStore.restored.value) return;
+
       if (!fc) {
         Protagonist.clear();
         resetStoryOnly();
@@ -87,15 +106,16 @@ export function useOpeningStoryFromFateChoice(
       }
 
       Protagonist.loadFromFateChoice(fc);
-      storyBody.value = "";
+      storyStore.storyBody.value = "";
       errorMessage.value = "";
+      storyStore.chatMessages.value = [];
       resetWorldClock();
 
       const { apiUrl, apiKey, apiModel } = api.value;
       const url = String(apiUrl || "").trim();
       const model = String(apiModel || "").trim();
       if (!url || !model) {
-        phase.value = "error";
+        storyStore.phase.value = "error";
         errorMessage.value = "未配置 API URL 或模型，无法生成开局剧情。";
         gameLog.warn("[OpeningStory] " + errorMessage.value);
         return;
@@ -103,14 +123,14 @@ export function useOpeningStoryFromFateChoice(
 
       const p = protagonist.value;
       if (!p) {
-        phase.value = "error";
+        storyStore.phase.value = "error";
         errorMessage.value = "主角数据未就绪。";
         return;
       }
 
       const ac = new AbortController();
       abortCtl = ac;
-      phase.value = "loading";
+      storyStore.phase.value = "loading";
 
       try {
         const storyResult = await generateInitStory({
@@ -123,12 +143,12 @@ export function useOpeningStoryFromFateChoice(
         if (abortCtl !== ac) return;
 
         if (!storyResult.storyBody.trim()) {
-          phase.value = "error";
+          storyStore.phase.value = "error";
           errorMessage.value = "模型返回的开局正文为空。";
           return;
         }
 
-        storyBody.value = storyResult.storyBody;
+        storyStore.storyBody.value = storyResult.storyBody;
 
         try {
           const stateResult = await generateInitState({
@@ -142,15 +162,15 @@ export function useOpeningStoryFromFateChoice(
           if (abortCtl !== ac) return;
 
           if (stateResult.worldLocation && !isEmptyWorldLocation(stateResult.worldLocation)) {
-            worldLocation.value = stateResult.worldLocation;
+            storyStore.worldLocation.value = stateResult.worldLocation;
           }
 
           if (stateResult.storySnapshot.trim()) {
-            initSnapshot.value = stateResult.storySnapshot.trim();
+            storyStore.initSnapshot.value = stateResult.storySnapshot.trim();
           }
 
           if (stateResult.actionOptions) {
-            initActionOptions.value = stateResult.actionOptions;
+            storyStore.actionOptions.value = stateResult.actionOptions;
           }
 
           const current = protagonist.value;
@@ -160,7 +180,7 @@ export function useOpeningStoryFromFateChoice(
           if (stateResult.nearbyNpcs.length > 0) {
             npcStore.applyNpcUpdates(stateResult.nearbyNpcs, p.linggen, {
               currentLocation: stateResult.worldLocation ?? null,
-              currentWorldTime: worldTime.value,
+              currentWorldTime: storyStore.worldTime.value,
             });
           }
 
@@ -178,10 +198,13 @@ export function useOpeningStoryFromFateChoice(
           traitsOwner.applyTraitEffects();
         }
 
-        phase.value = "ready";
+        seedOpeningChatMessage();
+        storyStore.phase.value = "ready";
+        // 开局完成：把完整初始状态写入当前活动存档（覆盖命运抉择时的占位载荷）。
+        writeActiveSave();
       } catch (e) {
         if (ac.signal.aborted) return;
-        phase.value = "error";
+        storyStore.phase.value = "error";
         errorMessage.value = e instanceof Error ? e.message : String(e);
         gameLog.error("[OpeningStory] " + errorMessage.value);
       } finally {
@@ -191,5 +214,14 @@ export function useOpeningStoryFromFateChoice(
     { immediate: true },
   );
 
-  return { storyBody, phase, errorMessage, worldTime, worldTimeBaseline, worldLocation, initSnapshot, initActionOptions };
+  return {
+    storyBody: storyStore.storyBody,
+    phase: storyStore.phase,
+    errorMessage,
+    worldTime: storyStore.worldTime,
+    worldTimeBaseline: storyStore.worldTimeBaseline,
+    worldLocation: storyStore.worldLocation,
+    initSnapshot: storyStore.initSnapshot,
+    initActionOptions: storyStore.actionOptions,
+  };
 }

@@ -31,7 +31,7 @@ const apiSlice = computed(() => ({
   apiModel: apiModel.value,
 }));
 
-const { storyBody, phase, errorMessage, worldTime, worldTimeBaseline, worldLocation, initSnapshot, initActionOptions } =
+const { phase, errorMessage, worldTime, worldTimeBaseline, worldLocation } =
   useOpeningStoryFromFateChoice(fateChoiceRef, apiSlice);
 
 const emit = defineEmits<{
@@ -149,12 +149,9 @@ function startTestBattle() {
       </aside>
       <main class="main-screen__pane main-screen__pane--chat" aria-label="中栏：剧情">
         <StoryChatPanel
-          :story-text="storyBody"
           :phase="phase"
           :error-message="errorMessage"
           :current-world-location="worldLocation"
-          :init-snapshot="initSnapshot"
-          :init-action-options="initActionOptions"
           :battle-result="props.battleResult"
           :cultivation-input="pendingCultivation"
           v-model:world-time="worldTime"
