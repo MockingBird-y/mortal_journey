@@ -7,6 +7,7 @@ import MainScreen from "./main-screen/MainScreen.vue";
 import BattleScreen from "./battle_view/BattleScreen.vue";
 import { gameLog } from "./log/gameLog";
 import { npcStore } from "./role_core/npcStore";
+import { ALL_TEST_DUMMY_NAMES } from "./main-screen/testBattle";
 import type { FateChoiceResult } from "./fate_choice/types";
 import type { BattleTriggerEntry } from "./ai/state_generate";
 import type { BattleResult } from "./battle_engine/types";
@@ -102,7 +103,9 @@ function onBattleEnd(result: BattleResult | null) {
   battleVisible.value = false;
   pendingBattleTrigger.value = null;
   if (wasTest) {
-    npcStore.removeNpc("战斗人偶");
+    for (const n of ALL_TEST_DUMMY_NAMES) {
+      npcStore.removeNpc(n);
+    }
   } else if (result) {
     lastBattleResult.value = result;
   }

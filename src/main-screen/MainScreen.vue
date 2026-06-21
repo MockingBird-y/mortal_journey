@@ -5,7 +5,7 @@ import { useApiConfig } from "../ai/useApiConfig";
 import { protagonist } from "../role_core/Protagonist";
 import { Npc } from "../role_core/Npc";
 import { npcStore } from "../role_core/npcStore";
-import { getRealmPrimaryStats } from "../role_core/realmUtils";
+import { getRow } from "../role_core/realmUtils";
 import type { NpcPlayInfo } from "../role_core/types/playInfo";
 import type { FateChoiceResult } from "../fate_choice/types";
 import type { BattleTriggerEntry } from "../ai/state_generate";
@@ -15,6 +15,7 @@ import type { WorldLocation } from "../role_core/types/worldLocation";
 import SideToolbarPanel from "./SideToolbarPanel.vue";
 import PlayerInfoPanel from "./PlayerInfoPanel.vue";
 import StoryChatPanel from "./StoryChatPanel.vue";
+import { TEST_ALLY_DUMMY_NAMES, TEST_ENEMY_DUMMY_NAMES, ALL_TEST_DUMMY_NAMES } from "./testBattle";
 
 const props = defineProps<{
   visible: boolean;
@@ -58,68 +59,85 @@ function onBack() {
   emit("back");
 }
 
-const DUMMY_NAME = "战斗人偶";
-
 function startTestBattle() {
   const p = protagonist.value;
   if (!p) return;
 
-  npcStore.removeNpc(DUMMY_NAME);
+  // 清掉上一次测试残留的假人。
+  for (const n of ALL_TEST_DUMMY_NAMES) {
+    npcStore.removeNpc(n);
+  }
 
-  const realmStats = getRealmPrimaryStats(p.realm.major, p.realm.minor)
-    ?? { physique: 10, spirit: 10, strength: 10, perception: 10, guard: 5, resistance: 5, agility: 1, insight: 1 };
+  // 假人 HP/MP/属性全部取自主角境界的纯净基准值（境界表），不受主角丹药/天赋/装备加成影响。
+  const realmRow = getRow(p.realm.major, p.realm.minor)
+    ?? getRow("练气", "初期")
+    ?? { hp: 200, mp: 100, physique: 5, spirit: 5, strength: 25, perception: 25, guard: 3, resistance: 3, agility: 2, insight: 2 };
 
-  const dummyMaxHp = p.maxHp * 5;
+  const dummyMaxHp = realmRow.hp * 10;
+  const dummyMaxMp = realmRow.mp * 10;
+  const dummyRealm = { major: p.realm.major, minor: p.realm.minor };
 
-  const dummyData: NpcPlayInfo = {
-    id: "test-dummy",
-    displayName: DUMMY_NAME,
-    realm: { major: p.realm.major, minor: p.realm.minor },
-    primaryStats: {
-      physique: realmStats.physique,
-      spirit: realmStats.spirit,
-      strength: 1,
-      perception: 1,
-      guard: realmStats.guard,
-      resistance: realmStats.resistance,
-      agility: 1,
-      insight: 1,
-    },
-    maxHp: dummyMaxHp,
-    maxMp: 50,
-    currentHp: dummyMaxHp,
-    currentMp: 50,
-    avatarUrl: "",
-    gender: "无",
-    linggen: [],
-    age: 0,
-    ageConfirmed: true,
-    shouyuan: 9999,
-    inventorySlots: [],
-    gongfaSlots: [null, null, null, null, null, null, null, null],
-    equippedSlots: [],
-    role: "npc",
-    identity: "战斗测试人偶",
-    favorability: 0,
-    isDead: false,
-    powerTier: "小怪",
-    currentStageGoal: "",
-    longTermGoal: "",
-    hobby: "",
-    fear: "",
-    personality: "",
-    traits: [],
-    xiuwei: 0,
-  };
+  /** 构建一个战斗测试假人（属性全部一致，取自主角境界表基准）。 */
+  function makeDummy(displayName: string, id: string): NpcPlayInfo {
+    return {
+      id,
+      displayName,
+      realm: { ...dummyRealm },
+      primaryStats: {
+        physique: realmRow.physique,
+        spirit: realmRow.spirit,
+        strength: realmRow.strength,
+        perception: realmRow.perception,
+        guard: realmRow.guard,
+        resistance: realmRow.resistance,
+        agility: realmRow.agility,
+        insight: realmRow.insight,
+      },
+      maxHp: dummyMaxHp,
+      maxMp: dummyMaxMp,
+      currentHp: dummyMaxHp,
+      currentMp: dummyMaxMp,
+      avatarUrl: "",
+      gender: "无",
+      linggen: [],
+      age: 0,
+      ageConfirmed: true,
+      shouyuan: 9999,
+      inventorySlots: [],
+      gongfaSlots: [null, null, null, null, null, null, null, null],
+      equippedSlots: [],
+      role: "npc",
+      identity: "战斗测试人偶",
+      favorability: 0,
+      isDead: false,
+      powerTier: "小怪",
+      currentStageGoal: "",
+      longTermGoal: "",
+      hobby: "",
+      fear: "",
+      personality: "",
+      traits: [],
+      xiuwei: 0,
+    };
+  }
 
-  npcStore.setNpc(Npc.fromData(dummyData));
+  // 注册 2 友方 + 3 敌方假人（属性完全相同）。
+  TEST_ALLY_DUMMY_NAMES.forEach((name, i) => {
+    npcStore.setNpc(Npc.fromData(makeDummy(name, `test-ally-${i}`)));
+  });
+  TEST_ENEMY_DUMMY_NAMES.forEach((name, i) => {
+    npcStore.setNpc(Npc.fromData(makeDummy(name, `test-enemy-${i}`)));
+  });
 
   emit("battleTrigger", {
     shouldEnterBattle: true,
     triggerKind: "active" as const,
     triggerReason: "战斗测试",
-    allies: [{ displayName: p.displayName, roleHint: "主角" }],
-    enemies: [{ displayName: DUMMY_NAME, roleHint: "敌人" }],
+    allies: [
+      { displayName: p.displayName, roleHint: "主角" },
+      ...TEST_ALLY_DUMMY_NAMES.map((n) => ({ displayName: n, roleHint: "友方" })),
+    ],
+    enemies: TEST_ENEMY_DUMMY_NAMES.map((n) => ({ displayName: n, roleHint: "敌人" })),
     isTestBattle: true,
   });
 }
