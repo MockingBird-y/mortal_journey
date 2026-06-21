@@ -23,6 +23,7 @@ export type { SaveIndexEntry, MjSavePayload } from "../save/gameSave";
 export interface UseSplashReturn {
   apiModalOpen: Ref<boolean>;
   saveModalOpen: Ref<boolean>;
+  helpModalOpen: Ref<boolean>;
   apiUrl: Ref<string>;
   apiKey: Ref<string>;
   apiModel: Ref<string>;
@@ -40,6 +41,8 @@ export interface UseSplashReturn {
   testApiSettings: () => void;
   openSaveLoad: () => void;
   closeSaveLoad: () => void;
+  openHelp: () => void;
+  closeHelp: () => void;
   refreshSaveList: () => void;
   loadSave: (it: SaveIndexEntry) => { id: string; payload: MjSavePayload } | null;
   deleteSave: (it: SaveIndexEntry) => void;
@@ -51,6 +54,7 @@ export function useSplash(): UseSplashReturn {
 
   const apiModalOpen = ref(false);
   const saveModalOpen = ref(false);
+  const helpModalOpen = ref(false);
   const apiStatus = ref("");
   const apiStatusOk = ref(true);
   const saveStatus = ref("");
@@ -125,6 +129,14 @@ export function useSplash(): UseSplashReturn {
     saveModalOpen.value = false;
   }
 
+  function openHelp(): void {
+    helpModalOpen.value = true;
+  }
+
+  function closeHelp(): void {
+    helpModalOpen.value = false;
+  }
+
   function setSaveStatus(msg: string | null | undefined, ok: boolean): void {
     saveStatus.value = msg != null ? String(msg) : "";
     saveStatusOk.value = !!ok;
@@ -196,6 +208,9 @@ export function useSplash(): UseSplashReturn {
     testApiSettings,
     openSaveLoad,
     closeSaveLoad,
+    openHelp,
+    closeHelp,
+    helpModalOpen,
     refreshSaveList,
     loadSave,
     deleteSave,
