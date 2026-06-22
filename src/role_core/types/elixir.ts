@@ -101,6 +101,7 @@ export function applyLinggenElixirBoost(
 ): void {
   if (!("itemType" in item) || item.itemType !== "丹药") return;
   const elixir = item as ElixirItemDefinition;
+  if (!elixir.effects) return;
   if (elixir.effects.linggenBoosted) return;
   if (!linggen.includes("木")) return;
   const bonus = getLinggenElementBonus(realmMajor, "木");

@@ -199,7 +199,10 @@ function onLoadSave(it: SaveIndexEntry) {
         <p v-if="!saves.length" class="save-load-empty">暂无存档。请先在「开始游戏」里创建一个存档。</p>
         <div v-for="it in saves" :key="it.id" class="save-load-row">
           <div class="save-load-info">
-            <p class="save-load-name">{{ it.name || it.id }}</p>
+            <p class="save-load-name">
+              {{ it.name || it.id }}
+              <span v-if="it.ended" class="save-load-badge save-load-badge--ended">已殒落</span>
+            </p>
             <p v-if="it.realm || it.location" class="save-load-meta">{{ it.realm }}<template v-if="it.realm && it.location"> · </template>{{ it.location }}</p>
             <p class="save-load-meta">创建：{{ fmtTime(it.createdAt) }} · 更新：{{ fmtTime(it.updatedAt) }}</p>
           </div>
@@ -250,9 +253,9 @@ function onLoadSave(it: SaveIndexEntry) {
               <h4 class="help-h">游戏目标</h4>
               <p class="help-p">
                 你将扮演一名修仙者，在有限的寿元内不断突破境界，追寻长生大道。开局可选难度：
-                <span class="help-em">简单</span>（长生无虞）/
-                <span class="help-em">正常</span>（寿元有尽）/
-                <span class="help-em">困难</span>（修士皆非凡俗）。
+                <span class="help-em">简单</span>（休闲，不会真正死亡）/
+                <span class="help-em">正常</span>（寿命有限，可能战死）/
+                <span class="help-em">困难</span>（敌人远超常人）。
               </p>
             </section>
             <section class="help-section">

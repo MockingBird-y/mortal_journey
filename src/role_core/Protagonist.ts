@@ -18,6 +18,7 @@ import { rollTreasureFunction, rollTreasureSpecialEffect } from "./types/treasur
 import type { GongfaSpecialEffect, GongfaSystem } from "./types/gongfa";
 import { rollGongfaFunction, normalizeGongfaSystem, normalizeGongfaRole } from "./types/gongfa";
 import { GONGFA_GRADE_ATTRI_TABLE, rollGradeAttriValue } from "./types/gameConstants";
+import { parseStorageObject } from "../ai/parseAiItem";
 
 type SpecialEffect = TreasureSpecialEffect | GongfaSpecialEffect;
 
@@ -566,101 +567,138 @@ export class Protagonist extends Character {
    * @param state AI 状态生成解析结果（`StateParsed`）。
    */
   applyStateChanges(state: StateParsed): void {
-    if (state.hpMp) {
-      this.setCurrentHpMp(
-        Math.round(this.maxHp * state.hpMp.hpPercent / 100),
-        Math.round(this.maxMp * state.hpMp.mpPercent / 100),
-      );
+    // 各标签独立容错：单个标签处理失败不影响其他标签。
+
+    // HP/MP
+    try {
+      if (state.hpMp) {
+        this.setCurrentHpMp(
+          Math.round(this.maxHp * state.hpMp.hpPercent / 100),
+          Math.round(this.maxMp * state.hpMp.mpPercent / 100),
+        );
+      }
+    } catch (e) {
+      console.error("[Protagonist] HP/MP 更新失败：" + (e instanceof Error ? e.message : String(e)));
     }
 
-    if (state.userState) {
-      if (typeof state.userState.xiuweiIncrease === "number") {
-        this.addXiuwei(state.userState.xiuweiIncrease);
+    // 修为 / 功法熟练度
+    try {
+      if (state.userState) {
+        if (typeof state.userState.xiuweiIncrease === "number") {
+          this.addXiuwei(state.userState.xiuweiIncrease);
+        }
+        if (state.userState.gongfaMasteryChanges
+            && state.userState.gongfaMasteryChanges.length > 0) {
+          this.applyGongfaMasteryExpChanges(state.userState.gongfaMasteryChanges);
+          const totalMasteryExp = state.userState.gongfaMasteryChanges
+            .reduce((sum, c) => sum + c.masteryExpIncrease, 0);
+          this.addXiuwei(totalMasteryExp);
+        }
       }
-      if (state.userState.gongfaMasteryChanges
-          && state.userState.gongfaMasteryChanges.length > 0) {
-        this.applyGongfaMasteryExpChanges(state.userState.gongfaMasteryChanges);
-        const totalMasteryExp = state.userState.gongfaMasteryChanges
-          .reduce((sum, c) => sum + c.masteryExpIncrease, 0);
-        this.addXiuwei(totalMasteryExp);
-      }
+    } catch (e) {
+      console.error("[Protagonist] 修为/功法熟练度更新失败：" + (e instanceof Error ? e.message : String(e)));
     }
 
-    if (state.breakthrough) {
-      if (state.breakthrough.breakthroughQuestStart === true
-          && this.breakthroughStatus === "ready") {
-        this.setBreakthroughStatus("in_quest");
+    // 突破
+    try {
+      if (state.breakthrough) {
+        if (state.breakthrough.breakthroughQuestStart === true
+            && this.breakthroughStatus === "ready") {
+          this.setBreakthroughStatus("in_quest");
+        }
+        if (state.breakthrough.breakthroughFailed === true
+            && this.breakthroughStatus === "in_quest") {
+          this.onBreakthroughFailed();
+        }
+        if (state.breakthrough.realmBreakthrough === true) {
+          this.breakthrough();
+        }
       }
-      if (state.breakthrough.breakthroughFailed === true
-          && this.breakthroughStatus === "in_quest") {
-        this.onBreakthroughFailed();
-      }
-      if (state.breakthrough.realmBreakthrough === true) {
-        this.breakthrough();
-      }
+    } catch (e) {
+      console.error("[Protagonist] 突破状态更新失败：" + (e instanceof Error ? e.message : String(e)));
     }
 
-    for (const change of state.spiritStoneChanges) {
-      if (change.op === "add") {
-        this.addSpiritStone("灵石", change.count);
-      } else if (change.op === "remove") {
-        this.removeSpiritStone("灵石", change.count);
+    // 灵石
+    try {
+      for (const change of state.spiritStoneChanges) {
+        if (change.op === "add") {
+          this.addSpiritStone("灵石", change.count);
+        } else if (change.op === "remove") {
+          this.removeSpiritStone("灵石", change.count);
+        }
       }
+    } catch (e) {
+      console.error("[Protagonist] 灵石更新失败：" + (e instanceof Error ? e.message : String(e)));
     }
 
+    // 物品添加（每个物品独立容错）
     for (const item of state.itemAdds) {
-      if (item.type === "灵石") continue;
-      const itemType = VALID_ITEM_TYPES.has(item.type) ? item.type as CategorizedItemDefinition["itemType"] : "杂物";
-      let fn: SpecialEffect | undefined;
-      let se: import("./types/treasure").TreasureConversionEffect | undefined;
-      const grade = item.grade as import("./types/itemInfo").ItemGrade;
-      if (itemType === "法宝") {
-        fn = rollTreasureFunction(grade);
-        se = rollTreasureSpecialEffect(grade);
-      } else if (itemType === "功法") {
-        const itemRec = item as unknown as Record<string, unknown>;
-        const system = normalizeGongfaSystem(itemRec.system);
-        const role = normalizeGongfaRole(itemRec.role);
-        const bonusName = typeof itemRec.bonus === "string" ? itemRec.bonus.trim() : "";
-        const validBonus = new Set(Object.keys(GONGFA_GRADE_ATTRI_TABLE));
-        const bonus = validBonus.has(bonusName)
-          ? { [bonusName]: rollGradeAttriValue(bonusName, grade, GONGFA_GRADE_ATTRI_TABLE) }
-          : {};
-        fn = rollGongfaFunction(system, grade, role);
+      try {
+        if (item.type === "灵石") continue;
+        const itemType = VALID_ITEM_TYPES.has(item.type) ? item.type as CategorizedItemDefinition["itemType"] : "杂物";
+        const grade = item.grade as import("./types/itemInfo").ItemGrade;
+        if (itemType === "功法") {
+          const itemRec = item as unknown as Record<string, unknown>;
+          const system = normalizeGongfaSystem(itemRec.system);
+          const role = normalizeGongfaRole(itemRec.role);
+          const bonusName = typeof itemRec.bonus === "string" ? itemRec.bonus.trim() : "";
+          const validBonus = new Set(Object.keys(GONGFA_GRADE_ATTRI_TABLE));
+          const bonus = validBonus.has(bonusName)
+            ? { [bonusName]: rollGradeAttriValue(bonusName, grade, GONGFA_GRADE_ATTRI_TABLE) }
+            : {};
+          this.addToInventory({
+            name: item.name,
+            desc: item.intro,
+            grade,
+            count: item.count,
+            itemType,
+            system,
+            role,
+            mastery: 1,
+            bonus,
+            function: rollGongfaFunction(system, grade, role),
+          } as InventoryStackItem);
+          continue;
+        }
+        if (itemType === "丹药") {
+          const parsed = parseStorageObject(item, this.realm.major, this.realm.minor);
+          if (parsed) this.addToInventory(parsed);
+          continue;
+        }
+        let fn: SpecialEffect | undefined;
+        let se: import("./types/treasure").TreasureConversionEffect | undefined;
+        if (itemType === "法宝") {
+          fn = rollTreasureFunction(grade);
+          se = rollTreasureSpecialEffect(grade);
+        }
         this.addToInventory({
           name: item.name,
           desc: item.intro,
           grade,
           count: item.count,
           itemType,
-          system,
-          role,
-          mastery: 1,
-          bonus,
-          function: fn,
+          ...(fn ? { function: fn } : {}),
+          ...(se ? { specialEffect: se } : {}),
         } as InventoryStackItem);
-        continue;
+      } catch (e) {
+        console.error(`[Protagonist] 物品「${item.name}」入库失败：` + (e instanceof Error ? e.message : String(e)));
       }
-      this.addToInventory({
-        name: item.name,
-        desc: item.intro,
-        grade,
-        count: item.count,
-        itemType,
-        ...(fn ? { function: fn } : {}),
-        ...(se ? { specialEffect: se } : {}),
-      } as InventoryStackItem);
     }
 
+    // 物品移除（每个物品独立容错）
     for (const item of state.itemRemoves) {
-      let remaining = item.count;
-      for (let i = 0; i < this.inventorySlots.length && remaining > 0; i++) {
-        const cell = this.inventorySlots[i];
-        if (!cell || !("name" in cell) || cell.name !== item.name) continue;
-        const take = Math.min(remaining, cell.count);
-        cell.count -= take;
-        remaining -= take;
-        if (cell.count <= 0) this.setInventorySlot(i, null);
+      try {
+        let remaining = item.count;
+        for (let i = 0; i < this.inventorySlots.length && remaining > 0; i++) {
+          const cell = this.inventorySlots[i];
+          if (!cell || !("name" in cell) || cell.name !== item.name) continue;
+          const take = Math.min(remaining, cell.count);
+          cell.count -= take;
+          remaining -= take;
+          if (cell.count <= 0) this.setInventorySlot(i, null);
+        }
+      } catch (e) {
+        console.error(`[Protagonist] 物品「${item.name}」移除失败：` + (e instanceof Error ? e.message : String(e)));
       }
     }
 

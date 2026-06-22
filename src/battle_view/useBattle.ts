@@ -12,6 +12,7 @@ import { createBattleCombatants } from "../battle_engine/battleInit";
 import { settleBattle } from "../battle_engine/battleSettle";
 import { gameLog } from "../log/gameLog";
 import { BASE_GAUGE_TIME_MS, AGILITY_DIVISOR, GAUGE_MAX, ACTION_DELAY_MS } from "../battle_engine/constants";
+import { getActiveDifficulty } from "../save/gameSave";
 
 export function useBattle() {
   const engine: Ref<BattleEngine | null> = ref(null);
@@ -24,13 +25,27 @@ export function useBattle() {
   let active = false;
   let isTestBattle = false;
 
+  /** 由当前难度推导战斗参数：简单=无人死亡；困难=敌人主属性 ×1.5；正常=标准。 */
+  function difficultyBattleOpts(): { enemyStatMult: number; protagonistCanDie: boolean; companionsCanDie: boolean } {
+    const diff = getActiveDifficulty();
+    if (diff === "简单") {
+      return { enemyStatMult: 1, protagonistCanDie: false, companionsCanDie: false };
+    }
+    return {
+      enemyStatMult: diff === "困难" ? 1.5 : 1,
+      protagonistCanDie: true,
+      companionsCanDie: true,
+    };
+  }
+
   function startBattle(triggerEntry: BattleTriggerEntry): void {
     stopGaugeLoop();
     active = true;
     isTestBattle = triggerEntry.isTestBattle ?? false;
 
-    const { allies, enemies } = createBattleCombatants(triggerEntry);
-    gameLog.info(`[useBattle] createBattleCombatants 完成: allies=${allies.length}, enemies=${enemies.length}`);
+    const { enemyStatMult } = difficultyBattleOpts();
+    const { allies, enemies } = createBattleCombatants(triggerEntry, { enemyStatMult });
+    gameLog.info(`[useBattle] createBattleCombatants 完成: allies=${allies.length}, enemies=${enemies.length}` + (enemyStatMult !== 1 ? `, 敌方主属性×${enemyStatMult}` : ""));
 
     if (enemies.length === 0) {
       throw new Error(`战斗初始化失败：未找到敌方参战者。triggerEntry.enemies=${JSON.stringify(triggerEntry.enemies.map(e => e.displayName))}，请检查 NPC 是否已写入 npcStore`);
@@ -157,7 +172,8 @@ export function useBattle() {
     if (isTestBattle) {
       result.value = null;
     } else {
-      result.value = settleBattle(s);
+      const { protagonistCanDie, companionsCanDie } = difficultyBattleOpts();
+      result.value = settleBattle(s, { protagonistCanDie, companionsCanDie });
     }
   }
 

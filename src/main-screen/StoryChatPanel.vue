@@ -5,19 +5,23 @@ import { useApiConfig } from "../ai/useApiConfig";
 import { generateStory, type StoryChatEntry } from "../ai/story_generate";
 import { generateState, type StateParsed, type BattleTriggerEntry } from "../ai/state_generate";
 import { generateCultivationStory } from "../ai/cultivation_story_generate";
+import { generateFinaleStory } from "../ai/finale_story_generate";
 import { generateNpcReevaluation } from "../ai/npc_reevaluation_generate";
 import type { CultivationInput } from "../ai/cultivation_types";
-import { protagonist } from "../role_core/Protagonist";
+import { protagonist, Protagonist } from "../role_core/Protagonist";
 import { npcStore } from "../role_core/npcStore";
-import { worldMapStore } from "../role_core/worldMapStore";
-import { storyStore } from "../role_core/storyStore";
-import { writeActiveSave } from "../save/gameSave";
+import { worldMapStore, type WorldMapSerialData } from "../role_core/worldMapStore";
+import { storyStore, type StorySerialData } from "../role_core/storyStore";
+import { writeActiveSave, getActiveDifficulty } from "../save/gameSave";
+import type { NpcPlayInfo } from "../role_core/types/playInfo";
+import type { InventoryStackItem } from "../role_core/types/itemInfo";
 import { Character } from "../role_core/Character";
 import { gameLog } from "../log/gameLog";
 import {
   advanceWorldTime,
   formatWorldTimeZhDisplay,
   worldTimeYearsBetween,
+  calendarYearsElapsed,
   NPC_REEVALUATION_THRESHOLD_YEARS,
   type WorldTime,
 } from "../role_core/worldTime";
@@ -54,6 +58,7 @@ const emit = defineEmits<{
   "consumeBattleResult": [];
   "consumeCultivation": [];
   "generatingChange": [value: boolean];
+  "gameOver": [reason: string];
 }>();
 
 const chatMessages = storyStore.chatMessages;
@@ -106,6 +111,71 @@ function buildChatHistory(): StoryChatEntry[] {
       content: useSnapshot ? m.snapshot! : m.content,
     };
   });
+}
+
+type RoundKind = "chat" | "battle" | "cultivation";
+
+interface RoundContext {
+  kind: RoundKind;
+  userContent: string;
+  cultivationInput?: CultivationInput;
+}
+
+/** 一轮「生成前」的完整状态快照，用于重试时回退该轮的全部副作用。 */
+/**
+ * 一轮「生成前」的状态快照，用于重试时回退该轮的副作用。
+ *
+ * 设计：重新生成只影响「剧情 + 储物袋 + NPC + 世界地图」，**不触碰**主角的
+ * HP/MP/属性/装备/功法/丹药/修为/境界（这些是角色成长结果，不应因换剧情而回退）。
+ * 因此只快照 inventorySlots（深拷贝），不快照整个 protagonist。
+ */
+interface PreGenSnapshot {
+  inventorySlots: Array<InventoryStackItem | null>;
+  npcs: NpcPlayInfo[];
+  worldMap: WorldMapSerialData;
+  story: StorySerialData;
+  pendingBattleTrigger: BattleTriggerEntry | null;
+  userContent: string;
+}
+
+/** 上一轮生成开始前的状态快照，供重试回退使用。null 表示当前无可重试的轮次。 */
+let lastPreGenSnapshot: PreGenSnapshot | null = null;
+/** 是否存在可重试的轮次（响应式，供模板控制重试按钮显隐）。 */
+const hasRetryable = ref(false);
+
+/** 捕获生成前的状态快照（在任何修改之前调用）。返回 null 表示主角未就绪。 */
+function capturePreGenSnapshot(ctx: RoundContext): PreGenSnapshot | null {
+  const p = protagonist.value;
+  if (!p) return null;
+  return {
+    inventorySlots: p.inventorySlots.map(s => s ? JSON.parse(JSON.stringify(s)) as InventoryStackItem : null),
+    npcs: npcStore.serializeNpcs(),
+    worldMap: worldMapStore.serializeWorldMap(),
+    story: storyStore.serializeStory(),
+    pendingBattleTrigger: pendingBattleTrigger.value,
+    userContent: ctx.userContent,
+  };
+}
+
+/**
+ * 从上一轮快照回退：只还原剧情、储物袋、NPC、世界地图，不触碰主角数值。
+ *
+ * 主角的 HP/MP/属性/装备(equippedSlots)/功法(gongfaSlots)/丹药(elixirBonuses)/修为/境界
+ * 保持当前值不变。因此「上一轮新获得且已穿戴的法宝 / 已入槽的功法 / 已使用的丹药」
+ * 不会被强制脱下或扣回——其加成保留，仅储物袋恢复到生成前内容。
+ */
+function restorePreGenSnapshot(): void {
+  const snap = lastPreGenSnapshot;
+  if (!snap) return;
+  const p = protagonist.value;
+  if (p) {
+    p.inventorySlots = snap.inventorySlots.map(s => s ? JSON.parse(JSON.stringify(s)) as InventoryStackItem : null);
+    Protagonist.notifyChanged();
+  }
+  npcStore.restoreNpcs(snap.npcs);
+  worldMapStore.restoreWorldMap(snap.worldMap);
+  storyStore.applyStorySnapshot(snap.story);
+  pendingBattleTrigger.value = snap.pendingBattleTrigger;
 }
 
 watch(generating, (val) => {
@@ -164,7 +234,8 @@ async function handleLocationEnter(
   }
 }
 
-async function applyStateResult(stateResult: StateParsed, linggen: string[]): Promise<void> {
+async function applyStateResult(stateResult: StateParsed, linggen: string[]): Promise<{ gameOverReason?: string }> {
+  let gameOverReason: string | undefined;
   const oldLocation = props.currentWorldLocation ?? null;
   const newLocation = stateResult.worldLocation && !isEmptyWorldLocation(stateResult.worldLocation)
     ? stateResult.worldLocation
@@ -176,88 +247,130 @@ async function applyStateResult(stateResult: StateParsed, linggen: string[]): Pr
     ? new Set(npcStore.getActiveNpcsAt(oldLocation))
     : new Set<Npc>();
 
-  // ② 地点切换：旧地点 active NPC 转入休眠（保留全部数据，等待回归）。
-  if (locationChanged && oldLocation) {
-    npcStore.markDormantAtLocation(oldLocation);
+  // ② 地点切换：旧地点 active NPC 转入休眠。
+  try {
+    if (locationChanged && oldLocation) {
+      npcStore.markDormantAtLocation(oldLocation);
+    }
+  } catch (e) {
+    gameLog.error("[StoryChat] 地点休眠失败：" + (e instanceof Error ? e.message : String(e)));
   }
 
-  if (newLocation && !isWorldLocationEqual(newLocation, oldLocation)) {
-    emit("update:worldLocation", newLocation);
+  try {
+    if (newLocation && !isWorldLocationEqual(newLocation, oldLocation)) {
+      emit("update:worldLocation", newLocation);
+    }
+  } catch (e) {
+    gameLog.error("[StoryChat] 地点更新失败：" + (e instanceof Error ? e.message : String(e)));
   }
 
+  // ③ 主角状态应用 + 时间推进 + 寿元检测（各步独立容错）。
   const current = protagonist.value;
   let newWorldTime: WorldTime | undefined = props.worldTime;
   if (current) {
-    current.applyStateChanges(stateResult);
+    try {
+      current.applyStateChanges(stateResult);
+    } catch (e) {
+      gameLog.error("[StoryChat] 主角状态更新失败：" + (e instanceof Error ? e.message : String(e)));
+    }
 
-    if (stateResult.timeAdvance && props.worldTime) {
-      const delta = stateResult.timeAdvance;
-      newWorldTime = advanceWorldTime(props.worldTime, delta);
-      emit("update:worldTime", newWorldTime);
-      if (current.isShouyuanExhausted()) {
-        gameLog.warn("[StoryChat] 寿元耗尽！");
+    try {
+      if (stateResult.timeAdvance && props.worldTime) {
+        const delta = stateResult.timeAdvance;
+        newWorldTime = advanceWorldTime(props.worldTime, delta);
+        emit("update:worldTime", newWorldTime);
+
+        // 寿元耗尽检查：当前年龄 = 开局档案年龄 + 自基线起经过的整年数。
+        if (getActiveDifficulty() !== "简单" && newWorldTime) {
+          const currentAge = current.age + calendarYearsElapsed(storyStore.worldTimeBaseline.value, newWorldTime);
+          if (currentAge >= current.shouyuan) {
+            gameLog.warn(`[StoryChat] 寿元耗尽！currentAge=${currentAge}, shouyuan=${current.shouyuan}`);
+            gameOverReason = "寿元耗尽，坐化于世";
+          }
+        }
       }
+    } catch (e) {
+      gameLog.error("[StoryChat] 时间推进失败：" + (e instanceof Error ? e.message : String(e)));
     }
   }
 
-  // ③ 地点切换：唤醒新地点 dormant NPC，并对长期未见的批量重评估（必须在 nearbyNpcs 处理前完成）。
-  if (locationChanged && newLocation && newWorldTime) {
-    await handleLocationEnter(newLocation, newWorldTime, linggen);
+  // ④ 地点切换：唤醒新地点 dormant NPC，并对长期未见的批量重评估。
+  try {
+    if (locationChanged && newLocation && newWorldTime) {
+      await handleLocationEnter(newLocation, newWorldTime, linggen);
+    }
+  } catch (e) {
+    gameLog.error("[StoryChat] 地点进入处理失败：" + (e instanceof Error ? e.message : String(e)));
   }
 
-  // ④ nearbyNpcs 一致性校正 + 跨地点迁移合法性过滤。
-  // 在场者的 currentLocation 必须 = 主角新地点；AI 写错则强制校正。
-  // 跨地点迁移：只有上一回合在旧地点 active 的 NPC 才能"跟随"到新地点；
-  // 上一回合在第三地 dormant 的 NPC 不应瞬间出现在新地点，剔除并告警。
-  let nearbyNpcsToApply = stateResult.nearbyNpcs;
-  if (nearbyNpcsToApply.length > 0) {
-    nearbyNpcsToApply = nearbyNpcsToApply.map(entry => {
-      if (newLocation && (!entry.currentLocation || !isWorldLocationEqual(entry.currentLocation, newLocation))) {
-        if (entry.currentLocation) {
-          gameLog.warn(`[StoryChat] NPC「${entry.displayName}」的 currentLocation 与主角地点不符，已强制校正`);
+  // ⑤ nearbyNpcs 一致性校正 + 跨地点迁移合法性过滤 + NPC 更新。
+  try {
+    let nearbyNpcsToApply = stateResult.nearbyNpcs;
+    if (nearbyNpcsToApply.length > 0) {
+      nearbyNpcsToApply = nearbyNpcsToApply.map(entry => {
+        if (newLocation && (!entry.currentLocation || !isWorldLocationEqual(entry.currentLocation, newLocation))) {
+          if (entry.currentLocation) {
+            gameLog.warn(`[StoryChat] NPC「${entry.displayName}」的 currentLocation 与主角地点不符，已强制校正`);
+          }
+          return { ...entry, currentLocation: { ...newLocation } };
         }
-        return { ...entry, currentLocation: { ...newLocation } };
-      }
-      return entry;
-    });
+        return entry;
+      });
 
-    if (locationChanged && oldLocation) {
-      nearbyNpcsToApply = nearbyNpcsToApply.filter(entry => {
-        const existing = entry.npcId
-          ? npcStore.getNpcById(entry.npcId)
-          : (entry.displayName ? npcStore.getNpc(entry.displayName) : undefined);
-        // 新 NPC 或无位置信息：保留
-        if (!existing || !existing.currentLocation) return true;
-        // 上一回合在旧地点 active：合法跟随主角迁移
-        if (oldActiveSet.has(existing)) return true;
-        // 上一回合就在新地点（被唤醒的 dormant 或本就在场）：保留
-        if (isWorldLocationEqual(existing.currentLocation, newLocation)) return true;
-        // 上一回合在第三地 dormant：不可能瞬间跨地点，剔除并告警
-        gameLog.warn(`[StoryChat] 地点切换兜底：剔除 NPC「${existing.displayName}」误入新地点 nearbyNpcs（上一回合在 ${formatWorldLocationDash(existing.currentLocation)}，不可能瞬间跨地点）`);
-        return false;
+      if (locationChanged && oldLocation) {
+        nearbyNpcsToApply = nearbyNpcsToApply.filter(entry => {
+          const existing = entry.npcId
+            ? npcStore.getNpcById(entry.npcId)
+            : (entry.displayName ? npcStore.getNpc(entry.displayName) : undefined);
+          // 新 NPC 或无位置信息：保留
+          if (!existing || !existing.currentLocation) return true;
+          // 上一回合在旧地点 active：合法跟随主角迁移
+          if (oldActiveSet.has(existing)) return true;
+          // 上一回合就在新地点（被唤醒的 dormant 或本就在场）：保留
+          if (isWorldLocationEqual(existing.currentLocation, newLocation)) return true;
+          // 上一回合在第三地 dormant：不可能瞬间跨地点，剔除并告警
+          gameLog.warn(`[StoryChat] 地点切换兜底：剔除 NPC「${existing.displayName}」误入新地点 nearbyNpcs（上一回合在 ${formatWorldLocationDash(existing.currentLocation)}，不可能瞬间跨地点）`);
+          return false;
+        });
+      }
+    }
+
+    if (nearbyNpcsToApply.length > 0 || stateResult.npcCoreChanges.length > 0) {
+      npcStore.applyNpcUpdates(nearbyNpcsToApply, linggen, {
+        coreChangeEvents: stateResult.npcCoreChanges,
+        currentLocation: newLocation,
+        currentWorldTime: newWorldTime ?? null,
       });
     }
+  } catch (e) {
+    gameLog.error("[StoryChat] NPC 更新失败：" + (e instanceof Error ? e.message : String(e)));
   }
 
-  if (nearbyNpcsToApply.length > 0 || stateResult.npcCoreChanges.length > 0) {
-    npcStore.applyNpcUpdates(nearbyNpcsToApply, linggen, {
-      coreChangeEvents: stateResult.npcCoreChanges,
-      currentLocation: newLocation,
-      currentWorldTime: newWorldTime ?? null,
-    });
+  // ⑥ 登记新地点到世界地图。
+  try {
+    if (stateResult.worldLocation && !isEmptyWorldLocation(stateResult.worldLocation)) {
+      worldMapStore.addLocation(stateResult.worldLocation);
+    }
+  } catch (e) {
+    gameLog.error("[StoryChat] 世界地图更新失败：" + (e instanceof Error ? e.message : String(e)));
   }
 
-  // ⑤ 登记新地点到世界地图（地点树）；NPC 在某地点的展示由 npcStore.currentLocation 单独维护。
-  if (stateResult.worldLocation && !isEmptyWorldLocation(stateResult.worldLocation)) {
-    worldMapStore.addLocation(stateResult.worldLocation);
+  // ⑦ 战斗触发校验。
+  try {
+    if (stateResult.battleTrigger) {
+      const missing = findMissingBattleCombatants(stateResult.battleTrigger);
+      if (missing.length > 0) {
+        gameLog.warn(`[StoryChat] 战斗触发校验失败：${missing.join("、")} 未在 npcStore 中找到或已死亡，本次不触发战斗`);
+      } else {
+        pendingBattleTrigger.value = stateResult.battleTrigger;
+      }
+    }
+  } catch (e) {
+    gameLog.error("[StoryChat] 战斗触发处理失败：" + (e instanceof Error ? e.message : String(e)));
   }
 
-  if (stateResult.battleTrigger) {
-    pendingBattleTrigger.value = stateResult.battleTrigger;
-  }
-
-  // 状态更新完成后刷新四个行动建议（由模板按 generating/battlePending 条件控制显隐）。
   actionOptions.value = stateResult.actionOptions;
+  return { gameOverReason };
 }
 
 function enterBattle(): void {
@@ -265,6 +378,26 @@ function enterBattle(): void {
   if (!entry) return;
   pendingBattleTrigger.value = null;
   emit("battleTrigger", entry);
+}
+
+/**
+ * 校验战斗触发条目：除主角外，所有参战者必须在 npcStore 中存在且未死亡。
+ * 返回缺失（未找到或已死亡）的 displayName 列表；空数组表示全部就绪。
+ */
+function findMissingBattleCombatants(trigger: BattleTriggerEntry): string[] {
+  const missing: string[] = [];
+  const protagonistName = protagonist.value?.displayName;
+  for (const ally of trigger.allies) {
+    if (ally.roleHint === "主角") continue;
+    if (protagonistName && ally.displayName === protagonistName) continue;
+    const npc = npcStore.getNpc(ally.displayName);
+    if (!npc || npc.isDead) missing.push(ally.displayName);
+  }
+  for (const enemy of trigger.enemies) {
+    const npc = npcStore.getNpc(enemy.displayName);
+    if (!npc || npc.isDead) missing.push(enemy.displayName);
+  }
+  return missing;
 }
 
 async function handleSend(): Promise<void> {
@@ -284,38 +417,97 @@ async function handleSend(): Promise<void> {
     return;
   }
 
-  chatMessages.value.push({ type: "user", content: msg });
+  // 校验通过后才清空输入框（校验失败时保留文本供玩家修正）。
   inputText.value = "";
-  actionOptions.value = null;
   if (textareaRef.value) textareaRef.value.style.height = "auto";
+
+  await runStoryGenerationRound({ kind: "chat", userContent: msg });
+}
+
+/**
+ * 通用生成管道：push 用户消息 → 生成剧情 → push 剧情消息 → 生成状态 → 应用状态 → 落盘。
+ *
+ * 三个入口共用此函数：
+ * - handleSend（普通对话）：kind="chat"，用 generateStory。
+ * - 战斗结果回写：kind="battle"，用 generateStory。
+ * - 修炼回写：kind="cultivation"，用 generateCultivationStory（需要 cultivationInput）。
+ *
+ * 在 push 用户消息之前捕获完整快照到 `lastPreGenSnapshot`，供重试回退使用。
+ */
+async function runStoryGenerationRound(ctx: RoundContext): Promise<void> {
+  const p = protagonist.value;
+  if (!p) {
+    genError.value = "主角数据未就绪，无法生成剧情。";
+    return;
+  }
+
+  const url = String(apiUrl.value || "").trim();
+  const model = String(apiModel.value || "").trim();
+  if (!url || !model) {
+    genError.value = "未配置 API URL 或模型。";
+    return;
+  }
+
+  // 在任何修改之前捕获快照，供后续重试回退。
+  const snapshot = capturePreGenSnapshot(ctx);
+  if (snapshot) lastPreGenSnapshot = snapshot;
+
+  actionOptions.value = null;
+  chatMessages.value.push({ type: "user", content: ctx.userContent });
   beginGenerating();
 
   const chatHistory: StoryChatEntry[] = buildChatHistory();
   const npcSnapshot = buildNpcSnapshot();
 
   const ac = new AbortController();
-    abortCtl = ac;
+  abortCtl = ac;
 
   try {
-    const storyResult = await generateStory({
-      apiUrl: url,
-      apiKey: String(apiKey.value || "").trim() || undefined,
-      model,
-      protagonist: p,
-      chatHistory,
-      sceneNpcSnapshot: buildSceneNpcSnapshot() || undefined,
-      currentWorldLocation: props.currentWorldLocation ? formatWorldLocationDash(props.currentWorldLocation) : undefined,
-      signal: ac.signal,
-    });
+    // 阶段 1：生成剧情正文（修炼走 generateCultivationStory，其余走 generateStory）。
+    let storyBody: string;
+    if (ctx.kind === "cultivation" && ctx.cultivationInput) {
+      const ci = ctx.cultivationInput;
+      const cultResult = await generateCultivationStory({
+        apiUrl: url,
+        apiKey: String(apiKey.value || "").trim() || undefined,
+        model,
+        gongfaName: ci.gongfaName,
+        gongfaGrade: ci.gongfaGrade,
+        gongfaSystem: ci.gongfaSystem,
+        currentMastery: ci.currentMastery,
+        currentMasteryExp: ci.currentMasteryExp,
+        masteryThreshold: ci.masteryThreshold,
+        spiritStoneCount: ci.spiritStoneCount,
+        estimatedMonths: ci.estimatedMonths,
+        protagonist: p,
+        currentWorldLocation: props.currentWorldLocation ?? undefined,
+        npcSnapshot: npcSnapshot || undefined,
+        chatHistory,
+        signal: ac.signal,
+      });
+      storyBody = cultResult.storyBody;
+    } else {
+      const storyResult = await generateStory({
+        apiUrl: url,
+        apiKey: String(apiKey.value || "").trim() || undefined,
+        model,
+        protagonist: p,
+        chatHistory,
+        sceneNpcSnapshot: buildSceneNpcSnapshot() || undefined,
+        currentWorldLocation: props.currentWorldLocation ? formatWorldLocationDash(props.currentWorldLocation) : undefined,
+        signal: ac.signal,
+      });
+      storyBody = storyResult.storyBody;
+    }
 
     if (abortCtl !== ac) return;
 
-    if (!storyResult.storyBody.trim()) {
+    if (!storyBody.trim()) {
       genError.value = "模型返回的剧情正文为空。";
       return;
     }
 
-    chatMessages.value.push({ type: "story", content: storyResult.storyBody.trim() });
+    chatMessages.value.push({ type: "story", content: storyBody.trim() });
 
     try {
       generatingPhase.value = "state";
@@ -323,7 +515,7 @@ async function handleSend(): Promise<void> {
         apiUrl: url,
         apiKey: String(apiKey.value || "").trim() || undefined,
         model,
-        storyBody: storyResult.storyBody,
+        storyBody,
         protagonist: p,
         currentWorldLocation: props.currentWorldLocation ?? undefined,
         currentWorldTime: props.worldTime,
@@ -333,27 +525,108 @@ async function handleSend(): Promise<void> {
 
       if (abortCtl !== ac) return;
 
-        await applyStateResult(stateResult, p.linggen);
+      const { gameOverReason } = await applyStateResult(stateResult, p.linggen);
 
-        if (stateResult.storySnapshot.trim()) {
-          const last = chatMessages.value[chatMessages.value.length - 1];
-          if (last && last.type === "story") {
-            last.snapshot = stateResult.storySnapshot.trim();
-          }
+      if (stateResult.storySnapshot.trim()) {
+        const last = chatMessages.value[chatMessages.value.length - 1];
+        if (last && last.type === "story") {
+          last.snapshot = stateResult.storySnapshot.trim();
         }
-        writeActiveSave();
-      } catch (stateErr) {
-        gameLog.error("[StoryChat] 状态更新失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));
       }
-    } catch (e) {
+
+      if (gameOverReason) {
+        // 寿元耗尽：生成走马灯结局叙事（不走状态 AI），然后触发 game over。
+        await generateAndAppendFinale(gameOverReason);
+      } else {
+        writeActiveSave();
+      }
+    } catch (stateErr) {
+      gameLog.error("[StoryChat] 状态更新失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));
+    }
+  } catch (e) {
     if (ac.signal.aborted) return;
     genError.value = e instanceof Error ? e.message : String(e);
     gameLog.error("[StoryChat] " + genError.value);
   } finally {
     if (abortCtl === ac) abortCtl = null;
     generating.value = false;
+    hasRetryable.value = lastPreGenSnapshot !== null;
   }
 }
+
+/**
+ * 生成走马灯结局叙事并追加到剧情栏，然后触发游戏结束（emit gameOver）。
+ * 走马灯回顾主角一生，不走状态 AI（主角已死，无状态需更新）。
+ * 无论生成成功与否都会 emit gameOver——主角已死，游戏必须结束。
+ */
+async function generateAndAppendFinale(reason: string, sceneContext?: string): Promise<void> {
+  const p = protagonist.value;
+  if (!p) {
+    emit("gameOver", reason);
+    return;
+  }
+  const url = String(apiUrl.value || "").trim();
+  const model = String(apiModel.value || "").trim();
+  if (!url || !model) {
+    emit("gameOver", reason);
+    return;
+  }
+
+  generatingPhase.value = "story";
+  const chatHistory: StoryChatEntry[] = buildChatHistory();
+  const npcSnapshot = buildNpcSnapshot();
+
+  try {
+    const result = await generateFinaleStory({
+      apiUrl: url,
+      apiKey: String(apiKey.value || "").trim() || undefined,
+      model,
+      protagonist: p,
+      chatHistory,
+      deathReason: reason,
+      sceneContext,
+      npcSnapshot: npcSnapshot || undefined,
+    });
+    if (result.storyBody.trim()) {
+      chatMessages.value.push({ type: "story", content: result.storyBody.trim() });
+    }
+  } catch (e) {
+    gameLog.error("[StoryChat] 走马灯生成失败：" + (e instanceof Error ? e.message : String(e)));
+  }
+
+  writeActiveSave();
+  emit("gameOver", reason);
+}
+
+/**
+ * 重试最近一轮：回退上一轮的剧情/储物袋/NPC/世界地图副作用，并把上次的用户消息
+ * 填回输入框，供玩家编辑后手动重新发送（统一走普通对话管道）。
+ */
+function retryLastMessage(): void {
+  if (generating.value) return;
+  const snap = lastPreGenSnapshot;
+  if (!snap) return;
+
+  restorePreGenSnapshot();
+  inputText.value = snap.userContent;
+  if (textareaRef.value) textareaRef.value.style.height = "auto";
+  nextTick(() => autoResizeTextarea());
+  lastPreGenSnapshot = null;
+  hasRetryable.value = false;
+}
+
+/**
+ * 最近一条可重试的「用户消息」在 chatMessages 中的索引；-1 表示当前不可重试
+ * （无快照 / 生成中 / phase 非 ready / 无用户消息）。
+ */
+const retryableUserIdx = computed(() => {
+  if (!hasRetryable.value || generating.value || props.phase !== "ready") return -1;
+  const msgs = chatMessages.value;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i].type === "user") return i;
+  }
+  return -1;
+});
 
 /**
  * 构建发给 AI 的 NPC 上下文快照（三段式精简注入）。
@@ -440,6 +713,10 @@ function formatBattleResultMessage(r: BattleResult): string {
     parts.push(`${r.enemiesKilled.join("、")}已被击杀。`);
   }
 
+  if (r.protagonistDied) {
+    parts.push("主角不幸陨落，魂归天地。");
+  }
+
   return parts.join("");
 }
 
@@ -458,92 +735,12 @@ watch(
   () => props.cultivationInput,
   async (input) => {
     if (!input) return;
-
-    const p = protagonist.value;
-    if (!p) return;
-
-    const url = String(apiUrl.value || "").trim();
-    const model = String(apiModel.value || "").trim();
-    if (!url || !model) return;
-
-    const msg = formatCultivationMessage(input);
-    chatMessages.value.push({ type: "user", content: msg });
-
     emit("consumeCultivation");
-
-    beginGenerating();
-
-    const npcSnapshot = buildNpcSnapshot();
-    const chatHistory: StoryChatEntry[] = buildChatHistory();
-
-    const ac = new AbortController();
-    abortCtl = ac;
-
-    try {
-      const cultStoryResult = await generateCultivationStory({
-        apiUrl: url,
-        apiKey: String(apiKey.value || "").trim() || undefined,
-        model,
-        gongfaName: input.gongfaName,
-        gongfaGrade: input.gongfaGrade,
-        gongfaSystem: input.gongfaSystem,
-        currentMastery: input.currentMastery,
-        currentMasteryExp: input.currentMasteryExp,
-        masteryThreshold: input.masteryThreshold,
-        spiritStoneCount: input.spiritStoneCount,
-        estimatedMonths: input.estimatedMonths,
-        protagonist: p,
-        currentWorldLocation: props.currentWorldLocation ?? undefined,
-        npcSnapshot: npcSnapshot || undefined,
-        chatHistory,
-        signal: ac.signal,
-      });
-
-      if (abortCtl !== ac) return;
-
-      if (!cultStoryResult.storyBody.trim()) {
-        genError.value = "模型返回的修炼剧情正文为空。";
-        return;
-      }
-
-      chatMessages.value.push({ type: "story", content: cultStoryResult.storyBody.trim() });
-
-      try {
-        generatingPhase.value = "state";
-        const stateResult: StateParsed = await generateState({
-          apiUrl: url,
-          apiKey: String(apiKey.value || "").trim() || undefined,
-          model,
-          storyBody: cultStoryResult.storyBody,
-          protagonist: p,
-          currentWorldLocation: props.currentWorldLocation ?? undefined,
-          currentWorldTime: props.worldTime,
-          npcSnapshot: npcSnapshot || undefined,
-          signal: ac.signal,
-        });
-
-        if (abortCtl !== ac) return;
-
-        await applyStateResult(stateResult, p.linggen);
-
-        if (stateResult.storySnapshot.trim()) {
-          const last = chatMessages.value[chatMessages.value.length - 1];
-          if (last && last.type === "story") {
-            last.snapshot = stateResult.storySnapshot.trim();
-          }
-        }
-        writeActiveSave();
-      } catch (stateErr) {
-        gameLog.error("[StoryChat] 修炼状态更新失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));
-      }
-    } catch (e) {
-      if (ac.signal.aborted) return;
-      genError.value = e instanceof Error ? e.message : String(e);
-      gameLog.error("[StoryChat] " + genError.value);
-    } finally {
-      if (abortCtl === ac) abortCtl = null;
-      generating.value = false;
-    }
+    await runStoryGenerationRound({
+      kind: "cultivation",
+      userContent: formatCultivationMessage(input),
+      cultivationInput: input,
+    });
   },
 );
 
@@ -551,84 +748,21 @@ watch(
   () => props.battleResult,
   async (result) => {
     if (!result) return;
-
-    const p = protagonist.value;
-    if (!p) return;
-
-    const url = String(apiUrl.value || "").trim();
-    const model = String(apiModel.value || "").trim();
-    if (!url || !model) return;
-
-    const msg = formatBattleResultMessage(result);
-    chatMessages.value.push({ type: "user", content: msg });
-
     emit("consumeBattleResult");
-
-    beginGenerating();
-
-    const chatHistory: StoryChatEntry[] = buildChatHistory();
-
-    const npcSnapshot = buildNpcSnapshot();
-
-    const ac = new AbortController();
-    abortCtl = ac;
-
-    try {
-      const storyResult = await generateStory({
-        apiUrl: url,
-        apiKey: String(apiKey.value || "").trim() || undefined,
-        model,
-        protagonist: p,
-        chatHistory,
-        sceneNpcSnapshot: buildSceneNpcSnapshot() || undefined,
-        currentWorldLocation: props.currentWorldLocation ? formatWorldLocationDash(props.currentWorldLocation) : undefined,
-        signal: ac.signal,
-      });
-
-      if (abortCtl !== ac) return;
-
-      if (!storyResult.storyBody.trim()) {
-        genError.value = "模型返回的剧情正文为空。";
-        return;
-      }
-
-      chatMessages.value.push({ type: "story", content: storyResult.storyBody.trim() });
-
+    if (result.protagonistDied) {
+      // 战败身亡：直接生成走马灯结局叙事（不走普通对话管道），完成后触发 game over。
+      beginGenerating();
       try {
-        generatingPhase.value = "state";
-        const stateResult: StateParsed = await generateState({
-          apiUrl: url,
-          apiKey: String(apiKey.value || "").trim() || undefined,
-          model,
-          storyBody: storyResult.storyBody,
-          protagonist: p,
-          currentWorldLocation: props.currentWorldLocation ?? undefined,
-          currentWorldTime: props.worldTime,
-          npcSnapshot: npcSnapshot || undefined,
-          signal: ac.signal,
-        });
-
-        if (abortCtl !== ac) return;
-
-        await applyStateResult(stateResult, p.linggen);
-
-        if (stateResult.storySnapshot.trim()) {
-          const last = chatMessages.value[chatMessages.value.length - 1];
-          if (last && last.type === "story") {
-            last.snapshot = stateResult.storySnapshot.trim();
-          }
-        }
-        writeActiveSave();
-      } catch (stateErr) {
-        gameLog.error("[StoryChat] 战斗后状态更新失败：" + (stateErr instanceof Error ? stateErr.message : String(stateErr)));
+        await generateAndAppendFinale("战败身亡，魂归天地", formatBattleResultMessage(result));
+      } finally {
+        generating.value = false;
+        hasRetryable.value = false;
       }
-    } catch (e) {
-      if (ac.signal.aborted) return;
-      genError.value = e instanceof Error ? e.message : String(e);
-      gameLog.error("[StoryChat] " + genError.value);
-    } finally {
-      if (abortCtl === ac) abortCtl = null;
-      generating.value = false;
+    } else {
+      await runStoryGenerationRound({
+        kind: "battle",
+        userContent: formatBattleResultMessage(result),
+      });
     }
   },
 );
@@ -675,13 +809,26 @@ watch(
           <div
             v-for="(msg, idx) in chatMessages"
             :key="idx"
-            :class="['main-panel__chat-bubble', msg.type === 'user' ? 'main-panel__chat-bubble--user' : 'main-panel__chat-bubble--story']"
+            :class="['main-panel__chat-item', msg.type === 'user' ? 'main-panel__chat-item--user' : 'main-panel__chat-item--story']"
           >
             <template v-if="msg.type === 'story'">
-              <div class="main-panel__story-prose">{{ msg.content }}</div>
+              <div class="main-panel__chat-bubble main-panel__chat-bubble--story">
+                <div class="main-panel__story-prose">{{ msg.content }}</div>
+              </div>
             </template>
             <template v-else>
-              {{ msg.content }}
+              <button
+                v-if="idx === retryableUserIdx"
+                type="button"
+                class="main-panel__retry-btn"
+                title="重新生成本轮剧情与状态"
+                @click="retryLastMessage"
+              >
+                <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+              </button>
+              <div class="main-panel__chat-bubble main-panel__chat-bubble--user">
+                {{ msg.content }}
+              </div>
             </template>
           </div>
         </template>

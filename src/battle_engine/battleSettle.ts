@@ -32,11 +32,20 @@ function rollLootFromNpc(npc: Npc): { item: InventoryStackItem; kind: "法宝" |
   return { item: loot, kind: pick.kind };
 }
 
-export function settleBattle(state: BattleState): BattleResult {
+export interface SettleBattleOptions {
+  /** 主角战败是否身亡（正常/困难=true；简单=false，主角不会死亡）。 */
+  protagonistCanDie?: boolean;
+  /** 队友战败是否身亡（正常/困难=true；简单=false，队友不会死亡）。 */
+  companionsCanDie?: boolean;
+}
+
+export function settleBattle(state: BattleState, opts?: SettleBattleOptions): BattleResult {
   const trigger = state.triggerEntry as BattleTriggerEntry;
   const protagonistCombatant = state.allies.find(a => a.isProtagonist);
   const elixirsUsed: { name: string; count: number }[] = [];
   const enemiesKilled: string[] = [];
+  const protagonistCanDie = opts?.protagonistCanDie ?? true;
+  const companionsCanDie = opts?.companionsCanDie ?? true;
 
   const elixirMap = new Map<string, number>();
   for (const ally of state.allies) {
@@ -58,9 +67,17 @@ export function settleBattle(state: BattleState): BattleResult {
   }
 
   const p = protagonist.value;
+  let protagonistDied = false;
   if (p && protagonistCombatant) {
     if (state.phase === "defeat") {
-      p.setCurrentHpMp(1, Math.max(0, Math.round(p.maxMp * 0.1)));
+      if (protagonistCanDie) {
+        // 正常/困难：主角身亡。HP 归零，标记死亡（由 App.vue 路由到结局页）。
+        p.setCurrentHpMp(0, 0);
+        protagonistDied = true;
+      } else {
+        // 简单：主角不会死亡，侥幸生还（保留原有 1 HP 复活语义）。
+        p.setCurrentHpMp(1, Math.max(0, Math.round(p.maxMp * 0.1)));
+      }
     } else {
       const hpPct = protagonistCombatant.stats.maxHp > 0
         ? Math.round(protagonistCombatant.hp / protagonistCombatant.stats.maxHp * 100)
@@ -126,8 +143,13 @@ export function settleBattle(state: BattleState): BattleResult {
     if (!npc) continue;
 
     if (ally.isDead) {
-      npc.isDead = true;
-      npc.currentHp = 0;
+      if (companionsCanDie) {
+        npc.isDead = true;
+        npc.currentHp = 0;
+      } else {
+        // 简单模式：队友不会死亡，勉强生还（HP 保底 1）。
+        npc.setCurrentHpMp(1, npc.currentMp);
+      }
     } else {
       const hpPct = ally.stats.maxHp > 0 ? Math.round(ally.hp / ally.stats.maxHp * 100) : 0;
       const mpPct = ally.stats.maxMp > 0 ? Math.round(ally.mp / ally.stats.maxMp * 100) : 0;
@@ -155,5 +177,6 @@ export function settleBattle(state: BattleState): BattleResult {
     enemyNames: trigger.enemies.map(e => e.displayName),
     triggerKind: trigger.triggerKind,
     loot,
+    protagonistDied,
   };
 }

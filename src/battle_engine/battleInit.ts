@@ -334,7 +334,12 @@ function createProtagonistCombatant(): BattleCombatant | null {
   };
 }
 
-function createNpcCombatant(npc: Npc, team: "ally" | "enemy", index: number): BattleCombatant {
+function createNpcCombatant(
+  npc: Npc,
+  team: "ally" | "enemy",
+  index: number,
+  enemyStatMult = 1,
+): BattleCombatant {
   const primaryStats = npc.getPrimaryStats();
   const getStat = (key: string) => (primaryStats as Record<string, number>)[key] ?? 0;
   const linggenBonus = computeLinggenCombatBonuses(npc.linggen, npc.realm.major);
@@ -346,6 +351,10 @@ function createNpcCombatant(npc: Npc, team: "ally" | "enemy", index: number): Ba
     ...extractTreasurePassiveEffects(npc.equippedSlots, id),
   ];
 
+  // 困难模式：敌方全主属性 ×1.5（攻防血速同步放大，含当前 HP/MP 以保证满血开战）。
+  const m = team === "enemy" ? enemyStatMult : 1;
+  const scale = (v: number): number => Math.round(v * m);
+
   return {
     id,
     name: npc.displayName,
@@ -354,19 +363,19 @@ function createNpcCombatant(npc: Npc, team: "ally" | "enemy", index: number): Ba
     isPlayerControlled: false,
 
     stats: {
-      maxHp: npc.maxHp,
-      maxMp: npc.maxMp,
-      speed: primaryStats.agility ?? 0,
-      physAttack: primaryStats.strength ?? 0,
-      magAttack: primaryStats.perception ?? 0,
-      physDefense: primaryStats.guard ?? 0,
-      magDefense: primaryStats.resistance ?? 0,
+      maxHp: scale(npc.maxHp),
+      maxMp: scale(npc.maxMp),
+      speed: scale(primaryStats.agility ?? 0),
+      physAttack: scale(primaryStats.strength ?? 0),
+      magAttack: scale(primaryStats.perception ?? 0),
+      physDefense: scale(primaryStats.guard ?? 0),
+      magDefense: scale(primaryStats.resistance ?? 0),
       critRate: 0,
       critDmg: BASE_CRIT_DMG + linggenBonus.critDmgBonus,
     },
 
-    hp: npc.currentHp,
-    mp: npc.currentMp,
+    hp: scale(npc.currentHp),
+    mp: scale(npc.currentMp),
     shield: 0,
     actionGauge: 0,
     isDead: false,
@@ -386,10 +395,14 @@ function createNpcCombatant(npc: Npc, team: "ally" | "enemy", index: number): Ba
   };
 }
 
-export function createBattleCombatants(triggerEntry: BattleTriggerEntry): {
+export function createBattleCombatants(
+  triggerEntry: BattleTriggerEntry,
+  opts?: { enemyStatMult?: number },
+): {
   allies: BattleCombatant[];
   enemies: BattleCombatant[];
 } {
+  const enemyStatMult = opts?.enemyStatMult ?? 1;
   const allies: BattleCombatant[] = [];
   const enemies: BattleCombatant[] = [];
 
@@ -419,7 +432,7 @@ export function createBattleCombatants(triggerEntry: BattleTriggerEntry): {
       continue;
     }
     if (enemies.length >= 5) break;
-    enemies.push(createNpcCombatant(npc, "enemy", enemyIndex));
+    enemies.push(createNpcCombatant(npc, "enemy", enemyIndex, enemyStatMult));
     enemyIndex++;
   }
 

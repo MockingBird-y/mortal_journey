@@ -98,6 +98,27 @@ function restoreStory(data: StorySerialData | null | undefined): void {
   restored.value = true;
 }
 
+/**
+ * 从快照还原剧情状态，但不设置 `restored`、不强制 `phase`。
+ *
+ * 与 `restoreStory` 的区别：`restoreStory` 面向「读档」，会强制 `phase="ready"` 并置
+ * `restored=true`（使 `useOpeningStory` 跳过开局逻辑）；本方法面向「重试回退」等
+ * 局部还原场景，原样恢复快照内的全部字段（含 phase），不动 `restored` 标志。
+ */
+function applyStorySnapshot(data: StorySerialData | null | undefined): void {
+  const d = data ?? ({} as Partial<StorySerialData>);
+  storyBody.value = d.storyBody || "";
+  phase.value = d.phase ?? "idle";
+  worldTime.value = d.worldTime ? cloneWorldTime(d.worldTime) : createDefaultWorldTime();
+  worldTimeBaseline.value = d.worldTimeBaseline
+    ? cloneWorldTime(d.worldTimeBaseline)
+    : createDefaultWorldTime();
+  worldLocation.value = d.worldLocation ? { ...d.worldLocation } : null;
+  initSnapshot.value = d.initSnapshot || "";
+  actionOptions.value = d.actionOptions ?? null;
+  chatMessages.value = (d.chatMessages ?? []).map((m) => ({ ...m }));
+}
+
 export const storyStore = {
   storyBody,
   phase,
@@ -111,4 +132,5 @@ export const storyStore = {
   clearStory,
   serializeStory,
   restoreStory,
+  applyStorySnapshot,
 };

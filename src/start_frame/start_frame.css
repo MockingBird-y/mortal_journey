@@ -351,6 +351,23 @@
   margin: 0 0 6px;
 }
 
+.save-load-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  border-radius: var(--mj-radius-sm);
+  vertical-align: middle;
+}
+
+.save-load-badge--ended {
+  color: #f0b8b8;
+  background: rgba(180, 60, 60, 0.22);
+  border: 1px solid rgba(200, 80, 80, 0.55);
+}
+
 .save-load-meta {
   font-size: 0.82rem;
   opacity: 0.84;

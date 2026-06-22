@@ -7,6 +7,7 @@ import MainScreen from "./main-screen/MainScreen.vue";
 import BattleScreen from "./battle_view/BattleScreen.vue";
 import { gameLog } from "./log/gameLog";
 import { npcStore } from "./role_core/npcStore";
+import { storyStore } from "./role_core/storyStore";
 import { ALL_TEST_DUMMY_NAMES } from "./main-screen/testBattle";
 import type { FateChoiceResult } from "./fate_choice/types";
 import type { BattleTriggerEntry } from "./ai/state_generate";
@@ -18,6 +19,8 @@ import {
   restoreSave,
   setActiveSave,
   isCompleteSave,
+  isEndedSave,
+  markActiveSaveEnded,
   readSave,
   getPersistedActiveId,
   clearActiveId,
@@ -64,7 +67,11 @@ function enterSaveSession(id: string, payload: MjSavePayload, resetFirst: boolea
 /** 从标题读取人生：恢复存档（完整则直接读档，占位/未完成则按 fateChoice 重跑开局）。 */
 function onSaveLoaded(value: { id: string; payload: MjSavePayload }): void {
   const { id, payload } = value;
-  if (isCompleteSave(payload)) {
+  if (isEndedSave(payload)) {
+    // 已终结存档：恢复数据（供结局页展示姓名）后直接进入纪念碑。
+    enterSaveSession(id, payload, true);
+    showGameOverMemorial(payload.ended!.reason);
+  } else if (isCompleteSave(payload)) {
     enterSaveSession(id, payload, true);
   } else {
     resetAllGameState();
@@ -75,12 +82,20 @@ function onSaveLoaded(value: { id: string; payload: MjSavePayload }): void {
   }
 }
 
-// 刷新续玩：若本地持久化了活动存档且为完整存档，启动时直接恢复进主界面（无标题闪烁）。
+// 刷新续玩：若本地持久化了活动存档，启动时自动恢复（完整存档直接进主界面，
+// 已终结存档进结局纪念碑；占位/未完成则忽略并清指针）。
 (function resumeOnStartup(): void {
   const id = getPersistedActiveId();
   if (!id) return;
   const payload = readSave(id);
-  if (payload && isCompleteSave(payload)) {
+  if (!payload) {
+    clearActiveId();
+    return;
+  }
+  if (isEndedSave(payload)) {
+    enterSaveSession(id, payload, false);
+    showGameOverMemorial(payload.ended!.reason);
+  } else if (isCompleteSave(payload)) {
     enterSaveSession(id, payload, false);
   } else {
     clearActiveId();
@@ -107,12 +122,36 @@ function onBattleEnd(result: BattleResult | null) {
       npcStore.removeNpc(n);
     }
   } else if (result) {
+    // 无论胜负，都把结果传给 StoryChatPanel；战败时由其生成走马灯后 emit gameOver。
     lastBattleResult.value = result;
   }
 }
 
 function onBattleResultConsumed() {
   lastBattleResult.value = null;
+}
+
+// ── 游戏结束（寿尽/战败） ────────────────────────────────────────────────────
+/**
+ * 主角死亡：落盘 ended 标记并置灰主界面输入框（phase=ended）。
+ * 走马灯结局叙事由 StoryChatPanel 在 emit gameOver 之前生成，此处只做收尾。
+ */
+function triggerGameOver(reason: string): void {
+  markActiveSaveEnded(reason);
+  storyStore.phase.value = "ended";
+  battleVisible.value = false;
+  gameLog.info("[App] 游戏结束：" + reason);
+}
+
+/** 进入已终结存档：置灰输入框（不重写 ended 标记，保留原始死亡时间）。 */
+function showGameOverMemorial(reason: string): void {
+  storyStore.phase.value = "ended";
+  gameLog.info(`[App] 进入已终结存档（${reason}）`);
+}
+
+/** 主界面寿元耗尽/战败身亡事件（走马灯生成完成后触发）。 */
+function onGameOver(reason: string): void {
+  triggerGameOver(reason);
 }
 </script>
 
@@ -146,6 +185,7 @@ function onBattleResultConsumed() {
       @back="onMainScreenBack"
       @battle-trigger="onBattleTrigger"
       @consume-battle-result="onBattleResultConsumed"
+      @game-over="onGameOver"
     />
   </Transition>
 

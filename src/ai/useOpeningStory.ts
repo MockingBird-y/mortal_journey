@@ -27,7 +27,7 @@ import type { FateChoiceResult } from "../fate_choice/types";
 import type { WorldLocation } from "../role_core/types/worldLocation";
 import { isEmptyWorldLocation } from "../role_core/types/worldLocation";
 
-export type OpeningStoryPhase = "idle" | "loading" | "ready" | "error";
+export type OpeningStoryPhase = "idle" | "loading" | "ready" | "error" | "ended";
 
 /** 与启动页 API 表单对应的网关参数（空串表示未填）。 */
 export interface OpeningStoryApiSlice {

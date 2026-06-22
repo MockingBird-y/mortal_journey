@@ -13,7 +13,7 @@
  * 开新人生才生成新存档。
  */
 
-import type { FateChoiceResult } from "../fate_choice/types";
+import type { FateChoiceResult, DifficultyLevel } from "../fate_choice/types";
 import type { NpcPlayInfo, ProtagonistPlayInfo } from "../role_core/types/playInfo";
 import type { WorldMapSerialData } from "../role_core/worldMapStore";
 import type { WorldLocation } from "../role_core/types/worldLocation";
@@ -116,6 +116,8 @@ export interface MjSavePayload {
   updatedAt: number;
   /** 占位标记：开局 AI 未完成时写入；完整存档不带此字段。 */
   incomplete?: true;
+  /** 终结标记：主角死亡（寿尽/战败）后写入；该存档不可继续游玩。 */
+  ended?: { reason: string; at: number };
   protagonist?: ProtagonistPlayInfo;
   npcs?: NpcPlayInfo[];
   worldMap?: WorldMapSerialData;
@@ -132,6 +134,8 @@ export interface SaveIndexEntry {
   realm?: string;
   /** 预览：当前地点。 */
   location?: string;
+  /** 终结标记：主角已死亡，存档不可继续。 */
+  ended?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -141,17 +145,25 @@ export interface SaveIndexEntry {
 let activeSaveId: string | null = null;
 let activeCreatedAt: number = 0;
 let activeFateChoice: FateChoiceResult | null = null;
+/** 活动存档是否已终结。终结后禁止任何自动存档覆盖 ended 标记。 */
+let activeEnded = false;
 
 /** 设置当前会话的活动存档（读档时调用）。 */
 export function setActiveSave(id: string, fateChoice: FateChoiceResult, createdAt: number): void {
   activeSaveId = id;
   activeFateChoice = fateChoice;
   activeCreatedAt = createdAt;
+  activeEnded = isEndedSave(readSave(id));
   persistActiveId(id);
 }
 
 export function hasActiveSave(): boolean {
   return activeSaveId !== null;
+}
+
+/** 读取当前活动存档的难度等级；无活动存档或缺省时回退为「正常」。 */
+export function getActiveDifficulty(): DifficultyLevel {
+  return activeFateChoice?.basics?.difficulty ?? "正常";
 }
 
 // ---------------------------------------------------------------------------
@@ -226,6 +238,7 @@ export function serializeAll(now = Date.now()): MjSavePayload | null {
 export function writeActiveSave(): void {
   if (!activeSaveId || !activeFateChoice) return;
   if (storyStore.phase.value !== "ready") return;
+  if (activeEnded) return; // 已终结存档不再覆盖 ended 标记
   const payload = serializeAll();
   if (!payload || !payload.protagonist || !payload.story) return;
   backend.write(activeSaveId, JSON.stringify(payload));
@@ -237,6 +250,33 @@ export function writeActiveSave(): void {
     realm: realmPreview(payload.protagonist),
     location: locationPreview(payload.story.worldLocation),
   });
+}
+
+/**
+ * 标记当前活动存档为已终结（主角死亡：寿尽/战败）。
+ * 绕过 `phase === "ready"` 门控——死亡必须落盘。在最近一次完整存档上叠加 `ended`
+ * 标记（不重写运行时状态，避免在战斗/生成中途写入半成品数据）。
+ */
+export function markActiveSaveEnded(reason: string): void {
+  if (!activeSaveId) return;
+  const existing = readSave(activeSaveId);
+  if (!existing) {
+    gameLog.warn(`[GameSave] markActiveSaveEnded: 找不到存档 ${activeSaveId}，跳过`);
+    return;
+  }
+  const payload: MjSavePayload = {
+    ...existing,
+    ended: { reason, at: Date.now() },
+  };
+  backend.write(activeSaveId, JSON.stringify(payload));
+  activeEnded = true;
+  const idx = readIndexRaw();
+  const i = idx.findIndex((e) => e && e.id === activeSaveId);
+  if (i >= 0) {
+    idx[i] = { ...idx[i], ended: true };
+    writeIndexRaw(idx);
+  }
+  gameLog.info(`[GameSave] 存档已标记终结：${activeSaveId}（${reason}）`);
 }
 
 /**
@@ -252,6 +292,7 @@ export function createSave(fc: FateChoiceResult): string {
   activeSaveId = id;
   activeCreatedAt = now;
   activeFateChoice = fc;
+  activeEnded = false;
   const placeholder: MjSavePayload = {
     version: SAVE_VERSION,
     fateChoice: fc,
@@ -300,6 +341,11 @@ export function isCompleteSave(p: MjSavePayload | null | undefined): boolean {
   );
 }
 
+/** 判定存档是否已终结（主角死亡，不可继续游玩）。 */
+export function isEndedSave(p: MjSavePayload | null | undefined): boolean {
+  return !!p?.ended;
+}
+
 /**
  * 从完整存档恢复全部运行时状态（主角 / NPC / 世界地图 / 剧情）。
  * 调用前应先 `resetAllGameState()` 清场；恢复后 `storyStore.restored=true`。
@@ -335,11 +381,12 @@ export function removeSave(id: string): void {
   const idx = readIndexRaw().filter((e) => e && e.id !== id);
   writeIndexRaw(idx);
   if (activeSaveId === id) {
-    activeSaveId = null;
-    activeCreatedAt = 0;
-    activeFateChoice = null;
-    clearActiveId();
-  }
+  activeSaveId = null;
+  activeCreatedAt = 0;
+  activeFateChoice = null;
+  activeEnded = false;
+  clearActiveId();
+}
 }
 
 /** 清空全部存档（不动运行时游戏状态）。 */

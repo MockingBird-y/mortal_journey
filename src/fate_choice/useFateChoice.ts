@@ -193,7 +193,7 @@ function makePresetCustomBirth(birthKey: string): CustomBirthPayload | null {
  */
 export function useFateChoice() {
   // ── 0. 难度 ──────────────────────────────────────────────────────────────
-  const selectedDifficulty = ref<DifficultyLevel>("正常");
+  const selectedDifficulty = ref<DifficultyLevel>("简单");
 
   // ── 1. 姓名 ──────────────────────────────────────────────────────────────
   const playerName = ref("韩立");
@@ -332,7 +332,7 @@ export function useFateChoice() {
 
   /** 将表单恢复为默认值。 */
   function reset(): void {
-    selectedDifficulty.value = "正常";
+    selectedDifficulty.value = "简单";
     playerName.value = "韩立";
     narrationPerson.value = "first";
     selectedGender.value = CREATION_GENDERS[0]!;

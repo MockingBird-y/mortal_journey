@@ -40,6 +40,7 @@ const emit = defineEmits<{
   battleTrigger: [value: BattleTriggerEntry];
   consumeBattleResult: [];
   cultivate: [value: CultivationInput];
+  gameOver: [reason: string];
 }>();
 
 const pendingCultivation = ref<CultivationInput | null>(null);
@@ -178,6 +179,7 @@ function startTestBattle() {
           @consume-battle-result="emit('consumeBattleResult')"
           @consume-cultivation="consumeCultivation"
           @generating-change="chatGenerating = $event"
+          @game-over="emit('gameOver', $event)"
         />
       </main>
       <aside class="main-screen__pane main-screen__pane--side" aria-label="右栏：功能面板">
