@@ -54,6 +54,12 @@ function convertBattleEffectToSkillEffect(
       return { type: "dealDamageExecute", damageType: eff.damageType as DamageType, value: v ?? 0, threshold: eff.threshold, bonusPercent: eff.bonusPercent };
     case "dealDamagePierce":
       return { type: "dealDamagePierce", value: v ?? 0 };
+    case "dealDamageBySummon":
+      return { type: "dealDamageBySummon", damageType: eff.damageType as DamageType, value: v ?? 0, summonName: eff.summonName };
+    case "consumePoisonDamage":
+      return { type: "consumePoisonDamage" };
+    case "sacrificeHp":
+      return { type: "sacrificeHp", percent: atLayer(eff.percent as LayerValue, layer) };
     case "heal":
       return { type: "heal", value: v ?? 0 };
     case "lifesteal":
@@ -86,17 +92,27 @@ function convertBattleEffectToSkillEffect(
       return { type: "dispel" };
     case "revive":
       return { type: "revive", hpPercent: eff.hpPercent };
-    case "summon":
-      return { type: "summon", name: eff.name, trigger: eff.trigger as SummonTrigger, effect: { type: "dealDamage", damageType: "physical", value: atLayer(eff.summonDamage, layer) }, duration: eff.duration };
+    case "summon": {
+      const baseDmg = atLayer(eff.summonDamage, layer);
+      const scalingDmg = eff.scalingRatio != null && eff.scalingStat
+        ? atLayerFloat(eff.scalingRatio as LayerValue, layer) * getStat(eff.scalingStat)
+        : 0;
+      const dmg = Math.round(baseDmg + scalingDmg);
+      const count = eff.countPerCast != null ? atLayer(eff.countPerCast as LayerValue, layer) : 1;
+      return { type: "summon", name: eff.name, trigger: eff.trigger as SummonTrigger, effect: { type: "dealDamage", damageType: "physical", value: dmg }, duration: eff.duration, stacksPerCast: count };
+    }
   }
 }
 
 function isTargetEnemy(eff: GongfaBattleEffect): boolean {
   switch (eff.type) {
-    case "dealDamage": case "dealDamageExecute": case "dealDamagePierce":
-    case "lifesteal": case "applyCc": case "applyStatus":
+    case "dealDamage": case "dealDamageExecute": case "dealDamagePierce": case "dealDamageBySummon":
+    case "consumePoisonDamage":
+    case "lifesteal": case "applyCc":
     case "gaugeManipulate": case "dispel":
       return true;
+    case "applyStatus":
+      return eff.statusType !== "hpRegen";
     case "applyModifier":
       return !eff.targetSelf;
     default:
@@ -106,9 +122,10 @@ function isTargetEnemy(eff: GongfaBattleEffect): boolean {
 
 function needsTarget(eff: GongfaBattleEffect): boolean {
   switch (eff.type) {
-    case "dealDamage": case "dealDamageExecute": case "dealDamagePierce":
+    case "dealDamage": case "dealDamageExecute": case "dealDamagePierce": case "dealDamageBySummon":
+    case "consumePoisonDamage":
     case "lifesteal": case "applyCc": case "applyStatus":
-    case "gaugeManipulate": case "dispel":
+    case "gaugeManipulate": case "dispel": case "heal":
       return true;
     case "applyModifier":
       return !eff.targetSelf;
@@ -197,6 +214,9 @@ function convertBattleEffectToInitEffect(
     case "dealDamage":
     case "dealDamageExecute":
     case "dealDamagePierce":
+    case "dealDamageBySummon":
+    case "consumePoisonDamage":
+    case "sacrificeHp":
     case "heal":
     case "lifesteal":
       return { ...base, category: "modifier", modifierType: "damageDealt" as ModifierType, modifierValue: 0, remainingDuration: 99 };

@@ -34,6 +34,10 @@ const MODIFIER_LABELS: Record<string, string> = {
   defensePenetration: "穿透",
   physDefensePenetration: "破甲",
   magDefensePenetration: "破法",
+  normalAttackHpRatio: "气血附加",
+  normalAttackDefRatio: "护体附加",
+  normalAttackResRatio: "灵御附加",
+  healOverflowToShield: "溢出转护盾",
 };
 
 const CC_LABELS: Record<string, string> = {
@@ -214,6 +218,9 @@ export class EffectHandler {
       case "dealDamage": return this.doDamage(eff.damageType, eff.value, ctx, engine, sourceName);
       case "dealDamageExecute": return this.doDamageExecute(eff, ctx, engine, sourceName);
       case "dealDamagePierce": return this.doDamagePierce(eff.value, ctx, engine, sourceName);
+      case "dealDamageBySummon": return this.doDamageBySummon(eff, ctx, engine, sourceName);
+      case "consumePoisonDamage": return this.doConsumePoisonDamage(ctx, engine, sourceName);
+      case "sacrificeHp": return this.doSacrificeHp(eff.percent, ctx);
       case "heal": return this.doHeal(eff.value, ctx, engine);
       case "lifesteal": return this.doLifesteal(eff, ctx, engine, sourceName);
       case "applyModifier": return this.doApplyModifier(eff, ctx, engine);
@@ -273,6 +280,78 @@ export class EffectHandler {
     const entries = buildDamageEntries(ctx.turn, ctx.actor.name, ctx.target.name, result, "穿透伤害", ctx.actor.team, undefined, sourceName);
     this.addSecondaryLogs(result, ctx, entries);
     return entries;
+  }
+
+  private doDamageBySummon(eff: SkillEffect & { type: "dealDamageBySummon" }, ctx: ActionContext, engine: BattleEngineLike, sourceName?: string): BattleLogEntry[] {
+    if (!ctx.target || ctx.target.isDead) return [];
+
+    const summon = ctx.actor.effects.find(e => e.category === "summon" && e.name === eff.summonName);
+    const stacks = summon?.stacks ?? 0;
+
+    if (stacks <= 0) {
+      return [log(ctx.turn, ctx.actor.name, sourceName ?? "攻击", "info",
+        `${ctx.actor.name}没有${eff.summonName}，未能造成伤害`, ctx.actor.team)];
+    }
+
+    const totalDamage = Math.round(eff.value * stacks);
+    const result = engine.damagePipeline.execute(
+      { source: ctx.actor, target: ctx.target, rawDamage: totalDamage, damageType: eff.damageType, isCrit: false },
+      ctx.turn, ctx.allies, ctx.enemies,
+    );
+    const extraText = `（${stacks}柄${eff.summonName}）`;
+    const entries = buildDamageEntries(ctx.turn, ctx.actor.name, ctx.target.name, result, "飞剑伤害", ctx.actor.team, extraText, sourceName);
+    this.addSecondaryLogs(result, ctx, entries);
+    return entries;
+  }
+
+  private doConsumePoisonDamage(ctx: ActionContext, engine: BattleEngineLike, sourceName?: string): BattleLogEntry[] {
+    if (!ctx.target || ctx.target.isDead) return [];
+
+    const poison = ctx.target.effects.find(e => e.category === "dot" && e.statusType === "poison");
+
+    if (!poison || poison.stacks <= 0) {
+      return [log(ctx.turn, ctx.actor.name, sourceName ?? "引爆中毒", "info",
+        `${ctx.target.name}身上没有中毒效果`, ctx.actor.team, ctx.target.name)];
+    }
+
+    const tickValue = poison.tickValue ?? 0;
+    const stacks = poison.stacks;
+    const remaining = Math.max(0, poison.remainingDuration);
+    const maxHp = ctx.target.stats.maxHp;
+
+    let totalDamage: number;
+    if (poison.tickIsPercent) {
+      totalDamage = Math.round(maxHp * tickValue / 100 * stacks * remaining);
+    } else {
+      totalDamage = Math.round(tickValue * stacks * remaining);
+    }
+
+    const poisonName = poison.name;
+    const idx = ctx.target.effects.indexOf(poison);
+    if (idx >= 0) ctx.target.effects.splice(idx, 1);
+
+    if (totalDamage <= 0) {
+      return [log(ctx.turn, ctx.actor.name, sourceName ?? "引爆中毒", "info",
+        `${ctx.actor.name}引爆了${ctx.target.name}身上的${poisonName}，但已无剩余伤害`, ctx.actor.team, ctx.target.name)];
+    }
+
+    const result = engine.damagePipeline.execute(
+      { source: ctx.actor, target: ctx.target, rawDamage: totalDamage, damageType: "true", isCrit: false },
+      ctx.turn, ctx.allies, ctx.enemies,
+    );
+    const extraText = `（消耗${stacks}层${poisonName}）`;
+    const entries = buildDamageEntries(ctx.turn, ctx.actor.name, ctx.target.name, result, "毒爆伤害", ctx.actor.team, extraText, sourceName);
+    this.addSecondaryLogs(result, ctx, entries);
+    return entries;
+  }
+
+  private doSacrificeHp(percent: number, ctx: ActionContext): BattleLogEntry[] {
+    const hpCost = Math.round(ctx.actor.stats.maxHp * percent / 100);
+    const actualCost = Math.min(ctx.actor.hp - 1, hpCost);
+    if (actualCost <= 0) return [];
+    ctx.actor.hp -= actualCost;
+    return [log(ctx.turn, ctx.actor.name, "祭血", "info",
+      `${ctx.actor.name}消耗${actualCost}点生命祭血`, ctx.actor.team, undefined, actualCost)];
   }
 
   private doHeal(value: number, ctx: ActionContext, engine: BattleEngineLike): BattleLogEntry[] {
@@ -382,7 +461,7 @@ export class EffectHandler {
     engine.effectManager.addEffect(ctx.actor, {
       id: generateId(), name: eff.name, sourceId: ctx.actor.id,
       category: "summon", remainingDuration: eff.duration,
-      stacks: 1, maxStacks: Infinity,
+      stacks: eff.stacksPerCast ?? 1, maxStacks: Infinity,
       summonTrigger: eff.trigger, summonEffect: eff.effect,
     });
     return [log(ctx.turn, ctx.actor.name, "召唤", "summon",

@@ -288,6 +288,21 @@
   gap: 8px;
 }
 
+/* 游戏结束提示横幅（替换输入框，phase==="ended" 时显示） */
+.main-panel__gameover-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(180, 60, 50, 0.35);
+  border-radius: 8px;
+  background: rgba(60, 20, 18, 0.35);
+  color: #d8a59c;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+}
+
 .main-panel__input {
   flex: 1;
   padding: 8px 12px;

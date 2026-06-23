@@ -25,7 +25,11 @@ export type ModifierType =
   | "lifesteal"
   | "defensePenetration"
   | "physDefensePenetration"
-  | "magDefensePenetration";
+  | "magDefensePenetration"
+  | "normalAttackHpRatio"
+  | "normalAttackDefRatio"
+  | "normalAttackResRatio"
+  | "healOverflowToShield";
 
 // ─── 控制效果 ───
 
@@ -172,12 +176,15 @@ export type SkillEffect =
   | { type: "dealDamage"; damageType: DamageType; value: number }
   | { type: "dealDamageExecute"; damageType: DamageType; value: number; threshold: number; bonusPercent: number }
   | { type: "dealDamagePierce"; value: number }
+  | { type: "dealDamageBySummon"; damageType: DamageType; value: number; summonName: string }
+  | { type: "consumePoisonDamage" }
+  | { type: "sacrificeHp"; percent: number }
   | { type: "heal"; value: number }
   | { type: "lifesteal"; damageType: DamageType; damagePercent: number }
   | { type: "applyModifier"; modifierType: ModifierType; value: number; duration: number; maxStacks: number; targetSelf?: boolean }
   | { type: "applyCc"; ccType: CcType; chance: number; duration: number }
   | { type: "applyStatus"; statusType: StatusType; tickValue: number; isPercent: boolean; duration: number; maxStacks: number }
-  | { type: "summon"; name: string; trigger: SummonTrigger; effect: SummonEffectPayload; duration: number }
+  | { type: "summon"; name: string; trigger: SummonTrigger; effect: SummonEffectPayload; duration: number; stacksPerCast?: number }
   | { type: "cleanse" }
   | { type: "dispel" }
   | { type: "revive"; hpPercent: number }

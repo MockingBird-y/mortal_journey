@@ -139,6 +139,7 @@ function onBattleResultConsumed() {
 function triggerGameOver(reason: string): void {
   markActiveSaveEnded(reason);
   storyStore.phase.value = "ended";
+  storyStore.gameOverReason.value = reason;
   battleVisible.value = false;
   gameLog.info("[App] 游戏结束：" + reason);
 }
@@ -146,6 +147,7 @@ function triggerGameOver(reason: string): void {
 /** 进入已终结存档：置灰输入框（不重写 ended 标记，保留原始死亡时间）。 */
 function showGameOverMemorial(reason: string): void {
   storyStore.phase.value = "ended";
+  storyStore.gameOverReason.value = reason;
   gameLog.info(`[App] 进入已终结存档（${reason}）`);
 }
 

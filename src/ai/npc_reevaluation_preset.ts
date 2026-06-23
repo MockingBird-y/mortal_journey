@@ -45,7 +45,7 @@ export const NPC_REEVALUATION_SYSTEM_PRESET = `
 
 [物品格式约束]
 1. 法宝：含 type(法宝)、name、intro。名称须珍稀灵异，禁止凡俗日用品名。
-2. 功法：含 type(功法)、name、intro、bonus(体魄/灵力/劲力/神识/护体/灵御/身法/悟性)、system(通用/剑修/体修/法修/毒修)、role(攻击/辅助)。功法名末字须为"功/诀/术/法"。
+2. 功法：含 type(功法)、name、intro、bonus(体魄/灵力/劲力/神识/护体/灵御/身法/悟性)、system(通用/剑修/体修/法修/毒修/药修/魔修)、role(攻击/辅助)。功法名末字须为"功/诀/术/法"。
 3. 丹药：含 type(丹药)、name、intro、effectType。
 4. 灵石：{ type:"灵石", name:"灵石", count:N }。
 5. 品阶由系统根据境界自动分配，你不需要输出 grade 字段。

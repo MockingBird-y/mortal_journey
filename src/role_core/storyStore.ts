@@ -45,6 +45,8 @@ const worldLocation = ref<WorldLocation | null>(null);
 const initSnapshot = ref("");
 const actionOptions = ref<ActionSuggestions | null>(null);
 const chatMessages = ref<ChatMessage[]>([]);
+/** 游戏结束原因（战败/寿尽），仅在 phase==="ended" 时展示用；不持久化，进入 ended 状态时实时写入。 */
+const gameOverReason = ref("");
 
 /**
  * 读档会话标志：true 表示当前 MainScreen 是从存档恢复挂载的，
@@ -62,9 +64,10 @@ function clearStory(): void {
   worldTimeBaseline.value = cloneWorldTime(w);
   worldLocation.value = null;
   initSnapshot.value = "";
-  actionOptions.value = null;
-  chatMessages.value = [];
-  restored.value = false;
+    actionOptions.value = null;
+    chatMessages.value = [];
+    gameOverReason.value = "";
+    restored.value = false;
 }
 
 /** 序列化当前剧情状态为纯 JSON（深拷贝，断开与响应式引用的联系）。 */
@@ -128,6 +131,7 @@ export const storyStore = {
   initSnapshot,
   actionOptions,
   chatMessages,
+  gameOverReason,
   restored,
   clearStory,
   serializeStory,

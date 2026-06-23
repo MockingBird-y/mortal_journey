@@ -139,7 +139,7 @@ function pickRandomBonusName(): string {
 /** 根据功法战斗效果的 scalingStat 决定属性加成；效果无属性加成时回退随机。 */
 function pickGongfaBonusName(fn: GongfaSpecialEffect): string {
   for (const e of fn.battleEffects) {
-    if ("scalingStat" in e) {
+    if ("scalingStat" in e && e.scalingStat) {
       return PRIMARY_STAT_KEY_TO_ZH[e.scalingStat];
     }
   }

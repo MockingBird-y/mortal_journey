@@ -62,6 +62,7 @@ const emit = defineEmits<{
 }>();
 
 const chatMessages = storyStore.chatMessages;
+const gameOverReason = storyStore.gameOverReason;
 const inputText = ref("");
 const generating = ref(false);
 const generatingPhase = ref<"story" | "state">("story");
@@ -750,7 +751,8 @@ watch(
     if (!result) return;
     emit("consumeBattleResult");
     if (result.protagonistDied) {
-      // 战败身亡：直接生成走马灯结局叙事（不走普通对话管道），完成后触发 game over。
+      // 战败身亡：先展示战斗结算气泡（与非死亡战斗一致），再生成走马灯结局叙事，完成后触发 game over。
+      chatMessages.value.push({ type: "user", content: formatBattleResultMessage(result) });
       beginGenerating();
       try {
         await generateAndAppendFinale("战败身亡，魂归天地", formatBattleResultMessage(result));
@@ -846,6 +848,10 @@ watch(
             <i class="fa-solid fa-swords" aria-hidden="true"></i>
             进入战斗
           </button>
+        </div>
+        <div v-else-if="phase === 'ended'" class="main-panel__gameover-banner">
+          <i class="fa-solid fa-skull" aria-hidden="true"></i>
+          <span>游戏结束 · {{ gameOverReason }}</span>
         </div>
         <div v-else class="main-panel__composer">
           <div

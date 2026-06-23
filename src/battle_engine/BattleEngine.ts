@@ -209,7 +209,13 @@ export class BattleEngine implements BattleEngineLike {
       return;
     }
 
-    const rawDmg = actor.stats.physAttack;
+    const hpRatio = this.effectManager.getModifierTotal(actor, "normalAttackHpRatio");
+    const defRatio = this.effectManager.getModifierTotal(actor, "normalAttackDefRatio");
+    const resRatio = this.effectManager.getModifierTotal(actor, "normalAttackResRatio");
+    let rawDmg = actor.stats.physAttack;
+    if (hpRatio > 0) rawDmg += Math.round(actor.stats.maxHp * hpRatio / 100);
+    if (defRatio > 0) rawDmg += Math.round(actor.stats.physDefense * defRatio / 100);
+    if (resRatio > 0) rawDmg += Math.round(actor.stats.magDefense * resRatio / 100);
     const result = this.damagePipeline.execute(
       { source: actor, target, rawDamage: rawDmg, damageType: "physical", isCrit: false },
       this.state.actionCount, this.state.allies, this.state.enemies,
@@ -514,12 +520,26 @@ export class BattleEngine implements BattleEngineLike {
 
   applyHeal(target: BattleCombatant, rawHeal: number): number {
     const mult = target.linggenHealMult ?? 1;
+    const totalHeal = Math.round(rawHeal * mult);
     const deficit = target.stats.maxHp - target.hp;
-    const healed = Math.min(deficit, Math.round(rawHeal * mult));
+    const healed = Math.min(deficit, totalHeal);
     target.hp += healed;
 
     if (healed > 0) {
       this.pushFloat(target.id, `+${healed}`, "hp");
+    }
+
+    const overflow = totalHeal - healed;
+    if (overflow > 0) {
+      const convRatio = this.effectManager.getModifierTotal(target, "healOverflowToShield");
+      if (convRatio > 0) {
+        const shieldGain = Math.round(overflow * convRatio / 100);
+        if (shieldGain > 0) {
+          target.shield += shieldGain;
+          this.pushFloat(target.id, `🛡${shieldGain}`, "hp");
+          this.addLog({ turn: this.state.actionCount, actorName: target.name, action: "溢出转护盾", type: "shield", value: shieldGain, narrative: `${target.name}溢出的${overflow}点治疗转化为${shieldGain}点护盾`, team: target.team });
+        }
+      }
     }
 
     this.eventDispatcher.emit("heal", {

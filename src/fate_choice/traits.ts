@@ -200,6 +200,11 @@ export const traitSamplesPingyong = defineTraits("平庸", [
   { name: "凝气散方", desc: "得来一散低阶丹方，服之可稍聚灵气。", effect: { kind: "elixir", grade: "下品", count: 1, effectType: "恢复法力" } },
   { name: "乡野把式", desc: "跟乡间老叟学过几手粗浅的通用吐纳法门。", effect: { kind: "gongfa", system: "通用", grade: "下品" } },
   { name: "打熬筋骨", desc: "年少时打熬过筋骨，习得一套外门体修把式。", effect: { kind: "gongfa", system: "体修", grade: "下品" } },
+  { name: "剑道启蒙", desc: "年少时曾观摩剑客比斗，偷学了凡手基础剑招。", effect: { kind: "gongfa", system: "剑修", grade: "下品" } },
+  { name: "灵气感应", desc: "天生对灵气有些感应，学过几手粗浅的法术。", effect: { kind: "gongfa", system: "法修", grade: "下品" } },
+  { name: "蛇虫为伴", desc: "自幼与蛇虫为伴，懂得几手粗浅的下毒手法。", effect: { kind: "gongfa", system: "毒修", grade: "下品" } },
+  { name: "采药学徒", desc: "曾在药铺做过学徒，识得几味疗伤灵药。", effect: { kind: "gongfa", system: "药修", grade: "下品" } },
+  { name: "邪典残页", desc: "无意间拾得一张邪典残页，上面记载着以血催力的法门。", effect: { kind: "gongfa", system: "魔修", grade: "下品" } },
   ...defineStatTraits("平庸"),
 ]);
 
@@ -213,6 +218,10 @@ export const traitSamplesPutong = defineTraits("普通", [
   { name: "家传法器", desc: "祖上传下一件中品法器，虽不甚出众，却胜在顺手。", effect: { kind: "treasure", grade: "中品" } },
   { name: "入门剑诀", desc: "曾拜师学过一套入门剑诀，剑修之路初窥门径。", effect: { kind: "gongfa", system: "剑修", grade: "中品" } },
   { name: "御气初阶", desc: "得传一门中阶御气法门，法修根基渐成。", effect: { kind: "gongfa", system: "法修", grade: "中品" } },
+  { name: "药道入门", desc: "曾随一位游方药师学过几年制药炼丹之道。", effect: { kind: "gongfa", system: "药修", grade: "中品" } },
+  { name: "锻体入门", desc: "得传一套中阶锻体法门，筋骨愈发坚实。", effect: { kind: "gongfa", system: "体修", grade: "中品" } },
+  { name: "蛊毒初识", desc: "偶遇南疆蛊师，学得几手施毒法门。", effect: { kind: "gongfa", system: "毒修", grade: "中品" } },
+  { name: "魔气初染", desc: "在一处魔修遗迹中染得一丝魔气，悟得一门魔道法门。", effect: { kind: "gongfa", system: "魔修", grade: "中品" } },
   ...defineStatTraits("普通"),
 ]);
 
@@ -226,6 +235,9 @@ export const traitSamplesXiyou = defineTraits("稀有", [
   { name: "剑意初成", desc: "于剑道颇有天赋，悟得一套上品剑诀，剑意初成。", effect: { kind: "gongfa", system: "剑修", grade: "上品" } },
   { name: "御气精进", desc: "法修一途精进神速，得一门上品御气秘术。", effect: { kind: "gongfa", system: "法修", grade: "上品" } },
   { name: "淬体有成", desc: "体修淬炼有成，习得一门上品体修秘法。", effect: { kind: "gongfa", system: "体修", grade: "上品" } },
+  { name: "悬壶济世", desc: "得药道真传，习得一门上品药修秘术。", effect: { kind: "gongfa", system: "药修", grade: "上品" } },
+  { name: "魔道初窥", desc: "偶得一本魔道残卷，习得一门上品魔修秘术。", effect: { kind: "gongfa", system: "魔修", grade: "上品" } },
+  { name: "万蛊初成", desc: "得南疆蛊修真传，习得一门上品毒修秘术。", effect: { kind: "gongfa", system: "毒修", grade: "上品" } },
   ...defineStatTraits("稀有"),
 ]);
 
@@ -239,6 +251,9 @@ export const traitSamplesShishi = defineTraits("史诗", [
   { name: "剑道小成", desc: "剑道已臻小成，习得一门极品剑修秘术。", effect: { kind: "gongfa", system: "剑修", grade: "极品" } },
   { name: "法力精深", desc: "法修造诣精深，得一门极品法修秘术真传。", effect: { kind: "gongfa", system: "法修", grade: "极品" } },
   { name: "体修大成", desc: "体修淬炼大成，习得一门极品体修秘法。", effect: { kind: "gongfa", system: "体修", grade: "极品" } },
+  { name: "魔力深修", desc: "魔道造诣精深，得一门极品魔修秘术真传。", effect: { kind: "gongfa", system: "魔修", grade: "极品" } },
+  { name: "万毒噬心", desc: "得万毒谷真传，习得一门极品毒修秘术。", effect: { kind: "gongfa", system: "毒修", grade: "极品" } },
+  { name: "丹道大成", desc: "丹道造诣大成，习得一门极品药修秘术。", effect: { kind: "gongfa", system: "药修", grade: "极品" } },
   ...defineStatTraits("史诗"),
 ]);
 
@@ -253,6 +268,8 @@ export const traitSamplesChuanshuo = defineTraits("传说", [
   { name: "万法归宗", desc: "得万法宗真传，习得一门仙品法修秘术。", effect: { kind: "gongfa", system: "法修", grade: "仙品" } },
   { name: "金刚不坏", desc: "承上古佛修力修传承，习得一门仙品体修秘法。", effect: { kind: "gongfa", system: "体修", grade: "仙品" } },
   { name: "天毒秘法", desc: "得南疆蛊祖真传，习得一门仙品毒修秘术。", effect: { kind: "gongfa", system: "毒修", grade: "仙品" } },
+  { name: "药王传承", desc: "得上古药王真传，习得一门仙品药修秘术。", effect: { kind: "gongfa", system: "药修", grade: "仙品" } },
+  { name: "天魔血祭", desc: "得上古天魔一脉传承，习得一门仙品魔修秘术。", effect: { kind: "gongfa", system: "魔修", grade: "仙品" } },
   ...defineStatTraits("传说"),
 ]);
 
@@ -267,6 +284,8 @@ export const traitSamplesShenji = defineTraits("神迹", [
   { name: "万法源流", desc: "得太古法祖真传，习得一门神品法修秘术。", effect: { kind: "gongfa", system: "法修", grade: "神品" } },
   { name: "不灭金身", desc: "承太古力祖真传，习得一门神品体修秘法，金身不灭。", effect: { kind: "gongfa", system: "体修", grade: "神品" } },
   { name: "天毒归宗", desc: "得太古毒祖真传，习得一门神品毒修秘术。", effect: { kind: "gongfa", system: "毒修", grade: "神品" } },
+  { name: "天魔降世", desc: "得太古魔祖真传，习得一门神品魔修秘术。", effect: { kind: "gongfa", system: "魔修", grade: "神品" } },
+  { name: "造化丹道", desc: "得太古药祖真传，习得一门神品药修秘术。", effect: { kind: "gongfa", system: "药修", grade: "神品" } },
   ...defineStatTraits("神迹"),
 ]);
 

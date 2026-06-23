@@ -14,6 +14,8 @@ export const GONGFA_SYSTEM_KEYS = [
   "体修",
   "法修",
   "毒修",
+  "药修",
+  "魔修",
 ] as const;
 export type GongfaSystem = (typeof GONGFA_SYSTEM_KEYS)[number];
 
@@ -82,6 +84,11 @@ export function atLayerFloat(val: LayerValue, layer: number): number {
 //   dispel            驱散目标所有增益效果
 //   revive            复活目标并恢复 hpPercent% 生命
 //   summon            召唤物，按 trigger 触发，每回合造成 summonDamage 伤害
+//                      可选 scalingRatio/scalingStat：召唤伤害附加属性加成（不走 mastery 倍率）
+//                      可选 countPerCast：每次施放召唤数量（按层级插值，默认1）
+//   dealDamageBySummon 基于召唤物数量造成伤害，总伤害 = 单次伤害 × summonName 的当前 stacks
+//   consumePoisonDamage 引爆目标身上所有中毒层数，一次性结算剩余全部伤害（真实伤害），并移除中毒
+//   sacrificeHp       消耗自身 maxHp 的 percent% 生命（保留1点HP），通常配合增伤或大伤害使用
 // ═══════════════════════════════════════════════════════════════════════════
 
 export type GongfaBattleEffect =
@@ -104,7 +111,11 @@ export type GongfaBattleEffect =
   | { type: "cleanse" }
   | { type: "dispel" }
   | { type: "revive"; hpPercent: number }
-  | { type: "summon"; name: string; trigger: string; summonDamage: LayerValue; duration: number }
+  | { type: "summon"; name: string; trigger: string; summonDamage: LayerValue; duration: number;
+       scalingRatio?: LayerValue; scalingStat?: GongfaScalingStat; countPerCast?: LayerValue }
+  | { type: "dealDamageBySummon"; damageType: "physical" | "magical"; baseValue: LayerValue; scalingRatio: LayerValue; scalingStat: GongfaScalingStat; summonName: string }
+  | { type: "consumePoisonDamage" }
+  | { type: "sacrificeHp"; percent: LayerValue }
   ;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -162,6 +173,10 @@ const MODIFIER_LABELS: Record<string, string> = {
   magDamageTaken: "法术减伤",
   physDefensePenetration: "破甲",
   magDefensePenetration: "破法",
+  normalAttackHpRatio: "血量附加",
+  normalAttackDefRatio: "护体附加",
+  normalAttackResRatio: "灵御附加",
+  healOverflowToShield: "溢出转盾",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -194,7 +209,7 @@ function formatScaledValue(
 ): string {
   if (v == null) return "0";
   if (!showFormula) return String(v);
-  if (!("scalingRatio" in eff) || !("scalingStat" in eff)) return String(v);
+  if (!("baseValue" in eff) || !("scalingRatio" in eff) || !("scalingStat" in eff)) return String(v);
   const sr = atLayerFloat(eff.scalingRatio as LayerValue, layer);
   if (sr === 0) return String(v);
   const bv = atLayer(eff.baseValue as LayerValue, layer);
@@ -228,6 +243,16 @@ export function resolveGongfaBattleEffectDesc(
     }
     case "dealDamagePierce":
       return `造成${sv}点${isAoE ? "群体" : ""}真实伤害（无视防御）`;
+    case "dealDamageBySummon": {
+      const dt = DMG_TYPE_LABELS[eff.damageType] ?? "物理";
+      return `基于「${eff.summonName}」数量造成${isAoE ? "群体" : ""}${dt}伤害，每柄${sv}点`;
+    }
+    case "consumePoisonDamage":
+      return `引爆目标身上所有中毒层数，立即结算剩余全部真实伤害并移除中毒`;
+    case "sacrificeHp": {
+      const pct = atLayer(eff.percent, layer);
+      return `消耗自身${pct}%最大生命`;
+    }
     case "heal":
       return `${isAoE ? "群体" : ""}恢复${sv}点生命`;
     case "lifesteal": {
@@ -262,7 +287,8 @@ export function resolveGongfaBattleEffectDesc(
       return `${isAoE ? "群体" : ""}每回合造成${tickStr}${label}伤害，持续${eff.duration}回合${stack}`;
     }
     case "shield":
-      return `${isAoE ? "群体获得" : "开局获得"}${sv}点护盾`;
+      if (isAoE) return `群体获得${sv}点护盾`;
+      return selfByDefault ? `开局获得${sv}点护盾` : `获得${sv}点护盾`;
     case "counter": {
       const dur = durLabel(eff.duration);
       return `受击时反击${sv}点伤害${dur}`;
@@ -294,8 +320,23 @@ export function resolveGongfaBattleEffectDesc(
     case "revive":
       return `复活并恢复${eff.hpPercent}%生命`;
     case "summon": {
-      const dmg = atLayer(eff.summonDamage, layer);
-      return `召唤${eff.name}，每回合造成${dmg}点伤害，持续${eff.duration}回合`;
+      const baseDmg = atLayer(eff.summonDamage, layer);
+      let dmgText: string;
+      if (eff.scalingRatio != null && eff.scalingStat) {
+        const sr = atLayerFloat(eff.scalingRatio, layer);
+        const stat = getStat(eff.scalingStat);
+        const totalDmg = Math.round(baseDmg + sr * stat);
+        const statLabel = PRIMARY_STAT_KEY_TO_ZH[eff.scalingStat] ?? eff.scalingStat;
+        dmgText = showFormula && sr !== 0
+          ? `${totalDmg}（${baseDmg} + ${Number(sr.toFixed(2))}×${statLabel}）`
+          : String(totalDmg);
+      } else {
+        dmgText = String(baseDmg);
+      }
+      const count = eff.countPerCast != null ? atLayer(eff.countPerCast, layer) : 1;
+      const countText = count > 1 ? `${count}柄` : "";
+      const durLabel = eff.duration >= 99 ? "（永久）" : `，持续${eff.duration}回合`;
+      return `召唤${countText}${eff.name}，每回合造成${dmgText}点伤害${durLabel}`;
     }
   }
 }
@@ -341,98 +382,77 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
           { type: "dealDamage", damageType: "magical", baseValue: [30, 500], scalingRatio: [0.5, 2.0], scalingStat: "perception" }
         ], type: "主动"
       },
-      { name: "回春术", intro: "据传为上古药修所创，运转时掌心泛起温润青光，枯木亦能逢春", mpCost: [75, 500], cooldown: 1,
+      { name: "刺穿术", intro: "散修中流传的破防杀招，一击贯穿、无视防御", mpCost: [50, 500], cooldown: 1,
         battleEffects: [
-          { type: "heal", baseValue: [50, 1000], scalingRatio: [0.4, 2.0], scalingStat: "physique" }
+          { type: "dealDamagePierce", baseValue: [20, 300], scalingRatio: [0.3, 1.2], scalingStat: "strength" }
         ], type: "主动"
       },
-      { name: "蚀骨法", intro: "源自南疆巫修残卷，施术时黑雾翻涌，所触之处金石皆朽", mpCost: [50, 500], cooldown: 1,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [10, 300], scalingRatio: [0.3, 2.0], scalingStat: "spirit" },
-          { type: "applyStatus", statusType: "poison", tickValue: [15, 150], isPercent: false, duration: 5, maxStacks: 99 }
-        ], type: "主动"
-      },
-      { name: "养生诀", intro: "黄枫谷外门代代相传的吐纳根基，行功时气息绵长如春水", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "hpRecover", value: [1, 10], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "凝神诀", intro: "古修士静心石刻所载，修炼时灵台空明、神思澄澈", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "damageDealt", value: [5, 50], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "护体诀", intro: "据传得自上古力修遗刻，行功时周身浮起一层淡金气罩", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "damageTaken", value: [-5, -50], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "散灵术", intro: "散修御气小术，灵气四散激射、波及周遭敌寇", mpCost: [50, 500], cooldown: 1,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [15, 250], scalingRatio: [0.25, 1.0], scalingStat: "spirit" }
-        ], type: "主动", isAoE: true
-      },
-    ],
-    "中品": [
-      { name: "裂元术", intro: "烈元术深修而来的杀伐之术，出招时元气炸裂如雷", mpCost: [75, 750], cooldown: 2,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [80, 700], scalingRatio: [0.7, 2.6], scalingStat: "strength" }
-        ], type: "主动"
-      },
-      { name: "灵爆术", intro: "凝灵术演化而来的御气法门，灵气聚至极点后轰然炸开", mpCost: [75, 750], cooldown: 2,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [80, 700], scalingRatio: [0.7, 2.6], scalingStat: "perception" }
-        ], type: "主动"
-      },
-      { name: "净化术", intro: "据传源自上古净宗，施术时清辉洒落、涤荡邪秽", mpCost: [75, 750], cooldown: 2,
-        battleEffects: [
-          { type: "cleanse" }
-        ], type: "主动"
-      },
-      { name: "定身术", intro: "散修中常见的禁制法门，中招者如陷泥沼、身不由己", mpCost: [75, 750], cooldown: 2,
+      { name: "定身术", intro: "散修中常见的禁制法门，中招者如陷泥沼、身不由己", mpCost: [50, 500], cooldown: 1,
         battleEffects: [
           { type: "applyCc", ccType: "stun", chance: [0.25, 0.45], duration: 1 }
         ], type: "主动"
       },
-      { name: "灼烧术", intro: "南疆火修残卷所载，掌心凝聚赤焰，灼骨燃魂", mpCost: [75, 750], cooldown: 2,
+      { name: "净化术", intro: "据传源自上古净宗，施术时清辉洒落、涤荡邪秽", mpCost: [50, 500], cooldown: 1,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [70, 610], scalingRatio: [0.6, 2.6], scalingStat: "perception" },
-          { type: "applyStatus", statusType: "burn", tickValue: [25, 260], isPercent: false, duration: 3, maxStacks: 3 }
+          { type: "cleanse" }
         ], type: "主动"
       },
-      { name: "回元功", intro: "上古丹修所传的养气法门，行功时丹田温热、灵气暗生", mpCost: 0, cooldown: 0,
+      { name: "铁壁诀", intro: "据传得自上古力修遗刻，行功时周身浮起一层淡金气罩", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "mpRecover", value: [2, 5], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "坚韧功", intro: "据传为上古蛮族力修遗刻，修炼后皮肉坚如老树虬根", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "damageTaken", value: [-17, -35], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "damageTaken", value: [-5, -20], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
       { name: "轻灵诀", intro: "散修身法残卷流传，运转时身轻如燕、踏风而行", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "speed", value: [6, 12], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "dodgeRate", value: [3, 10], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "噬血功", intro: "传闻源自魔道血修，行功时血脉中隐隐有赤雾翻涌", mpCost: 0, cooldown: 0,
+    ],
+    "中品": [
+      { name: "裂元术", intro: "力修深修而来的杀伐之术，出招时元气炸裂如雷", mpCost: [75, 750], cooldown: 2,
         battleEffects: [
-          { type: "applyModifier", modifierType: "lifesteal", value: [5, 9], duration: 99, maxStacks: 1 }
+          { type: "dealDamage", damageType: "physical", baseValue: [80, 700], scalingRatio: [0.7, 2.6], scalingStat: "strength" }
+        ], type: "主动"
+      },
+      { name: "灵爆术", intro: "御气修士深修秘术，灵气聚至极点后轰然炸开", mpCost: [75, 750], cooldown: 2,
+        battleEffects: [
+          { type: "dealDamage", damageType: "magical", baseValue: [80, 700], scalingRatio: [0.7, 2.6], scalingStat: "perception" }
+        ], type: "主动"
+      },
+      { name: "斩杀术", intro: "散修杀手传承的杀伐之术，专寻破绽、一击毙命", mpCost: [75, 750], cooldown: 2,
+        battleEffects: [
+          { type: "dealDamageExecute", damageType: "physical", baseValue: [100, 700], scalingRatio: [0.7, 2.6], scalingStat: "strength", threshold: 0.5, bonusPercent: 50 }
+        ], type: "主动"
+      },
+      { name: "灼烧术", intro: "南疆火修残卷所载，掌心凝聚赤焰、灼骨燃魂", mpCost: [75, 750], cooldown: 2,
+        battleEffects: [
+          { type: "dealDamage", damageType: "magical", baseValue: [50, 420], scalingRatio: [0.3, 1.3], scalingStat: "perception" },
+          { type: "applyStatus", statusType: "burn", tickValue: [25, 260], isPercent: false, duration: 3, maxStacks: 3 }
+        ], type: "主动"
+      },
+      { name: "封印术", intro: "据传承自上古封修，施术时万法皆寂、法术难施", mpCost: [75, 750], cooldown: 2,
+        battleEffects: [
+          { type: "applyCc", ccType: "silence", chance: [0.40, 0.60], duration: 2 }
+        ], type: "主动"
+      },
+      { name: "破甲诀", intro: "上古力修遗刻所载，行功时拳劲凝于一点、无坚不摧", mpCost: 0, cooldown: 0,
+        battleEffects: [
+          { type: "applyModifier", modifierType: "defensePenetration", value: [5, 15], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "灵爆环", intro: "凝灵聚爆演化而来的范围术法，环形灵波横扫全场", mpCost: [75, 750], cooldown: 2,
+      { name: "金刚功", intro: "据传源自上古佛修，修炼时周身浮起金灿佛光、不坏不灭", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [40, 350], scalingRatio: [0.35, 1.3], scalingStat: "perception" }
-        ], type: "主动", isAoE: true
+          { type: "deathWard", duration: 99 }
+        ], type: "被动"
       },
     ],
     "上品": [
-      { name: "斩魂术", intro: "上古力修杀伐秘术，出招时元气凝作一道灿白月牙", mpCost: [100, 1000], cooldown: 4,
+      { name: "斩魂术", intro: "上古力修至高杀伐秘术，出招时元气凝作一道灿白月牙", mpCost: [100, 1000], cooldown: 4,
         battleEffects: [
           { type: "dealDamage", damageType: "physical", baseValue: [150, 1000], scalingRatio: [0.9, 3.2], scalingStat: "strength" }
         ], type: "主动"
       },
-      { name: "爆元术", intro: "凝灵一脉深修而来的御气秘术，灵元沛然爆发如江河决堤", mpCost: [100, 1000], cooldown: 4,
+      { name: "爆元术", intro: "御气修士深修而来的秘术，灵元沛然爆发如江河决堤", mpCost: [100, 1000], cooldown: 4,
         battleEffects: [
           { type: "dealDamage", damageType: "magical", baseValue: [150, 1000], scalingRatio: [0.9, 3.2], scalingStat: "perception" }
         ], type: "主动"
@@ -442,47 +462,26 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
           { type: "dispel" }
         ], type: "主动"
       },
-      { name: "破虚法", intro: "传闻为太古剑仙顿悟所创，一击可破万象虚妄", mpCost: [100, 1000], cooldown: 4,
+      { name: "隐袭术", intro: "散修刺客秘传的身法门，身形没入虚空后一击穿心", mpCost: [100, 1000], cooldown: 4,
         battleEffects: [
-          { type: "dealDamagePierce", baseValue: [120, 830], scalingRatio: [0.6, 2.2], scalingStat: "strength" }
+          { type: "stealth", duration: 2 },
+          { type: "dealDamagePierce", baseValue: [100, 700], scalingRatio: [0.5, 1.8], scalingStat: "agility" }
         ], type: "主动"
       },
-      { name: "噬灵术", intro: "魔道修士秘传的夺气法门，施术时黑丝缠绕、蚕食神魂", mpCost: [100, 1000], cooldown: 4,
+      { name: "嘲讽术", intro: "散修中常见的挑衅法门，激怒敌人使其只攻自己", mpCost: [100, 1000], cooldown: 4,
         battleEffects: [
-          { type: "lifesteal", damageType: "magical", damagePercent: [30, 50] },
-          { type: "applyStatus", statusType: "mpDrain", tickValue: [3, 5], isPercent: false, duration: 3, maxStacks: 3 }
+          { type: "applyCc", ccType: "taunt", chance: [0.50, 0.80], duration: 2 }
         ], type: "主动"
       },
-      { name: "聚元诀", intro: "上古气修传承的增益法门，行功时周身灵气滚滚汇聚", mpCost: 0, cooldown: 0,
+      { name: "反击诀", intro: "上古力修遗刻所载，受击时劲气反震、以牙还牙", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "damageDealt", value: [13, 23], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "physDamageDealt", value: [10, 16], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [10, 16], duration: 99, maxStacks: 1 }
+          { type: "counter", baseValue: [120, 960], scalingRatio: [0.3, 1.5], scalingStat: "physique", duration: 99 }
         ], type: "被动"
       },
-      { name: "明心诀", intro: "据传源自禅修一脉，修炼时心如止水、灵台映月", mpCost: 0, cooldown: 0,
+      { name: "神速诀", intro: "传闻承自上古风修，运转时身形如电、快逾鬼魅", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "healReceived", value: [20, 33], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "hpRecover", value: [4, 7], duration: 99, maxStacks: 1 }
+          { type: "extraAction", chance: 0.10 }
         ], type: "被动"
-      },
-      { name: "灵动诀", intro: "散修身法精要，运转时身形缥缈、动若鬼魅", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "dodgeRate", value: [5, 10], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "speed", value: [8, 16], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "破甲诀", intro: "上古力修遗刻所载，行功时拳劲凝于一点、无坚不摧", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "defensePenetration", value: [8, 16], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "physDefensePenetration", value: [7, 13], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "magDefensePenetration", value: [7, 13], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "万煞术", intro: "上古术修秘传范围杀伐之术，万道煞气齐发、伤敌一片", mpCost: [100, 1000], cooldown: 4,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [75, 500], scalingRatio: [0.45, 1.6], scalingStat: "spirit" }
-        ], type: "主动", isAoE: true
       },
     ],
     "极品": [
@@ -496,55 +495,30 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
           { type: "dealDamage", damageType: "magical", baseValue: [250, 1500], scalingRatio: [1.1, 3.8], scalingStat: "perception" }
         ], type: "主动"
       },
-      { name: "还魂术", intro: "传闻为上古药修不传之秘，掌心青光一闪、可夺造化之机", mpCost: [200, 2000], cooldown: 6,
+      { name: "混乱术", intro: "魔道术修秘传禁制，扰乱敌心神、令其敌我不分", mpCost: [200, 2000], cooldown: 6,
         battleEffects: [
-          { type: "revive", hpPercent: 50 }
+          { type: "applyCc", ccType: "confusion", chance: [0.40, 0.60], duration: 2 }
         ], type: "主动"
       },
-      { name: "斩仙法", intro: "上古剑仙顿悟所创的杀伐秘术，专寻破绽、一击毙命", mpCost: [200, 2000], cooldown: 6,
+      { name: "碎元斩", intro: "上古力修至高杀伐秘术，一击碎元、无视万象防御", mpCost: [200, 2000], cooldown: 6,
         battleEffects: [
-          { type: "dealDamageExecute", damageType: "physical", baseValue: [235, 1500], scalingRatio: [0.7, 3.2], scalingStat: "strength", threshold: 0.5, bonusPercent: 50 }
+          { type: "dealDamagePierce", baseValue: [120, 830], scalingRatio: [0.6, 2.2], scalingStat: "strength" }
         ], type: "主动"
       },
-      { name: "隐遁术", intro: "散修刺客秘传的身法门，身形没入虚空、悄无声息", mpCost: [200, 2000], cooldown: 6,
+      { name: "噬灵术", intro: "魔道修士秘传夺气法门，黑丝缠绕、蚕食方法力", mpCost: [200, 2000], cooldown: 6,
         battleEffects: [
-          { type: "stealth", duration: 2 },
-          { type: "dealDamage", damageType: "physical", baseValue: [190, 1250], scalingRatio: [0.7, 3.2], scalingStat: "agility" }
+          { type: "applyStatus", statusType: "mpDrain", tickValue: [50, 300], isPercent: false, duration: 3, maxStacks: 3 }
         ], type: "主动"
       },
-      { name: "金刚功", intro: "据传源自上古佛修，修炼时周身浮起金灿佛光、不坏不灭", mpCost: 0, cooldown: 0,
+      { name: "反震功", intro: "据传承自上古反震力修，受击时劲气反弹、以彼之道", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "damageTaken", value: [-29, -50], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "physDamageTaken", value: [-15, -26], duration: 99, maxStacks: 1 }
+          { type: "reflect", percent: [10, 30], duration: 99 }
         ], type: "被动"
       },
-      { name: "灵盾诀", intro: "上古御气修士传承的护身法门，行功时身周浮起淡蓝灵罩", mpCost: 0, cooldown: 0,
+      { name: "碎甲诀", intro: "上古力修遗刻所载，行功时拳劲凝破、无甲不碎", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "magDamageTaken", value: [-15, -26], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "hpRecover", value: [6, 9], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "physDefensePenetration", value: [7, 16], duration: 99, maxStacks: 1 }
         ], type: "被动"
-      },
-      { name: "归元诀", intro: "太古气修所悟养气秘法，行功时气血与灵元相互反哺", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "hpRecover", value: [7, 12], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "mpRecover", value: [7, 12], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "破军诀", intro: "传闻承自上古凶修，行功时杀意凝于眉心、招招致命", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "critRate", value: [12, 22], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "critDmg", value: [17, 32], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "反击诀", intro: "上古力修遗刻所载，受击时劲气反震、以牙还牙", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "counter", baseValue: [160, 1000], scalingRatio: [0.3, 1.6], scalingStat: "physique", duration: 99 }
-        ], type: "被动"
-      },
-      { name: "焚野术", intro: "太古火修传承的范围禁术，天火倾泻、焚尽八方", mpCost: [200, 2000], cooldown: 6,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [125, 750], scalingRatio: [0.55, 1.9], scalingStat: "perception" }
-        ], type: "主动", isAoE: true
       },
     ],
     "仙品": [
@@ -558,52 +532,31 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
           { type: "dealDamage", damageType: "magical", baseValue: [380, 2000], scalingRatio: [1.3, 4.4], scalingStat: "perception" }
         ], type: "主动"
       },
-      { name: "净天道法", intro: "据传悟自天道碎片，施术时清辉如雨、涤尽万邪", mpCost: [300, 3000], cooldown: 8,
+      { name: "天诛术", intro: "传闻承自上古天罚修士，专寻破绽、天诛一击", mpCost: [300, 3000], cooldown: 8,
         battleEffects: [
-          { type: "cleanse" },
-          { type: "shield", baseValue: [300, 1600], scalingRatio: [0.4, 1.6], scalingStat: "resistance" }
+          { type: "dealDamageExecute", damageType: "physical", baseValue: [200, 1300], scalingRatio: [1.0, 3.2], scalingStat: "strength", threshold: 0.5, bonusPercent: 50 }
         ], type: "主动"
       },
-      { name: "封魔法", intro: "太古封修传承的禁制秘术，符文锁链缠绕、万法皆寂", mpCost: [300, 3000], cooldown: 8,
+      { name: "缚灵阵", intro: "上古封修仙家秘传，符文锁链缠绕、缚灵封法", mpCost: [300, 3000], cooldown: 8,
         battleEffects: [
-          { type: "applyCc", ccType: "silence", chance: [0.40, 0.60], duration: 2 },
-          { type: "applyCc", ccType: "freeze", chance: [0.35, 0.55], duration: 1 }
+          { type: "applyCc", ccType: "taunt", chance: [0.50, 0.70], duration: 2 },
+          { type: "applyCc", ccType: "silence", chance: [0.40, 0.60], duration: 2 }
         ], type: "主动"
       },
-      { name: "神速术", intro: "传闻承自上古风修，运转时身形如电、快逾鬼魅", mpCost: [300, 3000], cooldown: 8,
+      { name: "还魂术", intro: "传闻为上古药修不传之秘，掌心青光一闪、可夺造化之机", mpCost: [300, 3000], cooldown: 8,
         battleEffects: [
-          { type: "extraAction", chance: 0.15 },
-          { type: "gaugeManipulate", value: -20 }
+          { type: "revive", hpPercent: 50 }
         ], type: "主动"
-      },
-      { name: "万象归元诀", intro: "太古气修至高心法，行功时万象灵气尽归丹田", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "damageDealt", value: [19, 32], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "damageTaken", value: [-24, -40], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "不灭道功", intro: "传闻为上古道修不传之秘，修炼后道韵护身、生机不灭", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "deathWard", duration: 99 },
-          { type: "applyModifier", modifierType: "healReceived", value: [32, 56], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "灵天诀", intro: "承自上古风修真传，身法浑然天成、动若流云", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "dodgeRate", value: [10, 19], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "speed", value: [13, 24], duration: 99, maxStacks: 1 }
-        ], type: "被动"
       },
       { name: "舍生诀", intro: "传闻为上古义修所创，运转时与同道气血相连、生死与共", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "damageShare", percent: [30, 45], duration: 99 },
-          { type: "applyModifier", modifierType: "damageTaken", value: [-24, -40], duration: 99, maxStacks: 1 }
+          { type: "damageShare", percent: [30, 45], duration: 99 }
         ], type: "被动"
       },
-      { name: "万象劫", intro: "万法宗真传范围秘术，万象灵劫轰然降临、席卷全场", mpCost: [300, 3000], cooldown: 8,
+      { name: "雷霆诀", intro: "传闻承自上古雷修，行功时周身雷韵流转、攻势如雷", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [190, 1000], scalingRatio: [0.65, 2.2], scalingStat: "spirit" }
-        ], type: "主动", isAoE: true
+          { type: "applyModifier", modifierType: "physDamageDealt", value: [10, 20], duration: 99, maxStacks: 1 }
+        ], type: "被动"
       },
     ],
     "神品": [
@@ -617,807 +570,267 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
           { type: "dealDamage", damageType: "magical", baseValue: [500, 2500], scalingRatio: [1.5, 5.0], scalingStat: "perception" }
         ], type: "主动"
       },
-      { name: "轮回术", intro: "传闻悟自轮回碎片，掌心光阴倒流、可逆转生死", mpCost: [500, 5000], cooldown: 10,
+      { name: "灭世劫", intro: "太古力修至高范围禁术，灭世之力横扫寰宇、万防皆破", mpCost: [500, 5000], cooldown: 10,
         battleEffects: [
-          { type: "revive", hpPercent: 70 },
-          { type: "shield", baseValue: [625, 3100], scalingRatio: [0.4, 2.0], scalingStat: "guard" }
-        ], type: "主动"
+          { type: "dealDamagePierce", baseValue: [150, 750], scalingRatio: [0.45, 1.6], scalingStat: "spirit" }
+        ], type: "主动", isAoE: true
       },
-      { name: "封魔大法", intro: "太古封修至高禁制，万千符文镇压、群魔束手", mpCost: [500, 5000], cooldown: 10,
+      { name: "万咒术", intro: "太古咒修至高禁咒，万咒齐发、令敌心神崩溃", mpCost: [500, 5000], cooldown: 10,
         battleEffects: [
           { type: "applyCc", ccType: "confusion", chance: [0.35, 0.55], duration: 2 },
-          { type: "applyCc", ccType: "fear", chance: [0.35, 0.55], duration: 1 },
-          { type: "applyCc", ccType: "taunt", chance: [0.45, 0.70], duration: 2 }
+          { type: "applyCc", ccType: "stun", chance: [0.30, 0.50], duration: 1 }
         ], type: "主动"
       },
-      { name: "召灵法", intro: "上古魂修不传之秘，可召唤虚空中游离的灵体为己所用", mpCost: [500, 5000], cooldown: 10,
+      { name: "天锁术", intro: "太古封修至高禁制，天锁镇压、令敌行动迟滞", mpCost: [500, 5000], cooldown: 10,
         battleEffects: [
-          { type: "summon", name: "灵体", trigger: "on_turn_end", summonDamage: [250, 1560], duration: 5 }
+          { type: "gaugeManipulate", value: -50 }
         ], type: "主动"
       },
-      { name: "天道归身功", intro: "据传以天道碎片淬体而成，道韵流转周身、万法不侵", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "damageDealt", value: [27, 45], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "damageTaken", value: [-40, -50], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "hpRecover", value: [8, 12], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "不朽道功", intro: "传闻承自太古道祖，修炼后肉身不朽、生机永驻", mpCost: 0, cooldown: 0,
+      { name: "不灭体", intro: "据传以天道碎片淬体而成，道韵流转周身、万法不侵", mpCost: 0, cooldown: 0,
         battleEffects: [
           { type: "deathWard", duration: 99 },
-          { type: "reflect", percent: [20, 35], duration: 99 },
-          { type: "applyModifier", modifierType: "healReceived", value: [45, 60], duration: 99, maxStacks: 1 }
+          { type: "reflect", percent: [20, 35], duration: 99 }
         ], type: "被动"
       },
-      { name: "万法源诀", intro: "太古法祖所悟心法本源，行功时周身灵元生生不息", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "damageDealt", value: [36, 50], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [27, 45], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "physDamageDealt", value: [27, 45], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "天机诀", intro: "传闻承自上古天机一脉，阵韵流转、攻守相生", mpCost: 0, cooldown: 0,
+      { name: "天罡诀", intro: "传闻承自上古天罡修，行功时天罡之韵流转、攻守相生", mpCost: 0, cooldown: 0,
         battleEffects: [
           { type: "counter", baseValue: [250, 1560], scalingRatio: [0.4, 1.8], scalingStat: "agility", duration: 99 },
-          { type: "damageShare", percent: [25, 40], duration: 99 }
+          { type: "applyModifier", modifierType: "dodgeRate", value: [5, 10], duration: 99, maxStacks: 1 }
         ], type: "被动"
-      },
-      { name: "灭世劫", intro: "太古法祖至高范围禁术，灭世之力横扫寰宇、万法皆灭", mpCost: [500, 5000], cooldown: 10,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [250, 1250], scalingRatio: [0.75, 2.5], scalingStat: "perception" }
-        ], type: "主动", isAoE: true
       },
     ],
   },
 
   "剑修": {
     "下品": [
-      { name: "基础剑法", intro: "各派剑客入门必修的根本剑法，剑势端正、中正平和", mpCost: [50, 500], cooldown: 1,
+      { name: "御剑诀", intro: "剑修入门御剑根本法门，丹田灵力化作飞剑悬于周身，可自主御敌", mpCost: [50, 500], cooldown: 1,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [25, 450], scalingRatio: [0.5, 2.0], scalingStat: "strength" }
+          { type: "summon", name: "飞剑", trigger: "on_turn_end", summonDamage: 0, scalingRatio: 0.5, scalingStat: "strength", countPerCast: [1, 10], duration: 99 }
         ], type: "主动"
       },
-      { name: "追风剑法", intro: "散修剑客所创的追击剑法，出剑时剑光如风、连绵不绝", mpCost: [50, 500], cooldown: 1,
+      { name: "锋锐诀", intro: "剑修磨砺剑心的入门心法，修炼后目光如炬、剑锋所指无不中的", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [20, 375], scalingRatio: [0.3, 1.25], scalingStat: "strength" },
-          { type: "applyModifier", modifierType: "critRate", value: [5, 25], duration: 3, maxStacks: 1, targetSelf: true }
-        ], type: "主动"
-      },
-      { name: "破甲剑法", intro: "据传源自上古力修剑客，剑劲凝练、专破护身宝甲", mpCost: [50, 500], cooldown: 1,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [20, 375], scalingRatio: [0.3, 1.25], scalingStat: "strength" },
-          { type: "applyModifier", modifierType: "physDefensePenetration", value: [8, 30], duration: 2, maxStacks: 1, targetSelf: true }
-        ], type: "主动"
-      },
-      { name: "凝剑诀", intro: "剑客入门所悟剑意心法，修炼时神识凝于一柄虚剑", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "critRate", value: [8, 25], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "critRate", value: [5, 15], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "锐锋诀", intro: "散修剑客砥砺剑锋的辅助心法，行功时剑刃泛起冷芒", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "physDamageDealt", value: [5, 25], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "疾风步法", intro: "据传承自上古风修剑客，运转时足下生风、身形如电", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "speed", value: [10, 30], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "横扫剑", intro: "各派剑客入门范围剑式，剑光横扫、伤及周遭", mpCost: [50, 500], cooldown: 1,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [15, 225], scalingRatio: [0.25, 1.0], scalingStat: "strength" }
-        ], type: "主动", isAoE: true
-      }
     ],
     "中品": [
-      { name: "疾风剑法", intro: "追风剑法深修而来的杀伐剑术，剑势如狂风骤雨", mpCost: [75, 750], cooldown: 2,
+      { name: "疾风剑法", intro: "追风剑法深修而来的杀伐剑术，剑势如狂风骤雨，出剑间飞剑相随", mpCost: [75, 750], cooldown: 2,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [70, 630], scalingRatio: [0.7, 2.6], scalingStat: "strength" }
+          { type: "dealDamage", damageType: "physical", baseValue: [40, 350], scalingRatio: [0.4, 1.5], scalingStat: "strength" },
+          { type: "summon", name: "飞剑", trigger: "on_turn_end", summonDamage: 0, scalingRatio: 0.5, scalingStat: "strength", countPerCast: [1, 5], duration: 99 }
         ], type: "主动"
       },
-      { name: "凌厉剑诀", intro: "散修刺客剑客秘传，一剑直指要害、凌厉无匹", mpCost: [75, 750], cooldown: 2,
+      { name: "剑罡诀", intro: "剑修淬炼剑罡的中阶心法，修炼后剑气凝实、暴击之势愈发凌厉", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [53, 504], scalingRatio: [0.47, 1.82], scalingStat: "strength" },
-          { type: "applyModifier", modifierType: "critRate", value: [10, 30], duration: 2, maxStacks: 1, targetSelf: true }
-        ], type: "主动"
-      },
-      { name: "连环剑法", intro: "据传得自上古连环剑宗，剑光首尾相衔、绵绵不绝", mpCost: [75, 750], cooldown: 2,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [44, 441], scalingRatio: [0.8, 2.5], scalingStat: "agility" },
-          { type: "extraAction", chance: 0.30 }
-        ], type: "主动"
-      },
-      { name: "剑心诀", intro: "上古剑仙顿悟所创心法，修炼时剑心空明、万剑由心", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "critRate", value: [8, 25], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "critDmg", value: [10, 50], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "critDmg", value: [10, 25], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "穿云剑诀", intro: "传闻承自上古穿云剑仙，剑意可贯穿云霄、无远弗届", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "physDefensePenetration", value: [8, 25], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "疾影诀", intro: "散修剑客身法残卷，运转时身形化作数道残影", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "speed", value: [8, 25], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "剑气扫", intro: "追风剑法演化而来的范围剑术，剑气横扫全场", mpCost: [75, 750], cooldown: 2,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [35, 315], scalingRatio: [0.35, 1.3], scalingStat: "strength" }
-        ], type: "主动", isAoE: true
-      }
     ],
     "上品": [
-      { name: "万剑诀", intro: "上古剑宗镇派杀伐之术，出剑时万剑齐发、剑气冲霄", mpCost: [100, 1000], cooldown: 4,
+      { name: "万剑诀", intro: "上古剑宗镇派杀伐之术，驱使已御飞剑齐发、剑气冲霄", mpCost: [100, 1000], cooldown: 4,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [135, 900], scalingRatio: [0.9, 3.2], scalingStat: "strength" }
+          { type: "dealDamageBySummon", damageType: "physical", baseValue: [20, 150], scalingRatio: [0.2, 0.8], scalingStat: "strength", summonName: "飞剑" }
         ], type: "主动"
       },
-      { name: "纵横剑诀", intro: "据传承自上古剑仙，剑气纵横交错、可斩虚空", mpCost: [100, 1000], cooldown: 4,
+      { name: "凌风剑步", intro: "上古剑修传承的身法秘术，剑随风动、身随剑行，动若流风", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamagePierce", baseValue: [113, 720], scalingRatio: [0.6, 2.13], scalingStat: "strength" }
-        ], type: "主动"
-      },
-      { name: "御剑术", intro: "上古剑仙根本御剑法门，可驱飞剑离手、千里取人", mpCost: [100, 1000], cooldown: 4,
-        battleEffects: [
-          { type: "summon", name: "飞剑", trigger: "on_attack", summonDamage: [50, 500], duration: 5 }
-        ], type: "主动"
-      },
-      { name: "无影剑诀", intro: "传闻为暗影剑仙所悟，剑意无形无影、杀机暗藏", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "critRate", value: [10, 25], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "critDmg", value: [15, 60], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "speed", value: [8, 16], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "御风剑诀", intro: "上古风修剑客身法真传，运转时身随意动、动若长风", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "dodgeRate", value: [5, 20], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "speed", value: [10, 25], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "反剑诀", intro: "据传承自上古守剑剑仙，受击时剑光反噬、以攻代守", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "counter", baseValue: [30, 300], scalingRatio: [0.24, 2.33], scalingStat: "agility", duration: 99 }
-        ], type: "被动"
-      },
-      { name: "千剑诀", intro: "上古剑宗范围杀伐之术，千剑齐发、剑气冲霄", mpCost: [100, 1000], cooldown: 4,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [70, 550], scalingRatio: [0.45, 2.6], scalingStat: "strength" }
-        ], type: "主动", isAoE: true
-      }
     ],
     "极品": [
-      { name: "天剑诀", intro: "上古天剑宗镇宗杀伐秘术，一剑引动九天剑气", mpCost: [200, 2000], cooldown: 6,
+      { name: "天剑诀", intro: "上古天剑宗镇宗秘传御剑之术，一念引动九天剑气化作飞剑万千", mpCost: [200, 2000], cooldown: 6,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [225, 1350], scalingRatio: [1.1, 2.8], scalingStat: "strength" }
+          { type: "summon", name: "飞剑", trigger: "on_turn_end", summonDamage: 0, scalingRatio: 0.5, scalingStat: "strength", countPerCast: [3, 20], duration: 99 }
         ], type: "主动"
       },
-      { name: "封喉剑诀", intro: "传闻为上古刺客剑仙所创，一剑封喉、十步杀人", mpCost: [200, 2000], cooldown: 6,
+      { name: "剑心诀", intro: "上古剑修参透剑心的至秘心法，目光所及、万物皆为破绽", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamageExecute", damageType: "physical", baseValue: [203, 1227], scalingRatio: [0.73, 2.53], scalingStat: "strength", threshold: 0.5, bonusPercent: 50 }
-        ], type: "主动"
-      },
-      { name: "万剑归宗法", intro: "上古御剑宗至高心法，万剑听令、归宗而出", mpCost: [200, 2000], cooldown: 6,
-        battleEffects: [
-          { type: "summon", name: "飞剑", trigger: "on_attack", summonDamage: [100, 1000], duration: 5 },
-          { type: "extraAction", chance: 0.2 }
-        ], type: "主动"
-      },
-      { name: "剑神功", intro: "据传悟自剑神残留剑意，修炼时周身剑韵流转", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "critRate", value: [15, 30], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "critDmg", value: [20, 70], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "critRate", value: [12, 25], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "破灭剑诀", intro: "上古毁灭剑仙传承，剑意所至、万物破灭", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "physDamageDealt", value: [10, 25], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "physDefensePenetration", value: [10, 30], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "疾电诀", intro: "传闻承自上古雷修剑客，身形快逾闪电、动若惊雷", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "speed", value: [15, 30], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "dodgeRate", value: [6, 25], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "万剑横空", intro: "上古天剑宗范围秘术，万剑横空、剑气纵横", mpCost: [200, 2000], cooldown: 6,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [113, 675], scalingRatio: [0.55, 1.9], scalingStat: "strength" }
-        ], type: "主动", isAoE: true
-      }
     ],
     "仙品": [
-      { name: "诛仙剑法", intro: "上古诛仙剑仙传承的杀伐秘术，剑光一闪、仙佛皆杀", mpCost: [300, 3000], cooldown: 8,
+      { name: "诛仙剑法", intro: "上古诛仙剑仙传承的杀伐秘术，剑光一闪、仙佛皆杀，出剑间飞剑群至", mpCost: [300, 3000], cooldown: 8,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [340, 1800], scalingRatio: [1.0, 3.4], scalingStat: "strength" }
+          { type: "dealDamage", damageType: "physical", baseValue: [100, 800], scalingRatio: [0.8, 2.5], scalingStat: "strength" },
+          { type: "summon", name: "飞剑", trigger: "on_turn_end", summonDamage: 0, scalingRatio: 0.5, scalingStat: "strength", countPerCast: [2, 10], duration: 99 }
         ], type: "主动"
       },
-      { name: "万杀剑诀", intro: "传闻为上古杀剑真传，一剑既出、万生皆灭", mpCost: [300, 3000], cooldown: 8,
+      { name: "极罡诀", intro: "上古剑修淬炼至极剑罡的仙家心法，剑罡凝如实质、暴击摧枯拉朽", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamageExecute", damageType: "physical", baseValue: [283, 1680], scalingRatio: [0.85, 3.44], scalingStat: "strength", threshold: 0.4, bonusPercent: 60 },
-          { type: "applyModifier", modifierType: "critRate", value: [15, 35], duration: 3, maxStacks: 1, targetSelf: true }
-        ], type: "主动"
-      },
-      { name: "剑影遁法", intro: "上古暗影剑仙秘传身法，剑影随身、遁形无踪", mpCost: [300, 3000], cooldown: 8,
-        battleEffects: [
-          { type: "stealth", duration: 2 },
-          { type: "dealDamage", damageType: "physical", baseValue: [227, 1500], scalingRatio: [0.85, 3.44], scalingStat: "strength" }
-        ], type: "主动"
-      },
-      { name: "归心剑诀", intro: "太古剑仙至高心法，万剑归心、剑意通神", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "critRate", value: [15, 28], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "critDmg", value: [25, 50], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "critDmg", value: [20, 45], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "绝影诀", intro: "传闻承自上古绝影剑仙，身形绝于天地、无影可寻", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "dodgeRate", value: [8, 15], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "speed", value: [12, 20], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "无极剑诀", intro: "上古无极剑宗镇派心法，剑意无穷无尽、无极无终", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "physDamageDealt", value: [18, 30], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "damageDealt", value: [12, 20], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "万剑诛仙", intro: "诛仙剑仙范围秘术，万剑诛仙、剑光覆世", mpCost: [300, 3000], cooldown: 8,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [170, 900], scalingRatio: [0.75, 2.5], scalingStat: "strength" }
-        ], type: "主动", isAoE: true
-      }
     ],
     "神品": [
-      { name: "开天剑法", intro: "据传承自太古开天剑祖，一剑可裂苍穹、开辟天地", mpCost: [500, 5000], cooldown: 10,
+      { name: "开天剑法", intro: "据传承自太古开天剑祖，驱使万剑归一、一剑可裂苍穹、开辟天地", mpCost: [500, 5000], cooldown: 10,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [450, 2250], scalingRatio: [1.5, 4.0], scalingStat: "strength" }
+          { type: "dealDamageBySummon", damageType: "physical", baseValue: [40, 300], scalingRatio: [0.4, 1.5], scalingStat: "strength", summonName: "飞剑" }
         ], type: "主动"
       },
-      { name: "诛仙归宗法", intro: "诛仙剑仙至高传承，万剑归宗、诛仙灭佛", mpCost: [500, 5000], cooldown: 10,
+      { name: "瞬影剑步", intro: "太古剑祖顿悟的身法神通，一步跨越千山万水、快逾闪电", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [270, 1800], scalingRatio: [0.48, 3.08], scalingStat: "strength" },
-          { type: "summon", name: "飞剑", trigger: "on_crit", summonDamage: [180, 1350], duration: 5 },
-          { type: "extraAction", chance: 0.30 }
-        ], type: "主动"
-      },
-      { name: "破法剑诀", intro: "太古剑祖顿悟所创，一剑破万法、万法皆空", mpCost: [500, 5000], cooldown: 10,
-        battleEffects: [
-          { type: "dealDamagePierce", baseValue: [360, 2250], scalingRatio: [0.9, 3.33], scalingStat: "strength" },
-          { type: "gaugeManipulate", value: -30 }
-        ], type: "主动"
-      },
-      { name: "天道剑功", intro: "据传以天道碎片淬炼剑体而成，剑韵通天、万法不侵", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "critRate", value: [18, 45], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "critDmg", value: [30, 80], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "speed", value: [15, 28], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "万速诀", intro: "传闻承自太古风修剑祖，身分万影、速逾鬼神", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "speed", value: [15, 35], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "dodgeRate", value: [10, 30], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "不灭剑诀", intro: "太古不灭剑宗传承，剑意不灭、斩尽万象", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "physDamageDealt", value: [20, 35], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "physDefensePenetration", value: [18, 30], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "damageDealt", value: [15, 25], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "剑裂苍穹", intro: "太古剑祖范围禁术，剑气裂空、苍穹尽斩", mpCost: [500, 5000], cooldown: 10,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [225, 1125], scalingRatio: [0.75, 2.5], scalingStat: "strength" }
-        ], type: "主动", isAoE: true
-      }
     ],
   },
 
   "体修": {
     "下品": [
-      { name: "碎岩功", intro: "各派外门弟子入门杀伐之术，一拳轰出、碎裂岩石", mpCost: [50, 500], cooldown: 1,
+      { name: "铁衣功", intro: "上古体修淬炼肉身的入门护体法门，运转时体魄凝作铁衣、刀枪难入", mpCost: [50, 500], cooldown: 1,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [35, 600], scalingRatio: [0.4, 1.7], scalingStat: "strength" }
+          { type: "shield", baseValue: [50, 400], scalingRatio: [0.5, 2.0], scalingStat: "physique" }
         ], type: "主动"
       },
-      { name: "碎骨功", intro: "散修力士所传杀伐之术，拳劲透骨、骨裂如絮", mpCost: [50, 500], cooldown: 1,
+      { name: "气血功", intro: "上古体修以血气淬炼肉身的入门心法，气血越充沛、攻势愈发猛烈", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [28, 500], scalingRatio: [0.24, 1.06], scalingStat: "strength" },
-          { type: "applyStatus", statusType: "bleed", tickValue: [20, 200], isPercent: false, duration: 3, maxStacks: 3 }
-        ], type: "主动"
-      },
-      { name: "震山诀", intro: "据传承自上古力修，一击轰出、震慑心神", mpCost: [50, 500], cooldown: 1,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [28, 500], scalingRatio: [0.24, 1.06], scalingStat: "strength" },
-          { type: "applyCc", ccType: "stun", chance: [0.15, 0.30], duration: 1 }
-        ], type: "主动"
-      },
-      { name: "铁壁功", intro: "上古力修遗刻所载护身法门，修炼时周身如铸铁壁", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "damageTaken", value: [-5, -20], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "normalAttackHpRatio", value: [1, 5], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "蛮力诀", intro: "传闻源自上古蛮族力修，行功时气血翻涌、力大无穷", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "damageDealt", value: [5, 15], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "回春功", intro: "据传得自上古药修力修，行功时血脉温润、生机暗生", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "hpRecover", value: [1, 10], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "震地拳", intro: "外门弟子范围杀伐之术，一拳震地、波及周遭", mpCost: [50, 500], cooldown: 1,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [18, 300], scalingRatio: [0.2, 0.85], scalingStat: "physique" }
-        ], type: "主动", isAoE: true
-      }
     ],
     "中品": [
-      { name: "崩山诀", intro: "上古力修一脉传承的杀伐之术，一拳崩山、势若雷霆", mpCost: [75, 750], cooldown: 2,
+      { name: "磐石功", intro: "上古体修以大地岩石化身淬体的入门心法，肉身越坚实、拳势越沉重", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [95, 840], scalingRatio: [0.6, 2.2], scalingStat: "strength" }
-        ], type: "主动"
-      },
-      { name: "碎脉功", intro: "散修力士秘传杀伐之术，拳劲入脉、血脉逆行", mpCost: [75, 750], cooldown: 2,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [71, 672], scalingRatio: [0.3, 1.32], scalingStat: "strength" },
-          { type: "applyStatus", statusType: "bleed", tickValue: [25, 336], isPercent: false, duration: 3, maxStacks: 5 }
-        ], type: "主动"
-      },
-      { name: "擒拿功", intro: "据传承自上古擒龙力修，一握成擒、避无可避", mpCost: [75, 750], cooldown: 2,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [59, 588], scalingRatio: [0.25, 1.1], scalingStat: "strength" },
-          { type: "applyCc", ccType: "taunt", chance: [0.50, 0.80], duration: 2 }
-        ], type: "主动"
-      },
-      { name: "金刚功", intro: "上古佛修力修传承，修炼时周身如金刚不坏", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "damageTaken", value: [-20, -40], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "normalAttackDefRatio", value: [10, 30], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "噬血功", intro: "传闻源自魔道血修，行功时气血反哺、以血养身", mpCost: 0, cooldown: 0,
+      { name: "灵壁功", intro: "上古体修兼修灵御的入门心法，以灵力护体、化御为攻", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "lifesteal", value: [3, 10], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "normalAttackResRatio", value: [10, 30], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "体罡功", intro: "上古力修遗刻所载护身法门，行功时周身罡气流转", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "shield", baseValue: [50, 500], scalingRatio: [0.3, 1.1], scalingStat: "guard" }
-        ], type: "被动"
-      },
-      { name: "崩地震", intro: "崩山诀演化而来的范围术法，震地震荡、伤敌一片", mpCost: [75, 750], cooldown: 2,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [48, 420], scalingRatio: [0.3, 1.1], scalingStat: "physique" }
-        ], type: "主动", isAoE: true
-      }
     ],
     "上品": [
-      { name: "投山诀", intro: "上古力修深修杀伐之术，可举山投掷、势若崩山", mpCost: [100, 1000], cooldown: 4,
+      { name: "化盾诀", intro: "上古体修淬体的进阶心法，溢出的治疗化为护体罡气、固若金汤", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [180, 1200], scalingRatio: [0.8, 2.7], scalingStat: "strength" }
-        ], type: "主动"
-      },
-      { name: "嗜血功", intro: "魔道血修秘传杀伐之术，拳锋所触、吸血噬魂", mpCost: [100, 1000], cooldown: 4,
-        battleEffects: [
-          { type: "lifesteal", damageType: "physical", damagePercent: [50, 100] }
-        ], type: "主动"
-      },
-      { name: "霸王功", intro: "据传承自上古霸王力修，一拳霸道、震慑群敌", mpCost: [100, 1000], cooldown: 4,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [120, 800], scalingRatio: [0.27, 1.35], scalingStat: "strength" },
-          { type: "applyCc", ccType: "stun", chance: [0.30, 0.55], duration: 1 },
-          { type: "gaugeManipulate", value: -20 }
-        ], type: "主动"
-      },
-      { name: "霸体功", intro: "上古力修顿悟所创护身法门，受击时罡气反震", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "counter", baseValue: [120, 960], scalingRatio: [0.3, 1.5], scalingStat: "physique", duration: 99 }
+          { type: "applyModifier", modifierType: "healOverflowToShield", value: [25, 50], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "不屈功", intro: "传闻为上古不屈力修传承，行功时生机勃勃、百折不屈", mpCost: 0, cooldown: 0,
+      { name: "回元功", intro: "上古体修温养血肉的进阶心法，行功时血脉温润、生机暗生", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "hpRecover", value: [3, 10], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "healReceived", value: [15, 30], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "hpRecover", value: [2, 10], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "铁骨功", intro: "上古力修遗刻所载，修炼后骨如铁铸、皮如铜浇", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "damageTaken", value: [-10, -25], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "physDamageTaken", value: [-10, -25], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "裂地罡", intro: "上古力修范围秘术，罡气裂地、震荡八方", mpCost: [100, 1000], cooldown: 4,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [90, 600], scalingRatio: [0.4, 1.35], scalingStat: "physique" }
-        ], type: "主动", isAoE: true
-      }
     ],
     "极品": [
-      { name: "涅槃功", intro: "传闻承自上古涅槃力修，一拳浴火、焚尽万物", mpCost: [200, 2000], cooldown: 6,
+      { name: "金身功", intro: "上古体修以金刚淬体所成的至高护体法门，运转时肉身化作金身、万法不侵", mpCost: [200, 2000], cooldown: 6,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [280, 1700], scalingRatio: [0.95, 3.2], scalingStat: "strength" }
+          { type: "shield", baseValue: [200, 1200], scalingRatio: [1.0, 3.5], scalingStat: "physique" }
         ], type: "主动"
       },
-      { name: "天罡诀", intro: "上古星修力士传承杀伐之术，天罡之力、怒震八方", mpCost: [200, 2000], cooldown: 6,
+      { name: "血魄功", intro: "上古体修以精血淬炼肉身的至高心法，气血澎湃如海、拳势吞天", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [168, 1159], scalingRatio: [0.21, 1.07], scalingStat: "strength" },
-          { type: "applyCc", ccType: "stun", chance: [0.35, 0.65], duration: 1 },
-          { type: "gaugeManipulate", value: -30 }
-        ], type: "主动"
-      },
-      { name: "斩魂功", intro: "据传得自上古斩魂力修，一击斩魂、专寻破绽", mpCost: [200, 2000], cooldown: 6,
-        battleEffects: [
-          { type: "dealDamageExecute", damageType: "physical", baseValue: [210, 1391], scalingRatio: [0.42, 1.71], scalingStat: "strength", threshold: 0.5, bonusPercent: 50 }
-        ], type: "主动"
-      },
-      { name: "不灭金身功", intro: "上古佛修力修至高护身法门，金身不灭、万法难伤", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "deathWard", duration: 99 },
-          { type: "applyModifier", modifierType: "damageTaken", value: [-15, -45], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "normalAttackHpRatio", value: [1, 5], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "反震功", intro: "据传承自上古反震力修，受击时劲气反弹、以彼之道", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "reflect", percent: [10, 30], duration: 99 },
-          { type: "applyModifier", modifierType: "damageTaken", value: [-10, -20], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "舍身诀", intro: "上古义修力士所创，运转时为同道分伤、生死相托", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "damageShare", percent: [30, 50], duration: 99 },
-          { type: "applyModifier", modifierType: "damageTaken", value: [-15, -25], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "山崩诀", intro: "上古力修范围禁术，一击山崩、震慑群敌", mpCost: [200, 2000], cooldown: 6,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [140, 850], scalingRatio: [0.48, 1.6], scalingStat: "physique" }
-        ], type: "主动", isAoE: true
-      }
     ],
     "仙品": [
-      { name: "怒目金刚功", intro: "上古佛修怒目金刚传承，一拳轰出、金身怒目", mpCost: [300, 3000], cooldown: 8,
+      { name: "不动功", intro: "上古体修参悟大地之力的仙家心法，肉身坚如磐石、万击不动", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [430, 2300], scalingRatio: [1.1, 3.7], scalingStat: "strength" }
-        ], type: "主动"
-      },
-      { name: "碎空功", intro: "传闻承自太古灭世力修，一拳碎裂虚空、灭世灭生", mpCost: [300, 3000], cooldown: 8,
-        battleEffects: [
-          { type: "dealDamageExecute", damageType: "physical", baseValue: [287, 1917], scalingRatio: [0.28, 1.44], scalingStat: "strength", threshold: 0.5, bonusPercent: 50 },
-          { type: "applyModifier", modifierType: "damageDealt", value: [10, 20], duration: 2, maxStacks: 3, targetSelf: true }
-        ], type: "主动"
-      },
-      { name: "吞天魔功", intro: "魔道血祖传承杀伐秘术，血雾吞天、噬血无量", mpCost: [300, 3000], cooldown: 8,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [287, 1917], scalingRatio: [0.44, 1.64], scalingStat: "strength" },
-          { type: "lifesteal", damageType: "physical", damagePercent: [50, 100] }
-        ], type: "主动"
-      },
-      { name: "万象归元功", intro: "太古力修至高心法，万象劲气归元、反哺己身", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "reflect", percent: [10, 50], duration: 99 },
-          { type: "applyModifier", modifierType: "damageTaken", value: [-15, -30], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "normalAttackDefRatio", value: [25, 60], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "不朽金身功", intro: "据传以不朽金液淬体，金身不朽、反震万击", mpCost: 0, cooldown: 0,
+      { name: "万灵功", intro: "上古体修兼修万灵之御的仙家心法，灵御通神、化万法为攻", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "deathWard", duration: 99 },
-          { type: "counter", baseValue: [287, 1917], scalingRatio: [0.28, 1.64], scalingStat: "physique", duration: 99 }
+          { type: "applyModifier", modifierType: "normalAttackResRatio", value: [25, 60], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "狂战功", intro: "传闻承自上古狂战士，愈战愈狂、嗜血无忌", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "damageDealt", value: [15, 25], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "physDamageDealt", value: [15, 25], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "lifesteal", value: [5, 15], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "怒目震天", intro: "上古佛修力修范围秘术，怒目震天、金光四射", mpCost: [300, 3000], cooldown: 8,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [215, 1150], scalingRatio: [0.55, 1.85], scalingStat: "physique" }
-        ], type: "主动", isAoE: true
-      }
     ],
     "神品": [
-      { name: "涅槃重生功", intro: "据传承自太古涅槃力祖，浴火重生、一拳焚天", mpCost: [500, 5000], cooldown: 10,
+      { name: "归盾诀", intro: "太古体祖以万血淬体所成的神通，万般治疗皆化为不灭罡盾", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [600, 2800], scalingRatio: [1.3, 4.5], scalingStat: "strength" }
-        ], type: "主动"
-      },
-      { name: "混沌灭世功", intro: "太古混沌力修至高杀伐之术，混沌之力、灭世灭生", mpCost: [500, 5000], cooldown: 10,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [360, 2240], scalingRatio: [0.42, 1.88], scalingStat: "strength" },
-          { type: "applyStatus", statusType: "bleed", tickValue: [56, 448], isPercent: false, duration: 3, maxStacks: 5 },
-          { type: "applyCc", ccType: "stun", chance: [0.40, 0.75], duration: 1 }
-        ], type: "主动"
-      },
-      { name: "裂天诀", intro: "传闻承自太古裂天力祖，一拳天崩地裂、震碎虚空", mpCost: [500, 5000], cooldown: 10,
-        battleEffects: [
-          { type: "dealDamageExecute", damageType: "physical", baseValue: [360, 1960], scalingRatio: [0.31, 1.5], scalingStat: "strength", threshold: 0.4, bonusPercent: 60 },
-          { type: "applyCc", ccType: "stun", chance: [0.40, 0.70], duration: 1 },
-          { type: "gaugeManipulate", value: -40 }
-        ], type: "主动"
-      },
-      { name: "不朽功", intro: "据传以太古不朽之力淬体，肉身不朽、万击不侵", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "deathWard", duration: 99 },
-          { type: "counter", baseValue: [360, 2240], scalingRatio: [0.26, 1.5], scalingStat: "strength", duration: 99 },
-          { type: "reflect", percent: [20, 50], duration: 99 }
+          { type: "applyModifier", modifierType: "healOverflowToShield", value: [50, 100], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "万劫功", intro: "太古力修至高护身法门，历经万劫、金刚不灭", mpCost: 0, cooldown: 0,
+      { name: "生生诀", intro: "太古体祖参悟造化生机的至高心法，生生不息、造化无穷", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyModifier", modifierType: "damageTaken", value: [-35, -55], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "hpRecover", value: [6, 10], duration: 99, maxStacks: 1 },
-          { type: "deathWard", duration: 99 }
+          { type: "applyModifier", modifierType: "hpRecover", value: [5, 10], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "混沌金身功", intro: "传闻承自太古混沌力祖，金身混沌、攻守兼备", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "damageDealt", value: [20, 35], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "damageTaken", value: [-20, -35], duration: 99, maxStacks: 1 },
-          { type: "counter", baseValue: [240, 1680], scalingRatio: [0.26, 1.31], scalingStat: "strength", duration: 99 }
-        ], type: "被动"
-      },
-      { name: "裂天地震", intro: "太古力祖范围禁术，一拳裂天、大地震荡", mpCost: [500, 5000], cooldown: 10,
-        battleEffects: [
-          { type: "dealDamage", damageType: "physical", baseValue: [300, 1400], scalingRatio: [0.65, 2.25], scalingStat: "physique" }
-        ], type: "主动", isAoE: true
-      }
     ],
   },
 
   "法修": {
     "下品": [
-      { name: "法弹术", intro: "各派御气修士入门法门，可凝灵气为弹激射而出", mpCost: [50, 500], cooldown: 1,
+      { name: "寒霜弹", intro: "据传承自上古冰修，掌心凝出冰弹激射、寒气侵骨", mpCost: [50, 500], cooldown: 1,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [25, 450], scalingRatio: [0.55, 2.2], scalingStat: "perception" }
-        ], type: "主动"
-      },
-      { name: "火球术", intro: "散修火修残卷所载，掌心凝聚赤红火球、灼骨燃魂", mpCost: [50, 500], cooldown: 1,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [20, 375], scalingRatio: [0.33, 1.38], scalingStat: "perception" },
-          { type: "applyStatus", statusType: "burn", tickValue: [15, 150], isPercent: false, duration: 3, maxStacks: 3 }
-        ], type: "主动"
-      },
-      { name: "寒冰刺术", intro: "据传承自上古冰修，指尖凝出冰刺、寒气逼人", mpCost: [50, 500], cooldown: 1,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [20, 375], scalingRatio: [0.33, 1.38], scalingStat: "perception" },
+          { type: "dealDamage", damageType: "magical", baseValue: [20, 375], scalingRatio: [0.45, 1.8], scalingStat: "perception" },
           { type: "applyCc", ccType: "freeze", chance: [0.15, 0.30], duration: 1 }
         ], type: "主动"
       },
-      { name: "灵甲术", intro: "上古御气修士护身法门，行功时身周浮起淡蓝灵甲", mpCost: 0, cooldown: 0,
+      { name: "灵泉诀", intro: "上古御气修士温养灵台的入门心法，行功时灵台如泉、法力暗生", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "shield", baseValue: [40, 750], scalingRatio: [0.22, 1.38], scalingStat: "resistance" }
+          { type: "applyModifier", modifierType: "mpRecover", value: [1, 5], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "聚灵功", intro: "散修气修所悟增益法门，行功时周身灵气汇聚", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [8, 15], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "冥想术", intro: "据传源自上古禅修，静坐时灵台空明、灵气暗生", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "mpRecover", value: [2, 6], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "灵散术", intro: "御气修士入门范围术法，灵气四散、波及周遭", mpCost: [50, 500], cooldown: 1,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [13, 225], scalingRatio: [0.28, 1.1], scalingStat: "perception" }
-        ], type: "主动", isAoE: true
-      }
     ],
     "中品": [
-      { name: "灵海术", intro: "上古御气修士深修秘术，灵元化作怒涛冲击", mpCost: [75, 750], cooldown: 2,
+      { name: "慑魂术", intro: "上古魂修秘传惊魂之术，灵元化作惧涛、令敌心胆俱裂", mpCost: [75, 750], cooldown: 2,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [70, 630], scalingRatio: [0.8, 2.9], scalingStat: "perception" }
+          { type: "dealDamage", damageType: "magical", baseValue: [60, 540], scalingRatio: [0.65, 2.4], scalingStat: "perception" },
+          { type: "applyCc", ccType: "fear", chance: [0.15, 0.30], duration: 1 }
         ], type: "主动"
       },
-      { name: "灼魂术", intro: "魔道火修秘传杀伐之术，赤焰灼骨焚魂", mpCost: [75, 750], cooldown: 2,
+      { name: "破魔功", intro: "上古御气修士遗刻所载的进阶心法，行功时破法之韵流转、法术无坚不摧", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [53, 504], scalingRatio: [0.33, 1.74], scalingStat: "spirit" },
-          { type: "applyStatus", statusType: "burn", tickValue: [25, 252], isPercent: false, duration: 3, maxStacks: 5 }
-        ], type: "主动"
-      },
-      { name: "寂静术", intro: "据传承自上古寂灭修，施术时万籁俱寂、法术难施", mpCost: [75, 750], cooldown: 2,
-        battleEffects: [
-          { type: "applyCc", ccType: "silence", chance: [0.45, 0.70], duration: 2 },
-          { type: "dealDamage", damageType: "magical", baseValue: [44, 441], scalingRatio: [0.27, 1.16], scalingStat: "perception" }
-        ], type: "主动"
-      },
-      { name: "破法功", intro: "上古御气修士遗刻所载，行功时破法之韵流转周身", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "magDefensePenetration", value: [8, 15], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "magDefensePenetration", value: [5, 15], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "寒冰功", intro: "据传承自上古冰修，修炼时周身寒霜凝结", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "damageTaken", value: [-10, -30], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "回流诀", intro: "散修气修所悟养气法门，行功时灵元往复回流", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "mpRecover", value: [3, 6], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "灵海潮", intro: "灵海术演化而来的范围术法，灵海潮涌、席卷全场", mpCost: [75, 750], cooldown: 2,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [35, 315], scalingRatio: [0.4, 1.45], scalingStat: "perception" }
-        ], type: "主动", isAoE: true
-      }
     ],
     "上品": [
-      { name: "爆元术", intro: "上古御气修士深修秘术，灵元爆发如江河决堤", mpCost: [100, 1000], cooldown: 4,
+      { name: "玄冰阵", intro: "上古冰修镇派秘术，灵元化作玄冰阵法、冰封八方", mpCost: [100, 1000], cooldown: 4,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [135, 900], scalingRatio: [1.0, 3.5], scalingStat: "perception" }
-        ], type: "主动"
-      },
-      { name: "冰封术", intro: "据传承自上古冰修真传，一念冰封万物、寒彻九幽", mpCost: [100, 1000], cooldown: 4,
-        battleEffects: [
-          { type: "applyCc", ccType: "freeze", chance: [0.50, 0.80], duration: 2 },
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [15, 55], duration: 2, maxStacks: 1, targetSelf: true }
-        ], type: "主动"
-      },
-      { name: "破灭术", intro: "上古毁灭术修传承杀伐之术，灵元所至、万物破灭", mpCost: [100, 1000], cooldown: 4,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [113, 720], scalingRatio: [0.53, 2.33], scalingStat: "perception" },
-          { type: "applyModifier", modifierType: "magDefensePenetration", value: [15, 25], duration: 2, maxStacks: 1, targetSelf: true }
-        ], type: "主动"
-      },
-      { name: "聚灵诀", intro: "上古御气修士阵韵所悟增益法门，行功时周身灵阵流转", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [15, 45], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "澎湃诀", intro: "据传承自上古气修真传，行功时灵元如潮澎湃", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "mpRecover", value: [4, 8], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "法盾术", intro: "上古御气修士护身法门深修，身周浮起厚实法盾", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "shield", baseValue: [169, 1080], scalingRatio: [0.33, 1.75], scalingStat: "resistance" }
-        ], type: "被动"
-      },
-      { name: "爆元环", intro: "上古御气修士范围秘术，灵元爆环、横扫八方", mpCost: [100, 1000], cooldown: 4,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [68, 450], scalingRatio: [0.5, 1.75], scalingStat: "perception" }
+          { type: "dealDamage", damageType: "magical", baseValue: [80, 550], scalingRatio: [0.55, 1.8], scalingStat: "perception" },
+          { type: "applyCc", ccType: "freeze", chance: [0.10, 0.25], duration: 1 }
         ], type: "主动", isAoE: true
-      }
+      },
+      { name: "法威诀", intro: "上古御气修士凝练法威的进阶心法，万法归一、法威浩荡", mpCost: 0, cooldown: 0,
+        battleEffects: [
+          { type: "applyModifier", modifierType: "magDamageDealt", value: [10, 20], duration: 99, maxStacks: 1 }
+        ], type: "被动"
+      },
     ],
     "极品": [
-      { name: "太虚术", intro: "上古太虚术修传承杀伐秘术，灵元凝为太虚法印", mpCost: [200, 2000], cooldown: 6,
+      { name: "九幽寒霜", intro: "上古冰修镇宗秘传杀伐之术，凝九幽寒霜激射、寒彻魂魄", mpCost: [200, 2000], cooldown: 6,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [225, 1350], scalingRatio: [1.2, 4.2], scalingStat: "perception" }
+          { type: "dealDamage", damageType: "magical", baseValue: [50, 800], scalingRatio: [0.8, 2.8], scalingStat: "perception" },
+          { type: "applyCc", ccType: "freeze", chance: [0.25, 0.50], duration: 1 }
         ], type: "主动"
       },
-      { name: "雷火诀", intro: "据传承自上古雷火双修，雷火交织、焚天裂地", mpCost: [200, 2000], cooldown: 6,
+      { name: "天泉诀", intro: "上古御气修士温养灵台的至高心法，灵台如天泉奔涌、法力生生不息", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [169, 1105], scalingRatio: [0.27, 1.68], scalingStat: "perception" },
-          { type: "applyStatus", statusType: "burn", tickValue: [37, 307], isPercent: false, duration: 3, maxStacks: 5 },
-          { type: "applyCc", ccType: "silence", chance: [0.30, 0.50], duration: 1 }
-        ], type: "主动"
-      },
-      { name: "湮灭术", intro: "上古毁灭术修至高杀伐秘术，一击湮灭、归于虚无", mpCost: [200, 2000], cooldown: 6,
-        battleEffects: [
-          { type: "dealDamageExecute", damageType: "magical", baseValue: [203, 1227], scalingRatio: [0.67, 2.8], scalingStat: "perception", threshold: 0.5, bonusPercent: 50 }
-        ], type: "主动"
-      },
-      { name: "万法功", intro: "太古术修至高增益心法，行功时万法之韵流转", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [20, 50], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "magDefensePenetration", value: [10, 25], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "mpRecover", value: [4, 10], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "无限诀", intro: "传闻承自上古气修真传，灵元生生不息、几近无限", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "mpRecover", value: [6, 10], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "冰心诀", intro: "据传源自上古冰修禅修，修炼时心如冰晶、万法难侵", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "damageTaken", value: [-20, -35], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "magDamageTaken", value: [-10, -18], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "太虚劫", intro: "上古太虚术修范围秘术，太虚法印、轰然倾覆", mpCost: [200, 2000], cooldown: 6,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [113, 675], scalingRatio: [0.6, 2.1], scalingStat: "perception" }
-        ], type: "主动", isAoE: true
-      }
     ],
     "仙品": [
-      { name: "神机法", intro: "太古神机术修传承杀伐秘术，灵元暗合神机、变化莫测", mpCost: [300, 3000], cooldown: 8,
+      { name: "诛魂术", intro: "上古魂修仙家秘传惊魂之术，灵元化作惧涛怒浪、令敌魂飞魄散", mpCost: [300, 3000], cooldown: 8,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [340, 1800], scalingRatio: [1.4, 4.8], scalingStat: "perception" }
+          { type: "dealDamage", damageType: "magical", baseValue: [120, 900], scalingRatio: [1.0, 3.5], scalingStat: "perception" },
+          { type: "applyCc", ccType: "fear", chance: [0.30, 0.50], duration: 1 }
         ], type: "主动"
       },
-      { name: "焚天术", intro: "上古火修至高杀伐秘术，赤焰焚天、万物成灰", mpCost: [300, 3000], cooldown: 8,
+      { name: "灭法功", intro: "上古御气修士遗刻所载的仙家心法，破法之韵凝如实质、万法皆破", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [283, 1680], scalingRatio: [0.56, 2.13], scalingStat: "perception" },
-          { type: "applyStatus", statusType: "burn", tickValue: [48, 480], isPercent: false, duration: 4, maxStacks: 8 }
-        ], type: "主动"
-      },
-      { name: "万象冰封术", intro: "据传承自上古冰祖，一念冰封万象、寒寂天地", mpCost: [300, 3000], cooldown: 8,
-        battleEffects: [
-          { type: "applyCc", ccType: "freeze", chance: [0.60, 0.85], duration: 2 },
-          { type: "gaugeManipulate", value: -30 },
-          { type: "dealDamage", damageType: "magical", baseValue: [170, 1080], scalingRatio: [0.28, 1.07], scalingStat: "perception" }
-        ], type: "主动"
-      },
-      { name: "法神功", intro: "传闻以法神之力淬体，行功时万法之韵护身", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [30, 55], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "magDefensePenetration", value: [20, 35], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "magDefensePenetration", value: [15, 35], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "灵泉诀", intro: "上古气修所悟养气至高心法，丹田如灵泉涌动", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "mpRecover", value: [8, 10], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "法天功", intro: "据传悟自天道法则，行功时法韵镇身、巍然不动", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "damageTaken", value: [-20, -35], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "magDamageTaken", value: [-15, -35], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "speed", value: [8, 15], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "神机万象", intro: "太古神机术修范围秘术，神机万象、变化莫测", mpCost: [300, 3000], cooldown: 8,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [170, 900], scalingRatio: [0.7, 2.4], scalingStat: "perception" }
-        ], type: "主动", isAoE: true
-      }
     ],
     "神品": [
-      { name: "万法源术", intro: "太古法祖真传杀伐秘术，灵元直指万法本源", mpCost: [500, 5000], cooldown: 10,
+      { name: "万冰诀", intro: "太古冰祖传承的至高秘术，灵元化作万道玄冰、冰封天地万物", mpCost: [500, 5000], cooldown: 10,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [450, 2300], scalingRatio: [1.7, 5.5], scalingStat: "perception" }
-        ], type: "主动"
-      },
-      { name: "混元功", intro: "传闻承自太古混元法祖，一气混元、生生不息", mpCost: [500, 5000], cooldown: 10,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [360, 2070], scalingRatio: [0.41, 1.83], scalingStat: "perception" },
-          { type: "lifesteal", damageType: "magical", damagePercent: [50, 80] },
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [30, 70], duration: 3, maxStacks: 3, targetSelf: true }
-        ], type: "主动"
-      },
-      { name: "焚世诀", intro: "太古火祖至高杀伐秘术，天火降世、焚尽万物", mpCost: [500, 5000], cooldown: 10,
-        battleEffects: [
-          { type: "dealDamageExecute", damageType: "magical", baseValue: [360, 2300], scalingRatio: [0.68, 2.75], scalingStat: "perception", threshold: 0.4, bonusPercent: 60 },
-          { type: "applyStatus", statusType: "burn", tickValue: [46, 460], isPercent: false, duration: 4, maxStacks: 10 },
-          { type: "applyCc", ccType: "silence", chance: [0.40, 0.65], duration: 1 }
-        ], type: "主动"
-      },
-      { name: "法道至尊功", intro: "据传悟自法道至尊碎片，行功时万法臣服", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [25, 60], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "magDefensePenetration", value: [25, 50], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "damageDealt", value: [15, 25], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "灵法天成功", intro: "传闻以天道灵法淬体，护身之法浑然天成", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "mpRecover", value: [10, 15], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "magDamageTaken", value: [-20, -35], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "法盾诀", intro: "太古御气修士至高护身法门，身周浮起万象法盾", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "shield", baseValue: [450, 2300], scalingRatio: [0.34, 1.83], scalingStat: "resistance" },
-          { type: "applyModifier", modifierType: "magDamageTaken", value: [-15, -25], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "万法寂灭", intro: "太古法祖范围禁术，万法寂灭、灵元覆世", mpCost: [500, 5000], cooldown: 10,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [225, 1150], scalingRatio: [0.85, 2.75], scalingStat: "perception" }
+          { type: "dealDamage", damageType: "magical", baseValue: [180, 1000], scalingRatio: [1.0, 3.0], scalingStat: "perception" },
+          { type: "applyCc", ccType: "freeze", chance: [0.25, 0.45], duration: 1 }
         ], type: "主动", isAoE: true
-      }
+      },
+      { name: "万法诀", intro: "太古法祖所悟万法归一的至高心法，万法归宗、法威通天", mpCost: 0, cooldown: 0,
+        battleEffects: [
+          { type: "applyModifier", modifierType: "magDamageDealt", value: [20, 45], duration: 99, maxStacks: 1 }
+        ], type: "被动"
+      },
     ],
   },
 
@@ -1425,242 +838,240 @@ export const GONGFA_EFFECT_CATALOG: Readonly<Record<GongfaSystem, Readonly<Recor
     "下品": [
       { name: "毒雾术", intro: "南疆蛊修入门杀伐之术，施术时毒雾弥漫、蚀肉销骨", mpCost: [50, 500], cooldown: 1,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [25, 400], scalingRatio: [0.45, 1.8], scalingStat: "perception" }
+          { type: "dealDamage", damageType: "magical", baseValue: [25, 400], scalingRatio: [0.45, 1.8], scalingStat: "perception" },
+          { type: "applyStatus", statusType: "poison", tickValue: 0.5, isPercent: true, duration: 3, maxStacks: 9999 }
         ], type: "主动"
       },
-      { name: "蚀骨术", intro: "南疆巫修残卷所载，黑雾蚀骨、毒素侵心", mpCost: [50, 500], cooldown: 1,
+      { name: "噬血蛊", intro: "南疆蛊修以蛊虫寄生之术反哺己身，施术伤敌时气血暗生", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [20, 333], scalingRatio: [0.27, 1.13], scalingStat: "spirit" },
-          { type: "applyStatus", statusType: "poison", tickValue: [1, 5], isPercent: true, duration: 5, maxStacks: 5 }
-        ], type: "主动"
-      },
-      { name: "召虫术", intro: "南疆蛊修秘传御虫法门，可召唤毒虫助战", mpCost: [50, 500], cooldown: 1,
-        battleEffects: [
-          { type: "summon", name: "毒虫", trigger: "on_turn_start", summonDamage: [20, 333], duration: 5 }
-        ], type: "主动"
-      },
-      { name: "毒体功", intro: "传闻承自南疆蛊修，行功时血脉中隐有毒素流转", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "lifesteal", value: [2, 10], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "lifesteal", value: [3, 10], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "蚀体功", intro: "南疆蛊修遗刻所载增益法门，行功时周身毒韵流转", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [8, 15], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "聚毒诀", intro: "南疆蛊修养毒法门，行功时丹田聚毒、毒力暗生", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "mpRecover", value: [2, 4], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "毒雾漫", intro: "南疆蛊修入门范围术法，毒雾弥漫、蚀肉销骨", mpCost: [50, 500], cooldown: 1,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [13, 200], scalingRatio: [0.23, 0.9], scalingStat: "spirit" }
-        ], type: "主动", isAoE: true
-      }
     ],
     "中品": [
-      { name: "蛊毒术", intro: "南疆蛊修深修杀伐之术，施术时蛊虫携毒而出", mpCost: [75, 750], cooldown: 2,
+      { name: "蛊毒术", intro: "南疆蛊修深修杀伐之术，施术时蛊虫携毒而出、席卷全场", mpCost: [75, 750], cooldown: 2,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [65, 560], scalingRatio: [0.65, 2.3], scalingStat: "perception" }
-        ], type: "主动"
-      },
-      { name: "腐蚀术", intro: "南疆巫修秘传杀伐之术，毒雾腐蚀、金石皆朽", mpCost: [75, 750], cooldown: 2,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [49, 448], scalingRatio: [0.27, 1.38], scalingStat: "spirit" },
-          { type: "applyStatus", statusType: "poison", tickValue: [1.5, 5.5], isPercent: true, duration: 5, maxStacks: 5 }
-        ], type: "主动"
-      },
-      { name: "噬魂术", intro: "魔道毒道中人秘传，毒丝噬魂、令人心悸", mpCost: [75, 750], cooldown: 2,
-        battleEffects: [
-          { type: "applyStatus", statusType: "mpDrain", tickValue: [2, 8], isPercent: true, duration: 3, maxStacks: 3 },
-          { type: "applyCc", ccType: "fear", chance: [0.30, 0.50], duration: 1 }
-        ], type: "主动"
-      },
-      { name: "吸星毒功", intro: "传闻承自魔道蛊修，行功时吸星噬血、以毒养身", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "lifesteal", value: [5, 15], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "毒抗功", intro: "南疆蛊修遗刻所载，修炼后百毒不侵、生机暗养", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "healReceived", value: [15, 25], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "毒力诀", intro: "南疆蛊修增益法门，行功时毒力充盈周身", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [10, 18], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "蛊毒潮", intro: "南疆蛊修范围术法，蛊毒成潮、席卷全场", mpCost: [75, 750], cooldown: 2,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [33, 280], scalingRatio: [0.33, 1.15], scalingStat: "spirit" }
+          { type: "dealDamage", damageType: "magical", baseValue: [15, 250], scalingRatio: [0.3, 1.0], scalingStat: "perception" },
+          { type: "applyStatus", statusType: "poison", tickValue: 0.5, isPercent: true, duration: 3, maxStacks: 9999 }
         ], type: "主动", isAoE: true
-      }
+      },
+      { name: "毒道真解", intro: "南疆蛊修参悟毒道本源的进阶心法，万毒归一、杀伐愈烈", mpCost: 0, cooldown: 0,
+        battleEffects: [
+          { type: "applyModifier", modifierType: "damageDealt", value: [5, 10], duration: 99, maxStacks: 1 }
+        ], type: "被动"
+      },
     ],
     "上品": [
-      { name: "穿心毒术", intro: "南疆蛊修深修杀伐秘术，百毒穿心、毒贯全身", mpCost: [100, 1000], cooldown: 4,
+      { name: "穿心毒术", intro: "南疆蛊修深修杀伐秘术，百毒穿心、引爆剧毒一举毙命", mpCost: [100, 1000], cooldown: 4,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [120, 800], scalingRatio: [0.8, 2.9], scalingStat: "perception" }
+          { type: "dealDamage", damageType: "magical", baseValue: [80, 550], scalingRatio: [0.55, 1.8], scalingStat: "perception" },
+          { type: "consumePoisonDamage" }
         ], type: "主动"
       },
-      { name: "毒域术", intro: "南疆蛊修秘传禁制，毒域成笼、剧毒弥漫", mpCost: [100, 1000], cooldown: 4,
+      { name: "蛇影步", intro: "南疆蛊修秘传身法，身形如蛇影游走、快逾鬼魅", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "applyStatus", statusType: "poison", tickValue: [2, 6], isPercent: true, duration: 5, maxStacks: 8 },
-          { type: "applyStatus", statusType: "bleed", tickValue: [27, 267], isPercent: false, duration: 3, maxStacks: 5 }
-        ], type: "主动"
-      },
-      { name: "幻毒术", intro: "南疆巫蛊秘传，毒气致幻、令人癫狂", mpCost: [100, 1000], cooldown: 4,
-        battleEffects: [
-          { type: "applyCc", ccType: "confusion", chance: [0.40, 0.60], duration: 2 },
-          { type: "applyCc", ccType: "fear", chance: [0.35, 0.55], duration: 1 },
-          { type: "dealDamage", damageType: "magical", baseValue: [60, 427], scalingRatio: [0.21, 0.97], scalingStat: "spirit" }
-        ], type: "主动"
-      },
-      { name: "万毒功", intro: "据传承自上古万毒蛊修，万毒不侵、噬血养身", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "lifesteal", value: [5, 20], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "healReceived", value: [15, 25], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "speed", value: [6, 14], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "毒脉诀", intro: "南疆蛊修遗刻所载增益法门，毒脉流转周身", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [15, 25], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "mpRecover", value: [4, 6], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "毒云术", intro: "南疆蛊修范围秘术，毒云压顶、毒贯群敌", mpCost: [100, 1000], cooldown: 4,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [60, 400], scalingRatio: [0.4, 1.45], scalingStat: "spirit" }
-        ], type: "主动", isAoE: true
-      }
     ],
     "极品": [
-      { name: "天毒术", intro: "南疆蛊修至高杀伐秘术，毒雾凝箭、穿心破体", mpCost: [200, 2000], cooldown: 6,
+      { name: "九幽毒雾", intro: "南疆蛊修至高杀伐秘术，九幽毒雾弥漫、无孔不入", mpCost: [200, 2000], cooldown: 6,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [200, 1250], scalingRatio: [1.0, 3.4], scalingStat: "perception" }
+          { type: "dealDamage", damageType: "magical", baseValue: [50, 800], scalingRatio: [0.8, 2.8], scalingStat: "perception" },
+          { type: "applyStatus", statusType: "poison", tickValue: 0.5, isPercent: true, duration: 5, maxStacks: 9999 }
         ], type: "主动"
       },
-      { name: "蚀魂毒术", intro: "传闻承自九幽蛊修，毒蚀神魂、九幽同悲", mpCost: [200, 2000], cooldown: 6,
+      { name: "天蛊噬血", intro: "南疆蛊修至高养蛊心法，万蛊噬敌精血、反哺己身", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [150, 1023], scalingRatio: [0.28, 1.36], scalingStat: "perception" },
-          { type: "applyStatus", statusType: "poison", tickValue: [3, 7], isPercent: true, duration: 5, maxStacks: 10 },
-          { type: "applyStatus", statusType: "mpDrain", tickValue: [5, 7], isPercent: true, duration: 3, maxStacks: 5 }
-        ], type: "主动"
-      },
-      { name: "噬灵毒术", intro: "魔道蛊修秘传，蛊虫噬灵、毒血交加", mpCost: [200, 2000], cooldown: 6,
-        battleEffects: [
-          { type: "lifesteal", damageType: "magical", damagePercent: [45, 65] },
-          { type: "applyStatus", statusType: "poison", tickValue: [3, 7], isPercent: true, duration: 3, maxStacks: 5 }
-        ], type: "主动"
-      },
-      { name: "万毒噬生功", intro: "太古蛊修至高心法，万毒噬生、反哺己身", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "lifesteal", value: [6, 22], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "healReceived", value: [20, 35], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "lifesteal", value: [8, 18], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "毒道至尊功", intro: "据传悟自毒道至尊碎片，行功时毒韵镇身、威压群伦", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [18, 30], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "damageDealt", value: [10, 18], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "血毒诀", intro: "南疆血蛊修秘传，血毒共鸣、相互反哺", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "lifesteal", value: [6, 18], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "mpRecover", value: [5, 8], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "天毒瘴", intro: "南疆蛊修范围禁术，天毒成瘴、弥漫八方", mpCost: [200, 2000], cooldown: 6,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [100, 625], scalingRatio: [0.5, 1.7], scalingStat: "spirit" }
-        ], type: "主动", isAoE: true
-      }
     ],
     "仙品": [
-      { name: "灭世毒术", intro: "太古蛊修至高杀伐秘术，毒雾弥漫、灭世灭生", mpCost: [300, 3000], cooldown: 8,
+      { name: "万蛊噬魂", intro: "南疆蛊修仙家秘传，万蛊齐出携毒席卷、噬魂销骨", mpCost: [300, 3000], cooldown: 8,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [300, 1600], scalingRatio: [1.2, 4.0], scalingStat: "perception" }
-        ], type: "主动"
-      },
-      { name: "毒龙诀", intro: "传闻承自太古毒龙，毒龙噬天、毒血交加", mpCost: [300, 3000], cooldown: 8,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [250, 1493], scalingRatio: [0.48, 1.78], scalingStat: "perception" },
-          { type: "lifesteal", damageType: "magical", damagePercent: [50, 75] },
-          { type: "applyStatus", statusType: "poison", tickValue: [4, 8], isPercent: true, duration: 5, maxStacks: 10 }
-        ], type: "主动"
-      },
-      { name: "噬心蛊术", intro: "南疆蛊祖至高御虫秘术，万蛊噬心、防不胜防", mpCost: [300, 3000], cooldown: 8,
-        battleEffects: [
-          { type: "applyStatus", statusType: "poison", tickValue: [4, 8], isPercent: true, duration: 5, maxStacks: 15 },
-          { type: "applyStatus", statusType: "bleed", tickValue: [53, 533], isPercent: false, duration: 4, maxStacks: 8 },
-          { type: "applyCc", ccType: "confusion", chance: [0.40, 0.60], duration: 2 }
-        ], type: "主动"
-      },
-      { name: "不灭毒功", intro: "据传以太古不灭之毒淬体，毒身不灭、噬血养身", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "lifesteal", value: [6, 28], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "healReceived", value: [25, 40], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "毒皇功", intro: "传闻承自太古毒皇，行功时毒韵皇威、万毒臣服", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [22, 35], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "damageDealt", value: [12, 20], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "mpRecover", value: [8, 12], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "灭世毒瘴", intro: "太古蛊修范围秘术，灭世毒瘴、覆世灭生", mpCost: [300, 3000], cooldown: 8,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [150, 800], scalingRatio: [0.6, 2.0], scalingStat: "spirit" }
+          { type: "dealDamage", damageType: "magical", baseValue: [40, 500], scalingRatio: [0.6, 1.8], scalingStat: "perception" },
+          { type: "applyStatus", statusType: "poison", tickValue: 0.5, isPercent: true, duration: 5, maxStacks: 9999 }
         ], type: "主动", isAoE: true
-      }
+      },
+      { name: "毒道至解", intro: "南疆蛊修参悟毒道本源的至高心法，万毒归宗、杀伐通天", mpCost: 0, cooldown: 0,
+        battleEffects: [
+          { type: "applyModifier", modifierType: "damageDealt", value: [12, 25], duration: 99, maxStacks: 1 }
+        ], type: "被动"
+      },
     ],
     "神品": [
-      { name: "天道灭毒法", intro: "据传悟自天道毒之碎片，毒雾降世、灭尽万物", mpCost: [500, 5000], cooldown: 10,
+      { name: "九幽穿心", intro: "太古毒祖传承的至高杀伐神通，百毒穿心、引爆万毒一举毙命", mpCost: [500, 5000], cooldown: 10,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [400, 2100], scalingRatio: [1.35, 4.5], scalingStat: "perception" }
+          { type: "dealDamage", damageType: "magical", baseValue: [180, 1000], scalingRatio: [1.0, 3.0], scalingStat: "perception" },
+          { type: "consumePoisonDamage" }
         ], type: "主动"
       },
-      { name: "归宗毒法", intro: "太古毒祖至高杀伐秘术，万毒归宗、毒霸天下", mpCost: [500, 5000], cooldown: 10,
+      { name: "天蛇行", intro: "太古毒祖所悟身法神通，身如天蛇游走、快逾闪电", mpCost: 0, cooldown: 0,
         battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [280, 1890], scalingRatio: [0.43, 1.88], scalingStat: "perception" },
-          { type: "applyStatus", statusType: "poison", tickValue: [5, 10], isPercent: true, duration: 5, maxStacks: 20 },
-          { type: "applyStatus", statusType: "bleed", tickValue: [63, 630], isPercent: false, duration: 4, maxStacks: 10 },
-          { type: "applyCc", ccType: "fear", chance: [0.45, 0.70], duration: 2 }
-        ], type: "主动"
-      },
-      { name: "噬天蛊术", intro: "魔道毒祖秘传，蛊虫噬天、毒血蚀魂", mpCost: [500, 5000], cooldown: 10,
-        battleEffects: [
-          { type: "lifesteal", damageType: "magical", damagePercent: [100, 200] },
-          { type: "applyStatus", statusType: "poison", tickValue: [5, 10], isPercent: true, duration: 5, maxStacks: 15 },
-          { type: "applyStatus", statusType: "mpDrain", tickValue: [5, 8], isPercent: true, duration: 3, maxStacks: 8 },
-          { type: "applyCc", ccType: "confusion", chance: [0.40, 0.65], duration: 2 }
-        ], type: "主动"
-      },
-      { name: "万毒不灭功", intro: "据传以太古万毒之力淬体，毒身不灭、万毒反哺", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "lifesteal", value: [8, 25], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "healReceived", value: [30, 50], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "mpRecover", value: [10, 15], duration: 99, maxStacks: 1 }
+          { type: "applyModifier", modifierType: "speed", value: [10, 22], duration: 99, maxStacks: 1 }
         ], type: "被动"
       },
-      { name: "天毒道功", intro: "传闻承自太古天毒道祖，毒道合一、攻守兼备", mpCost: 0, cooldown: 0,
-        battleEffects: [
-          { type: "applyModifier", modifierType: "magDamageDealt", value: [25, 40], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "damageDealt", value: [15, 25], duration: 99, maxStacks: 1 },
-          { type: "applyModifier", modifierType: "lifesteal", value: [8, 22], duration: 99, maxStacks: 1 }
-        ], type: "被动"
-      },
-      { name: "天毒归宗", intro: "太古毒祖范围禁术，万毒归宗、毒霸天下", mpCost: [500, 5000], cooldown: 10,
-        battleEffects: [
-          { type: "dealDamage", damageType: "magical", baseValue: [200, 1050], scalingRatio: [0.68, 2.25], scalingStat: "spirit" }
-        ], type: "主动", isAoE: true
-      }
     ],
   },
+
+  "药修": {
+    "下品": [
+      { name: "回春术", intro: "上古药修入门治伤法门，掌心青光一闪、枯木逢春", mpCost: [50, 500], cooldown: 1,
+        battleEffects: [
+          { type: "heal", baseValue: [80, 1200], scalingRatio: [0.6, 2.5], scalingStat: "spirit" }
+        ], type: "主动"
+      },
+      { name: "妙手诀", intro: "上古药修调息心法，修炼后药力吸收愈发精纯", mpCost: 0, cooldown: 0,
+        battleEffects: [
+          { type: "applyModifier", modifierType: "healReceived", value: [15, 30], duration: 99, maxStacks: 1 }
+        ], type: "被动"
+      },
+    ],
+    "中品": [
+      { name: "灵愈术", intro: "上古药修深修秘术，灵元化作温润光雨洒落全场", mpCost: [75, 750], cooldown: 2,
+        battleEffects: [
+          { type: "heal", baseValue: [50, 700], scalingRatio: [0.4, 1.5], scalingStat: "spirit" }
+        ], type: "主动", isAoE: true
+      },
+      { name: "药王心法", intro: "上古药王传承的养气心法，行功时灵药之气暗生", mpCost: 0, cooldown: 0,
+        battleEffects: [
+          { type: "applyModifier", modifierType: "mpRecover", value: [2, 5], duration: 99, maxStacks: 1 }
+        ], type: "被动"
+      },
+    ],
+    "上品": [
+      { name: "生生诀", intro: "上古药修镇派秘术，掌心绿光持续注入、生机绵绵不绝", mpCost: [100, 1000], cooldown: 4,
+        battleEffects: [
+          { type: "applyStatus", statusType: "hpRegen", tickValue: [100, 800], isPercent: false, duration: 3, maxStacks: 1 }
+        ], type: "主动"
+      },
+      { name: "延年功", intro: "上古药修温养肉身的进阶心法，行功时血脉温润、延年益寿", mpCost: 0, cooldown: 0,
+        battleEffects: [
+          { type: "applyModifier", modifierType: "hpRecover", value: [2, 5], duration: 99, maxStacks: 1 }
+        ], type: "被动"
+      },
+    ],
+    "极品": [
+      { name: "天回术", intro: "上古药修至高治伤秘术，掌心青光大盛、肉身再生如初", mpCost: [200, 2000], cooldown: 6,
+        battleEffects: [
+          { type: "heal", baseValue: [100, 1500], scalingRatio: [1.0, 3.5], scalingStat: "spirit" }
+        ], type: "主动"
+      },
+      { name: "天妙诀", intro: "上古药修参悟药道本源的至高心法，药力精纯无比、百治百效", mpCost: 0, cooldown: 0,
+        battleEffects: [
+          { type: "applyModifier", modifierType: "healReceived", value: [25, 50], duration: 99, maxStacks: 1 }
+        ], type: "被动"
+      },
+    ],
+    "仙品": [
+      { name: "万灵术", intro: "上古药修仙家秘传，灵元化作漫天光雨、润泽万众", mpCost: [300, 3000], cooldown: 8,
+        battleEffects: [
+          { type: "heal", baseValue: [120, 1500], scalingRatio: [0.8, 2.5], scalingStat: "spirit" }
+        ], type: "主动", isAoE: true
+      },
+      { name: "药神圣典", intro: "上古药王仙家传承的至高心法，灵药之气生生不息", mpCost: 0, cooldown: 0,
+        battleEffects: [
+          { type: "applyModifier", modifierType: "mpRecover", value: [5, 10], duration: 99, maxStacks: 1 }
+        ], type: "被动"
+      },
+    ],
+    "神品": [
+      { name: "造化诀", intro: "太古药祖传承的至高神通，掌心造化之光持续注入、起死回生", mpCost: [500, 5000], cooldown: 10,
+        battleEffects: [
+          { type: "applyStatus", statusType: "hpRegen", tickValue: [500, 3000], isPercent: false, duration: 5, maxStacks: 1 }
+        ], type: "主动"
+      },
+      { name: "长生功", intro: "太古药祖温养肉身的至高心法，血脉永驻、长生不老", mpCost: 0, cooldown: 0,
+        battleEffects: [
+          { type: "applyModifier", modifierType: "hpRecover", value: [5, 10], duration: 99, maxStacks: 1 }
+        ], type: "被动"
+      },
+    ],
+  },
+
+  "魔修": {
+    "下品": [
+      { name: "祭血术", intro: "魔修以血祭法的入门秘术，以精血燃作魔力、攻势骤增", mpCost: [50, 500], cooldown: 1,
+        battleEffects: [
+          { type: "sacrificeHp", percent: 5 },
+          { type: "applyModifier", modifierType: "damageDealt", value: [15, 35], duration: 3, maxStacks: 1, targetSelf: true }
+        ], type: "主动"
+      },
+      { name: "噬血魔功", intro: "魔修以魔力反哺肉身的入门心法，伤敌时气血暗生", mpCost: 0, cooldown: 0,
+        battleEffects: [
+          { type: "applyModifier", modifierType: "lifesteal", value: [3, 10], duration: 99, maxStacks: 1 }
+        ], type: "被动"
+      },
+    ],
+    "中品": [
+      { name: "魔蚀术", intro: "魔修以魔力侵蚀敌体，伤其根基、破其护体灵御", mpCost: [75, 750], cooldown: 2,
+        battleEffects: [
+          { type: "dealDamage", damageType: "magical", baseValue: [40, 350], scalingRatio: [0.4, 1.5], scalingStat: "spirit" },
+          { type: "applyModifier", modifierType: "physDamageTaken", value: [10, 25], duration: 3, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "magDamageTaken", value: [10, 25], duration: 3, maxStacks: 1 }
+        ], type: "主动"
+      },
+      { name: "魔力真解", intro: "魔修参悟魔力本源的进阶心法，万魔归一、杀伐愈烈", mpCost: 0, cooldown: 0,
+        battleEffects: [
+          { type: "applyModifier", modifierType: "damageDealt", value: [8, 18], duration: 99, maxStacks: 1 }
+        ], type: "被动"
+      },
+    ],
+    "上品": [
+      { name: "噬魂魔功", intro: "魔修至高杀伐秘术，以大量精血换取毁灭性魔力一击", mpCost: [100, 1000], cooldown: 4,
+        battleEffects: [
+          { type: "sacrificeHp", percent: 10 },
+          { type: "dealDamage", damageType: "magical", baseValue: [300, 3000], scalingRatio: [1.0, 3.5], scalingStat: "spirit" }
+        ], type: "主动"
+      },
+      { name: "魔威诀", intro: "魔修凝练魔威的进阶心法，暴击之势摧枯拉朽", mpCost: 0, cooldown: 0,
+        battleEffects: [
+          { type: "applyModifier", modifierType: "critDmg", value: [10, 25], duration: 99, maxStacks: 1 }
+        ], type: "被动"
+      },
+    ],
+    "极品": [
+      { name: "天魔祭血", intro: "魔修至高血祭秘术，以大量精血燃作滔天魔力、攻势暴增", mpCost: [200, 2000], cooldown: 6,
+        battleEffects: [
+          { type: "sacrificeHp", percent: 8 },
+          { type: "applyModifier", modifierType: "damageDealt", value: [25, 55], duration: 3, maxStacks: 1, targetSelf: true }
+        ], type: "主动"
+      },
+      { name: "天魔噬血", intro: "魔修至高养魔心法，伤敌时气血大生、反哺无穷", mpCost: 0, cooldown: 0,
+        battleEffects: [
+          { type: "applyModifier", modifierType: "lifesteal", value: [8, 18], duration: 99, maxStacks: 1 }
+        ], type: "被动"
+      },
+    ],
+    "仙品": [
+      { name: "天魔蚀", intro: "魔修仙家秘传，魔力侵蚀敌体根基、护体灵御尽溃", mpCost: [300, 3000], cooldown: 8,
+        battleEffects: [
+          { type: "dealDamage", damageType: "magical", baseValue: [100, 800], scalingRatio: [0.8, 2.5], scalingStat: "spirit" },
+          { type: "applyModifier", modifierType: "physDamageTaken", value: [20, 45], duration: 3, maxStacks: 1 },
+          { type: "applyModifier", modifierType: "magDamageTaken", value: [20, 45], duration: 3, maxStacks: 1 }
+        ], type: "主动"
+      },
+      { name: "天魔真解", intro: "魔修参悟天魔本源的至高心法，万魔归宗、杀伐通天", mpCost: 0, cooldown: 0,
+        battleEffects: [
+          { type: "applyModifier", modifierType: "damageDealt", value: [15, 30], duration: 99, maxStacks: 1 }
+        ], type: "被动"
+      },
+    ],
+    "神品": [
+      { name: "天魔噬魂", intro: "太古魔祖传承的至高杀伐神通，以精血换取灭世魔力一击", mpCost: [500, 5000], cooldown: 10,
+        battleEffects: [
+          { type: "sacrificeHp", percent: 20 },
+          { type: "dealDamage", damageType: "magical", baseValue: [500, 5000], scalingRatio: [1.5, 5.0], scalingStat: "spirit" }
+        ], type: "主动"
+      },
+      { name: "天魔威", intro: "太古魔祖凝练天魔之威的至高心法，暴击之势如天魔降世", mpCost: 0, cooldown: 0,
+        battleEffects: [
+          { type: "applyModifier", modifierType: "critDmg", value: [20, 45], duration: 99, maxStacks: 1 }
+        ], type: "被动"
+      },
+    ],
+  }
 
 };
 

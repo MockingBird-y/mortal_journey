@@ -105,11 +105,24 @@ export class EffectManager {
           entries.push(this.logEntry(actionCount, eff.name, "持续恢复", combatant.name, "heal", healed,
             `${combatant.name}受到${eff.name}效果，恢复${healed}点生命`, combatant.team));
         }
+        const hotOverflow = healAmt - healed;
+        if (hotOverflow > 0) {
+          const convRatio = this.getModifierTotal(combatant, "healOverflowToShield");
+          if (convRatio > 0) {
+            const shieldGain = Math.round(hotOverflow * convRatio / 100);
+            if (shieldGain > 0) {
+              combatant.shield += shieldGain;
+              entries.push(this.logEntry(actionCount, "溢出转护盾", "护盾转换", combatant.name, "shield", shieldGain,
+                `${combatant.name}溢出的${hotOverflow}点持续恢复转化为${shieldGain}点护盾`, combatant.team));
+            }
+          }
+        }
       }
     }
 
     const hpRecoverMod = this.getModifierTotal(combatant, "hpRecover");
-    if (hpRecoverMod > 0 && combatant.hp < combatant.stats.maxHp) {
+    const hpOverflowConv = this.getModifierTotal(combatant, "healOverflowToShield");
+    if (hpRecoverMod > 0 && (combatant.hp < combatant.stats.maxHp || hpOverflowConv > 0)) {
       const recover = Math.round(combatant.stats.maxHp * hpRecoverMod / 100 * (combatant.linggenHealMult ?? 1));
       const deficit = combatant.stats.maxHp - combatant.hp;
       const recovered = Math.min(deficit, recover);
@@ -118,6 +131,15 @@ export class EffectManager {
         onFloat?.(combatant.id, `+${recovered}`, "hp");
         entries.push(this.logEntry(actionCount, "血量恢复", "持续恢复", combatant.name, "heal", recovered,
           `${combatant.name}恢复${recovered}点生命`, combatant.team));
+      }
+      const hpRecOverflow = recover - recovered;
+      if (hpRecOverflow > 0 && hpOverflowConv > 0) {
+        const shieldGain = Math.round(hpRecOverflow * hpOverflowConv / 100);
+        if (shieldGain > 0) {
+          combatant.shield += shieldGain;
+          entries.push(this.logEntry(actionCount, "溢出转护盾", "护盾转换", combatant.name, "shield", shieldGain,
+            `${combatant.name}溢出的${hpRecOverflow}点生命恢复转化为${shieldGain}点护盾`, combatant.team));
+        }
       }
     }
 

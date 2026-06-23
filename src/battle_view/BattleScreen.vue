@@ -50,7 +50,7 @@ const battleOver = computed(() => {
 });
 
 const actionOptions = computed(() => {
-  if (!isPlayerTurn.value) return null;
+  if (!isPlayerTurn.value && !isTargetSelection.value) return null;
   return getPlayerActionOptions();
 });
 
