@@ -295,6 +295,10 @@ function toggleElixirSubmenu() {
                   @click="isTargetSelection && targetTeam === 'ally' && !ally.isDead && onTargetClick(ally.id)"
                 >
                   <div class="battle__card-name">
+                    <span class="battle__card-avatar">
+                      <img v-if="ally.avatarUrl" :src="ally.avatarUrl" :alt="ally.name" />
+                      <span v-else class="battle__card-avatar-placeholder">{{ ally.name.slice(0, 1) }}</span>
+                    </span>
                     {{ ally.name }}
                     <span v-if="ally.isProtagonist" class="battle__card-badge">主角</span>
                     <span v-if="ally.isFleeing" class="battle__card-badge battle__card-badge--flee">逃跑中</span>
@@ -352,6 +356,10 @@ function toggleElixirSubmenu() {
                   @click="isTargetSelection && targetTeam === 'enemy' && !enemy.isDead && onTargetClick(enemy.id)"
                 >
                   <div class="battle__card-name">
+                    <span class="battle__card-avatar">
+                      <img v-if="enemy.avatarUrl" :src="enemy.avatarUrl" :alt="enemy.name" />
+                      <span v-else class="battle__card-avatar-placeholder">{{ enemy.name.slice(0, 1) }}</span>
+                    </span>
                     {{ enemy.name }}
                     <span v-if="enemy.powerTier" class="battle__card-badge battle__card-badge--{{ enemy.powerTier }}">{{ enemy.powerTier }}</span>
                   </div>

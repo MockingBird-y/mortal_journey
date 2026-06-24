@@ -273,7 +273,8 @@ onUnmounted(() => {
                     @click="entry.npc && openNpcDetail(entry.npc)"
                   >
                     <div class="map-npc-avatar">
-                      <span class="map-npc-avatar-placeholder">
+                      <img v-if="entry.npc?.avatarUrl" class="map-npc-avatar-img" :src="entry.npc.avatarUrl" :alt="entry.name" />
+                      <span v-else class="map-npc-avatar-placeholder">
                         {{ entry.name.slice(0, 1) }}
                       </span>
                     </div>

@@ -98,7 +98,7 @@ function startTestBattle() {
       maxMp: dummyMaxMp,
       currentHp: dummyMaxHp,
       currentMp: dummyMaxMp,
-      avatarUrl: "",
+      avatarUrl: "/kuilei.png",
       gender: "无",
       linggen: [],
       age: 0,

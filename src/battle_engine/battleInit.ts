@@ -351,6 +351,7 @@ function createProtagonistCombatant(): BattleCombatant | null {
     linggenHealMult: linggenBonus.healMult,
     linggenShieldMult: linggenBonus.shieldMult,
     realm: { ...p.realm },
+    avatarUrl: p.avatarUrl,
   };
 }
 
@@ -412,6 +413,7 @@ function createNpcCombatant(
     realm: { ...npc.realm },
     powerTier: npc.powerTier,
     identity: npc.identity,
+    avatarUrl: npc.avatarUrl,
   };
 }
 

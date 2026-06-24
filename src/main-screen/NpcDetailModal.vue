@@ -26,6 +26,9 @@ import {
 } from "./protagonistPanelDisplay";
 import ProtagonistDetailModal from "./ProtagonistDetailModal.vue";
 import { useScrollLock } from "../composables/useScrollLock";
+import { resizeImageFileToAvatar } from "./avatarUpload";
+import { writeActiveSave } from "../save/gameSave";
+import { npcStore } from "../role_core/npcStore";
 
 type NpcTab = "combat" | "story";
 
@@ -43,6 +46,33 @@ const activeTab = ref<NpcTab>("combat");
 
 const itemDetailOpen = ref(false);
 const itemDetailPayload = shallowRef<ProtagonistDetailPayload | null>(null);
+
+// ── NPC 头像上传 ────────────────────────────────────────────────────────────
+const avatarFileInput = ref<HTMLInputElement | null>(null);
+const avatarError = ref("");
+
+function onNpcAvatarClick() {
+  avatarError.value = "";
+  avatarFileInput.value?.click();
+}
+
+async function onNpcAvatarFileChange(e: Event) {
+  const input = e.target as HTMLInputElement | null;
+  const file = input?.files?.[0];
+  const npc = props.npc;
+  if (file && npc) {
+    try {
+      const dataUrl = await resizeImageFileToAvatar(file);
+      npc.setAvatarUrl(dataUrl);
+      npcStore.setNpc(npc);
+      writeActiveSave();
+      avatarError.value = "";
+    } catch (err) {
+      avatarError.value = err instanceof Error ? err.message : "头像上传失败。";
+    }
+  }
+  if (input) input.value = "";
+}
 
 const primaryStats = computed(() => props.npc?.getPrimaryStats() ?? null);
 
@@ -210,6 +240,21 @@ onUnmounted(() => {
             <div class="mj-trait-modal-rarity">
               {{ npc.identity }} · {{ Character.formatRealm(npc.realm) }} · {{ npc.powerTier }}
             </div>
+
+            <div
+              class="mj-npc-avatar-wrap"
+              role="button"
+              tabindex="0"
+              title="点击上传头像"
+              @click="onNpcAvatarClick"
+              @keydown="($event.key === 'Enter' || $event.key === ' ') && (onNpcAvatarClick(), $event.preventDefault())"
+            >
+              <img v-if="npc.avatarUrl" class="mj-npc-avatar" :src="npc.avatarUrl" :alt="npc.displayName" />
+              <div v-else class="mj-npc-avatar mj-npc-avatar--placeholder">{{ npc.displayName.slice(0, 1) }}</div>
+              <span class="mj-npc-avatar-edit" aria-hidden="true">✎</span>
+              <input ref="avatarFileInput" type="file" accept="image/*" class="mj-npc-avatar-input" @change="onNpcAvatarFileChange" />
+            </div>
+            <p v-if="avatarError" class="mj-npc-avatar-error">{{ avatarError }}</p>
 
             <div class="mj-npc-tabs">
               <button
@@ -389,6 +434,81 @@ onUnmounted(() => {
   max-width: 400px;
   max-height: min(80vh, 620px);
   overflow: auto;
+}
+
+.mj-npc-avatar-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 8px 0 4px;
+  cursor: pointer;
+}
+
+.mj-npc-avatar-wrap:hover .mj-npc-avatar {
+  border-color: var(--mj-gold-dim, #c9a227);
+}
+
+.mj-npc-avatar-wrap:focus-visible {
+  outline: 2px solid var(--mj-gold, #e8c547);
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+
+.mj-npc-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid var(--mj-border, rgba(140, 120, 83, 0.45));
+}
+
+.mj-npc-avatar--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--mj-muted, #8a9088);
+  font-size: 1.8rem;
+  font-weight: 600;
+  user-select: none;
+}
+
+.mj-npc-avatar-edit {
+  position: absolute;
+  top: 60px;
+  right: calc(50% - 40px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--mj-gold, #e8c547);
+  font-size: 0.7rem;
+  line-height: 1;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.mj-npc-avatar-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.mj-npc-avatar-error {
+  margin: 2px 0 6px;
+  font-size: 0.72rem;
+  color: #e8a598;
+  text-align: center;
 }
 
 .mj-npc-dead-tag {

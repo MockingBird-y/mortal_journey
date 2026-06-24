@@ -143,6 +143,8 @@ export interface BattleCombatant {
   powerTier?: string;
   identity?: string;
   sourceNpcName?: string;
+  /** 头像 dataURL（主角为玩家上传图，NPC 目前为空）。 */
+  avatarUrl?: string;
 }
 
 // ═══════════════════════════════════════════════════════════════
