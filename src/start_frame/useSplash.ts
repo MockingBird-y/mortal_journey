@@ -1,0 +1,219 @@
+import { computed, onMounted, type ComputedRef, type Ref, ref } from "vue";
+import {
+  useApiConfig,
+  isApiConfigured,
+  API_OVERRIDE_KEY,
+} from "../ai/useApiConfig";
+import type { ApiOverrideStored } from "../ai/useApiConfig";
+import {
+  readSaveIndex as readIndexFromGameSave,
+  readSave,
+  removeSave as removeSaveFromGameSave,
+  clearAllSaves as clearAllSavesFromGameSave,
+  type MjSavePayload,
+  type SaveIndexEntry,
+} from "../save/gameSave";
+
+export { API_OVERRIDE_KEY } from "../ai/useApiConfig";
+export type { ApiOverrideStored } from "../ai/useApiConfig";
+export { isApiConfigured } from "../ai/useApiConfig";
+export { SAVE_INDEX_KEY, SAVE_PREFIX } from "../save/gameSave";
+export type { SaveIndexEntry, MjSavePayload } from "../save/gameSave";
+
+export interface UseSplashReturn {
+  apiModalOpen: Ref<boolean>;
+  saveModalOpen: Ref<boolean>;
+  helpModalOpen: Ref<boolean>;
+  apiUrl: Ref<string>;
+  apiKey: Ref<string>;
+  apiModel: Ref<string>;
+  apiStatus: Ref<string>;
+  apiStatusOk: Ref<boolean>;
+  saveStatus: Ref<string>;
+  saveStatusOk: Ref<boolean>;
+  saves: Ref<SaveIndexEntry[]>;
+  canStart: ComputedRef<boolean>;
+  fmtTime: (ts: number | undefined) => string;
+  openApiSettings: () => void;
+  closeApiSettings: () => void;
+  saveApiSettings: () => void;
+  clearApiSettings: () => void;
+  testApiSettings: () => void;
+  openSaveLoad: () => void;
+  closeSaveLoad: () => void;
+  openHelp: () => void;
+  closeHelp: () => void;
+  refreshSaveList: () => void;
+  loadSave: (it: SaveIndexEntry) => { id: string; payload: MjSavePayload } | null;
+  deleteSave: (it: SaveIndexEntry) => void;
+  deleteAllSaves: () => void;
+}
+
+export function useSplash(): UseSplashReturn {
+  const { apiUrl, apiKey, apiModel, loadFromStorage, save, clear, test } = useApiConfig();
+
+  const apiModalOpen = ref(false);
+  const saveModalOpen = ref(false);
+  const helpModalOpen = ref(false);
+  const apiStatus = ref("");
+  const apiStatusOk = ref(true);
+  const saveStatus = ref("");
+  const saveStatusOk = ref(true);
+  const saves = ref<SaveIndexEntry[]>([]);
+
+  const canStart = computed(() => isApiConfigured());
+
+  function setApiStatus(msg: string | null | undefined, ok: boolean): void {
+    apiStatus.value = msg != null ? String(msg) : "";
+    apiStatusOk.value = !!ok;
+  }
+
+  function openApiSettings(): void {
+    apiStatus.value = "";
+    loadFromStorage();
+    apiModalOpen.value = true;
+  }
+
+  function closeApiSettings(): void {
+    apiModalOpen.value = false;
+  }
+
+  function saveApiSettings(): void {
+    const result = save();
+    const ok = result === "已保存。";
+    setApiStatus(result, ok);
+  }
+
+  function clearApiSettings(): void {
+    clear();
+    setApiStatus("已清除。", true);
+  }
+
+  function testApiSettings(): void {
+    setApiStatus("正在测试连接…", true);
+    test().then((result) => {
+      const ok = result.startsWith("测试成功");
+      setApiStatus(result, ok);
+    });
+  }
+
+  function fmtTime(ts: number | undefined): string {
+    const n = Number(ts);
+    if (!isFinite(n) || n <= 0) return "—";
+    const d = new Date(n);
+    const pad = (x: number): string => (x < 10 ? "0" + x : String(x));
+    return (
+      d.getFullYear() +
+      "-" +
+      pad(d.getMonth() + 1) +
+      "-" +
+      pad(d.getDate()) +
+      " " +
+      pad(d.getHours()) +
+      ":" +
+      pad(d.getMinutes())
+    );
+  }
+
+  function refreshSaveList(): void {
+    saves.value = readIndexFromGameSave();
+  }
+
+  function openSaveLoad(): void {
+    saveStatus.value = "";
+    saveModalOpen.value = true;
+    refreshSaveList();
+  }
+
+  function closeSaveLoad(): void {
+    saveModalOpen.value = false;
+  }
+
+  function openHelp(): void {
+    helpModalOpen.value = true;
+  }
+
+  function closeHelp(): void {
+    helpModalOpen.value = false;
+  }
+
+  function setSaveStatus(msg: string | null | undefined, ok: boolean): void {
+    saveStatus.value = msg != null ? String(msg) : "";
+    saveStatusOk.value = !!ok;
+  }
+
+  /** 读取存档；成功返回 {id, payload} 供上层（App）恢复游戏，失败返回 null 并设置状态。 */
+  function loadSave(it: SaveIndexEntry): { id: string; payload: MjSavePayload } | null {
+    try {
+      const payload = readSave(it.id);
+      if (!payload || !payload.fateChoice) {
+        setSaveStatus("读取失败：存档内容不存在或已损坏。", false);
+        return null;
+      }
+      return { id: it.id, payload };
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "未知错误";
+      setSaveStatus("读取失败：" + err, false);
+      return null;
+    }
+  }
+
+  function deleteSave(it: SaveIndexEntry): void {
+    const msg = "确定删除存档「" + String(it.name || it.id) + "」？\n此操作不可撤销。";
+    if (!window.confirm(msg)) return;
+    try {
+      removeSaveFromGameSave(it.id);
+      refreshSaveList();
+      setSaveStatus("已删除。", true);
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "未知错误";
+      setSaveStatus("删除失败：" + err, false);
+    }
+  }
+
+  function deleteAllSaves(): void {
+    const msg = "确定清空全部存档？\n此操作不可撤销。";
+    if (!window.confirm(msg)) return;
+    try {
+      clearAllSavesFromGameSave();
+      refreshSaveList();
+      setSaveStatus("已清空。", true);
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "未知错误";
+      setSaveStatus("清空失败：" + err, false);
+    }
+  }
+
+  onMounted(() => {
+    loadFromStorage();
+  });
+
+  return {
+    apiModalOpen,
+    saveModalOpen,
+    apiUrl,
+    apiKey,
+    apiModel,
+    apiStatus,
+    apiStatusOk,
+    saveStatus,
+    saveStatusOk,
+    saves,
+    canStart,
+    fmtTime,
+    openApiSettings,
+    closeApiSettings,
+    saveApiSettings,
+    clearApiSettings,
+    testApiSettings,
+    openSaveLoad,
+    closeSaveLoad,
+    openHelp,
+    closeHelp,
+    helpModalOpen,
+    refreshSaveList,
+    loadSave,
+    deleteSave,
+    deleteAllSaves,
+  };
+}
