@@ -16,6 +16,7 @@ import SideToolbarPanel from "./SideToolbarPanel.vue";
 import PlayerInfoPanel from "./PlayerInfoPanel.vue";
 import StoryChatPanel from "./StoryChatPanel.vue";
 import { TEST_ALLY_DUMMY_NAMES, TEST_ENEMY_DUMMY_NAMES, ALL_TEST_DUMMY_NAMES } from "./testBattle";
+import kuileiAvatar from "../assets/kuilei.png";
 
 const props = defineProps<{
   visible: boolean;
@@ -98,7 +99,7 @@ function startTestBattle() {
       maxMp: dummyMaxMp,
       currentHp: dummyMaxHp,
       currentMp: dummyMaxMp,
-      avatarUrl: "/kuilei.png",
+      avatarUrl: kuileiAvatar,
       gender: "无",
       linggen: [],
       age: 0,
