@@ -356,13 +356,16 @@ export class BattleEngine implements BattleEngineLike {
 
     const alliesAlive = this.state.allies.some(a => !a.isDead);
     const enemiesAlive = this.state.enemies.some(e => !e.isDead);
+    // 主角阵亡即战败：主角是玩家唯一可操控角色，阵亡后战斗无意义；
+    // 结算（settleBattle）亦以 phase==="defeat" 判定主角身亡触发结局。
+    const protagonistDead = this.state.allies.some(a => a.isProtagonist && a.isDead);
 
     if (!enemiesAlive) {
       this.state.phase = "victory";
       this.emitBattleEnd();
       return true;
     }
-    if (!alliesAlive) {
+    if (!alliesAlive || protagonistDead) {
       this.state.phase = "defeat";
       this.emitBattleEnd();
       return true;

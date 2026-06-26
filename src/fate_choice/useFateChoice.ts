@@ -27,7 +27,10 @@ import "./fateChoice.css";
 // 公共类型与工具函数
 // ---------------------------------------------------------------------------
 
-export interface TraitOption extends TraitSample {}
+export interface TraitOption extends TraitSample {
+  /** 是否锁定（逆天改命时保留）。仅 UI/内部状态，不进入最终结果。 */
+  locked?: boolean;
+}
 
 /**
  * 从出生定义中取出地点名称（展示用）。
@@ -276,9 +279,26 @@ export function useFateChoice() {
   // ── 5. 天赋词条 ──────────────────────────────────────────────────────────
   const currentTraitOptions = ref<TraitOption[]>([]);
 
-  /** 随机刷新五个天赋（全量替换）。 */
+  /** 切换某条候选天赋的锁定状态（逆天改命时锁定者不会被替换）。 */
+  function toggleTraitLock(index: number): void {
+    const t = currentTraitOptions.value[index];
+    if (!t) return;
+    t.locked = !t.locked;
+  }
+
+  /** 随机刷新天赋：锁定的原位保留，仅重摇未锁定的槽位。 */
   function randomizeTraits(): void {
-    currentTraitOptions.value = pickRandomTraits(traitSamples, [], 5);
+    const current = currentTraitOptions.value;
+    const lockedNames = current.filter((t) => t.locked).map((t) => t.name);
+    if (lockedNames.length >= 5) return;
+    const fresh = pickRandomTraits(traitSamples, lockedNames, 5 - lockedNames.length);
+    let fi = 0;
+    currentTraitOptions.value = current.map((t) => {
+      if (t.locked) return { ...t };
+      const replacement = fresh[fi] ?? t;
+      fi += 1;
+      return { ...replacement };
+    });
   }
 
   // ── 6. 灵根 ──────────────────────────────────────────────────────────────
@@ -370,6 +390,7 @@ export function useFateChoice() {
     applyCustomBirth,
     currentTraitOptions,
     randomizeTraits,
+    toggleTraitLock,
     selectedLinggen,
     applyRandomLinggen,
     statusMessage,

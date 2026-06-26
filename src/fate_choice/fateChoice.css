@@ -304,6 +304,30 @@
   box-shadow: 0 0 0 1px rgba(232, 197, 71, 0.25);
 }
 
+.fc-screen .trait-card.trait-locked {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+
+.fc-screen .trait-card .trait-lock-btn {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  background: none;
+  border: none;
+  color: var(--mj-muted);
+  cursor: pointer;
+  font-size: 1em;
+}
+
+.fc-screen .trait-card .trait-lock-btn:hover {
+  color: var(--mj-gold-dim);
+}
+
+.fc-screen .trait-card.trait-locked .trait-lock-btn {
+  color: var(--mj-gold);
+}
+
 .fc-screen .trait-card .trait-rarity {
   position: absolute;
   top: 5px;
@@ -342,6 +366,14 @@
 .fc-screen .action-buttons-grid {
   display: grid;
   gap: 10px;
+}
+
+.fc-screen .fc-trait-hint {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--mj-muted);
+  text-align: center;
+  line-height: 1.5;
 }
 
 .fc-screen .trait-card .selected-indicator {

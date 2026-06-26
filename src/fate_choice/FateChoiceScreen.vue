@@ -35,6 +35,7 @@ const {
   reset,
   prepareInitialRolls,
   randomizeTraits,
+  toggleTraitLock,
   applyRandomLinggen,
   buildPayload,
   selectBirth,
@@ -306,18 +307,28 @@ function customBirthSummary(): string {
               >
                 <i class="fas fa-dice"></i> 逆天改命
               </button>
+              <p class="fc-trait-hint">点击卡片左下角 🔒 锁定想保留的词条，「逆天改命」不会替换已锁定的词条。</p>
             </div>
             <div id="trait-options-container">
               <template v-if="currentTraitOptions.length">
                 <div
-                  v-for="trait in currentTraitOptions"
+                  v-for="(trait, idx) in currentTraitOptions"
                   :key="trait.name"
                   class="trait-card"
+                  :class="{ 'trait-locked': trait.locked }"
                   :data-rarity="trait.rarity"
                   :data-trait-name="trait.name"
                 >
                   <div class="trait-rarity">{{ trait.rarity }}</div>
                   <div class="trait-name">{{ trait.name }}</div>
+                  <button
+                    type="button"
+                    class="trait-lock-btn"
+                    :title="trait.locked ? '解锁' : '锁定（逆天改命时保留）'"
+                    @click.stop="toggleTraitLock(idx)"
+                  >
+                    <i :class="trait.locked ? 'fas fa-lock' : 'fas fa-lock-open'"></i>
+                  </button>
                   <button
                     type="button"
                     class="trait-detail-btn"
