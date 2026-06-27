@@ -108,28 +108,40 @@ export const STATE_SYSTEM_PRESET = `
   7.4 <MJ_TIME_TAG> {"timeAdvance":{"months":6,"days":15,"hour":8}} </MJ_TIME_TAG>
 
 [突破规则]
-1. 突破不是自动完成，需要完成与境界匹配的突破任务。突破任务是一段完整的剧情链，不是单次事件。
-2. 各境界突破任务参考（严格遵循《凡人修仙传》风格修仙世界观）：
+1. 区分小境界与大境界突破（严格遵守，否则剧情与境界会错乱）：
+  1.1 小境界推进（初期圆满→中期、中期圆满→后期）：修为圆满后，需一次轻量触发事件即可突破（顿悟/机缘/丹药辅助/师门指点等，单回合完成）。剧情描写该事件后直接设置 realmBreakthrough 为 true（不要使用 breakthroughQuestStart，那是大境界多回合任务专属）。下一阶必须是紧邻的小境界。
+  1.2 大境界突破（仅“后期圆满”→下一大境界，如练气后期→筑基初期）：需要完成与境界匹配的突破任务（完整剧情链，非单次事件），并获得丹药/灵物/渡过天劫，成功后设置 realmBreakthrough 为 true。
+2. 严禁境界误标：主角当前境界为 X，修为圆满后下一步只能进入紧邻的下一阶。
+  - 练气初期圆满 → 只能进入练气中期，绝不可叙述为筑基。
+  - 练气中期圆满 → 只能进入练气后期。
+  - 练气后期圆满 → 才可叙述为突破筑基（大境界，需筑基丹/机缘/突破任务）。
+  - 初期/中期圆满时不得出现筑基丹、筑基大比、结丹、元婴等跨大境界剧情。
+3. 小境界突破触发事件参考（轻量、单回合）：
+  - 修炼中突然顿悟，功法运转更上层，修为精进。
+  - 偶遇天地灵机（灵泉/灵地/月华），借势冲破瓶颈。
+  - 服用一颗培元/凝气类丹药，灵力饱满顺势突破。
+  - 观战或受前辈指点，豁然贯通。
+  注意：小境界突破不应安排成需要筑基丹、秘境探险、宗门大比等大场面。
+4. 各大境界突破任务参考（仅适用于“后期圆满→下一大境界”）：
   - 练气→筑基：参加宗门比试/考核，争夺有限的筑基丹或筑基名额。需要击败同门弟子或通过试炼。宗门弟子众多，名额稀少，竞争激烈。
   - 筑基→结丹：前往危险秘境寻找结丹所需的天材地宝，或通过拍卖行/交易获取结丹丹药。秘境中危机四伏，宝物伴随杀机。
   - 结丹→元婴：搜集珍稀材料炼制元婴丹药，或寻找古修遗迹获取突破机缘，最终需要渡天劫。天劫九死一生。
   - 元婴→化神：需要感悟天地法则，寻找上古传承或天道碎片，最终渡化神天劫。化神天劫威力恐怖，需要充分准备。
-3. 突破任务流程：
-  3.1 当玩家表示要突破且突破状态为"ready"时，设置 breakthroughQuestStart 为 true，开始生成突破任务剧情。
-  3.2 突破任务可能持续多轮交互（准备→执行→结果），期间突破状态为"in_quest"。
-  3.3 任务成功可能获得突破所需物品（通过 itemAdds 添加到储物袋），玩家后续使用该物品时才真正突破。
-  3.4 任务失败设置 breakthroughFailed 为 true，回到 ready 状态，可重新尝试或寻找其他途径。
-4. 仅在以下条件全部满足时设置 realmBreakthrough 为 true：
-  4.1 玩家已获得突破所需物品（丹药/灵物等）。
-  4.2 剧情明确描述服用丹药/使用灵物/渡过天劫。
-  4.3 突破成功。
-5. 突破失败不会损失修为，但可能损失血量/法力/灵石/时间。失败后玩家可以继续修炼功法增强实力，或寻找其他突破途径。
-6. 输出格式：<MJ_BREAKTHROUGH_TAG> … </MJ_BREAKTHROUGH_TAG>，内为 JSON 对象。可选键 realmBreakthrough（布尔值）、breakthroughQuestStart（布尔值）、breakthroughFailed（布尔值）。无突破相关事件时输出空对象 {}。
-7. 示例：
-  7.1 <MJ_BREAKTHROUGH_TAG> {} </MJ_BREAKTHROUGH_TAG>
-  7.2 <MJ_BREAKTHROUGH_TAG> {"breakthroughQuestStart":true} </MJ_BREAKTHROUGH_TAG>
-  7.3 <MJ_BREAKTHROUGH_TAG> {"breakthroughFailed":true} </MJ_BREAKTHROUGH_TAG>
-  7.4 <MJ_BREAKTHROUGH_TAG> {"realmBreakthrough":true} </MJ_BREAKTHROUGH_TAG>
+5. 大境界突破任务流程（仅大境界适用）：
+  5.1 当玩家表示要突破、且【主角当前状态】中的“突破状态”明确指向大境界突破时，设置 breakthroughQuestStart 为 true，开始生成突破任务剧情。
+  5.2 突破任务可能持续多轮交互（准备→执行→结果），期间突破状态为“in_quest”。
+  5.3 任务成功可能获得突破所需物品（通过 itemAdds 添加到储物袋），玩家后续使用该物品时才真正突破。
+  5.4 任务失败设置 breakthroughFailed 为 true，回到 ready 状态，可重新尝试或寻找其他途径。
+6. 设置 realmBreakthrough 为 true 的条件：
+  6.1 小境界推进：修为圆满，且剧情已描写一次轻量触发事件（顿悟/机缘/丹药辅助等），即可设置（单回合）。
+  6.2 大境界突破：玩家已获得突破所需物品（丹药/灵物等）、剧情明确描述服用丹药/使用灵物/渡过天劫、且突破成功，方可设置。
+7. 突破失败不会损失修为，但可能损失血量/法力/灵石/时间。失败后玩家可以继续修炼功法增强实力，或寻找其他突破途径。
+8. 输出格式：<MJ_BREAKTHROUGH_TAG> … </MJ_BREAKTHROUGH_TAG>，内为 JSON 对象。可选键 realmBreakthrough（布尔值）、breakthroughQuestStart（布尔值）、breakthroughFailed（布尔值）。无突破相关事件时输出空对象 {}。
+9. 示例：
+  9.1 <MJ_BREAKTHROUGH_TAG> {} </MJ_BREAKTHROUGH_TAG>
+  9.2 <MJ_BREAKTHROUGH_TAG> {"breakthroughQuestStart":true} </MJ_BREAKTHROUGH_TAG>
+  9.3 <MJ_BREAKTHROUGH_TAG> {"breakthroughFailed":true} </MJ_BREAKTHROUGH_TAG>
+  9.4 <MJ_BREAKTHROUGH_TAG> {"realmBreakthrough":true} </MJ_BREAKTHROUGH_TAG>
 
 [灵石规则]
 1. 灵石是修仙界通用货币，不区分品阶（无上品灵石、中品灵石之分），统一称为"灵石"。

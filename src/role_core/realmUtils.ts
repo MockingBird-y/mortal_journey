@@ -8,6 +8,7 @@ import type { GongfaItemDefinition } from "./types/itemInfo";
 import {
   TABLE,
   REALM_ORDER,
+  SUB_STAGES,
   CULTIVATION_VALUES,
   SHOUYUAN_VALUES,
   MIN_NARRATIVE_AGE_BY_MAJOR,
@@ -69,6 +70,26 @@ export function getCultivationRequired(realm: string, stage?: string | null): nu
   const idx = realmStageIndex(realm, stage) - 1;
   if (idx < 0 || idx >= CULTIVATION_VALUES.length) return null;
   return CULTIVATION_VALUES[idx];
+}
+
+/**
+ * 返回修为圆满后"下一阶"的具体描述，供 AI 输入串使用。
+ * 小境界（初期/中期）圆满 → 需一次轻量触发事件即可突破至下一小境界；
+ * 大境界（仅后期）圆满 → 需丹药/机缘并完成突破任务才能进入下一大境界。
+ */
+export function describeNextBreakthrough(major: string, minor: string): string {
+  const minorIdx = (SUB_STAGES as readonly string[]).indexOf(minor);
+  const majorIdx = (REALM_ORDER as readonly string[]).indexOf(major);
+  if (minorIdx < 0 || majorIdx < 0) return "修为已圆满";
+  if (minorIdx < SUB_STAGES.length - 1) {
+    const nextMinor = SUB_STAGES[minorIdx + 1];
+    return `修为已圆满，下一阶为${major}${nextMinor}（小境界，需一次轻量触发事件如顿悟/机缘/丹药辅助即可突破）`;
+  }
+  if (majorIdx < REALM_ORDER.length - 1) {
+    const next = REALM_ORDER[majorIdx + 1];
+    return `修为已圆满，下一阶为${next}（大境界，需${next}丹/机缘并完成突破任务）`;
+  }
+  return "修为已圆满（已达化神后期，无法再突破）";
 }
 
 export function getShouyuanForRealm(realm: string, stage?: string | null): number | null {

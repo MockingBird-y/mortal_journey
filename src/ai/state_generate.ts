@@ -14,6 +14,7 @@ import {
   type WorldLocation,
 } from "../role_core/types/playInfo";
 import { type WorldTime, type TimeDelta, formatWorldTimeZhDisplay } from "../role_core/worldTime";
+import { describeNextBreakthrough } from "../role_core/realmUtils";
 import { formatWorldLocationDash, parseWorldLocationFromDash } from "../role_core/types/worldLocation";
 import type { NpcCoreChangeEvent } from "../role_core/npcCoreChange";
 
@@ -615,7 +616,7 @@ function buildStateUserContent(input: StateGenerateInput): string {
     `姓名：${p.displayName}`,
     `境界：${p.realm.major}${p.realm.minor}${p.realmComplete ? "·圆满" : ""}`,
     `修为状态：${p.realmComplete ? "修为已圆满" : "修为未圆满"}`,
-    `突破状态：${p.realmComplete ? (p.breakthroughStatus === "in_quest" ? "突破任务进行中" : "修为已圆满，可尝试突破") : "修为未圆满"}`,
+    `突破状态：${p.realmComplete ? (p.breakthroughStatus === "in_quest" ? "突破任务进行中" : describeNextBreakthrough(p.realm.major, p.realm.minor)) : "修为未圆满"}`,
     `当前血量：${p.currentHp}/${p.maxHp}`,
     `当前法力：${p.currentMp}/${p.maxMp}`,
     `灵根：${(p as { linggen?: string[] }).linggen?.join("") || "无"}`,

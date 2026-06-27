@@ -8,11 +8,13 @@ import type { ApiOverrideStored } from "../ai/useApiConfig";
 import {
   readSaveIndex as readIndexFromGameSave,
   readSave,
+  importSave as importSaveFromGameSave,
   removeSave as removeSaveFromGameSave,
   clearAllSaves as clearAllSavesFromGameSave,
   type MjSavePayload,
   type SaveIndexEntry,
 } from "../save/gameSave";
+import { downloadJson, readJsonFile } from "../save/saveFileTransfer";
 
 export { API_OVERRIDE_KEY } from "../ai/useApiConfig";
 export type { ApiOverrideStored } from "../ai/useApiConfig";
@@ -45,6 +47,8 @@ export interface UseSplashReturn {
   closeHelp: () => void;
   refreshSaveList: () => void;
   loadSave: (it: SaveIndexEntry) => { id: string; payload: MjSavePayload } | null;
+  exportSave: (it: SaveIndexEntry) => void;
+  importSaveFromFile: (file: File) => Promise<void>;
   deleteSave: (it: SaveIndexEntry) => void;
   deleteAllSaves: () => void;
 }
@@ -158,6 +162,44 @@ export function useSplash(): UseSplashReturn {
     }
   }
 
+  /** 导出存档为本地 JSON 文件（玩家可分享给开发者复现问题）。 */
+  function exportSave(it: SaveIndexEntry): void {
+    try {
+      const payload = readSave(it.id);
+      if (!payload || !payload.fateChoice) {
+        setSaveStatus("导出失败：存档内容不存在或已损坏。", false);
+        return;
+      }
+      const name = (payload.fateChoice.basics?.playerName || it.id).trim() || it.id;
+      downloadJson(`${name}-${it.id}.json`, payload);
+      setSaveStatus("已导出存档文件。", true);
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "未知错误";
+      setSaveStatus("导出失败：" + err, false);
+    }
+  }
+
+  /** 从用户选择的 JSON 文件导入存档（开发者复现问题用）。 */
+  async function importSaveFromFile(file: File): Promise<void> {
+    try {
+      const data = await readJsonFile(file);
+      if (!data || typeof data !== "object") {
+        setSaveStatus("导入失败：不是合法的存档文件。", false);
+        return;
+      }
+      const id = importSaveFromGameSave(data as MjSavePayload);
+      if (!id) {
+        setSaveStatus("导入失败：存档内容不合法（缺少命运抉择数据）。", false);
+        return;
+      }
+      refreshSaveList();
+      setSaveStatus("已导入存档。", true);
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "未知错误";
+      setSaveStatus("导入失败：" + err, false);
+    }
+  }
+
   function deleteSave(it: SaveIndexEntry): void {
     const msg = "确定删除存档「" + String(it.name || it.id) + "」？\n此操作不可撤销。";
     if (!window.confirm(msg)) return;
@@ -213,6 +255,8 @@ export function useSplash(): UseSplashReturn {
     helpModalOpen,
     refreshSaveList,
     loadSave,
+    exportSave,
+    importSaveFromFile,
     deleteSave,
     deleteAllSaves,
   };

@@ -2,6 +2,7 @@ import { STORY_SYSTEM_PRESET } from "./story_preset";
 import { PRESET } from "./preset";
 import { completeChatWithMessagesJson, type JsonChatRequestPayload, type ChatMessage } from "./openAiChatBridge";
 import { Protagonist } from "../role_core/Protagonist";
+import { describeNextBreakthrough } from "../role_core/realmUtils";
 import type { ProtagonistPlayInfo, NarrationPerson, EquippedSlotsState, GongfaSlotsState, InventoryStackItem } from "../role_core/types/playInfo";
 import { formatWorldLocationDash } from "../role_core/types/worldLocation";
 
@@ -137,7 +138,7 @@ function buildStoryUserContent(p: ProtagonistPlayInfo, sceneNpcSnapshot?: string
     `性别：${p.gender || "—"}`,
     narrationPersonLine(p.narrationPerson),
     `境界：${Protagonist.formatRealm(p.realm)}${p.realmComplete ? "·圆满" : ""}`,
-    `修为状态：${p.realmComplete ? "修为已圆满，可突破" : "修为未圆满"}`,
+    `修为状态：${p.realmComplete ? describeNextBreakthrough(p.realm.major, p.realm.minor) : "修为未圆满"}`,
     `灵根：${Protagonist.formatLinggenElements(p.linggen)}`,
     `年龄：${p.age}`,
     `寿元：${p.shouyuan}`,

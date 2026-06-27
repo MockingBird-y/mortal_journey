@@ -368,6 +368,12 @@
   border: 1px solid rgba(200, 80, 80, 0.55);
 }
 
+.save-load-badge--imported {
+  color: #d8c486;
+  background: rgba(180, 160, 90, 0.18);
+  border: 1px solid rgba(200, 180, 100, 0.5);
+}
+
 .save-load-meta {
   font-size: 0.82rem;
   opacity: 0.84;
@@ -384,8 +390,8 @@
 
 .save-load-actions .splash-btn {
   width: auto;
-  min-width: 120px;
-  padding: 10px 16px;
+  min-width: 84px;
+  padding: 10px 14px;
   font-size: 0.98rem;
 }
 

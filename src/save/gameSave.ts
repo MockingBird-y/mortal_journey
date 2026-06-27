@@ -136,6 +136,10 @@ export interface SaveIndexEntry {
   location?: string;
   /** 终结标记：主角已死亡，存档不可继续。 */
   ended?: boolean;
+  /** 导入标记：从外部 JSON 导入的存档；游玩一次后由 writeActiveSave 重写即消失。 */
+  imported?: boolean;
+  /** 导入时刻（ms）。 */
+  importedAt?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -314,6 +318,32 @@ export function createSave(fc: FateChoiceResult): string {
   return id;
 }
 
+/**
+ * 从外部 JSON 载荷导入存档：校验后生成新 id（不覆盖现有存档），写入 blob 并登记索引。
+ * 不会设为活动存档——导入后需在列表点「读取」才进入。
+ * @returns 新存档 id；载荷非法（缺少 fateChoice）返回 null。
+ */
+export function importSave(payload: MjSavePayload): string | null {
+  if (!payload || typeof payload !== "object" || !payload.fateChoice) return null;
+  const name = (payload.fateChoice.basics?.playerName || "").trim() || "未命名";
+  const id = uniqueSaveId(name);
+  const now = Date.now();
+  backend.write(id, JSON.stringify(payload));
+  upsertIndex({
+    id,
+    name,
+    createdAt: payload.createdAt || now,
+    updatedAt: payload.updatedAt || now,
+    realm: payload.protagonist ? realmPreview(payload.protagonist) : "",
+    location: locationPreview(payload.story?.worldLocation),
+    ended: isEndedSave(payload),
+    imported: true,
+    importedAt: now,
+  });
+  gameLog.info("[GameSave] 导入存档：" + id);
+  return id;
+}
+
 /** 读取并存档载荷（不恢复到运行时状态）。损坏或不存在返回 null。 */
 export function readSave(id: string): MjSavePayload | null {
   const raw = backend.read(id);
@@ -419,4 +449,14 @@ function composeSaveId(name: string): string {
     pad(d.getMinutes()) +
     pad(d.getSeconds());
   return name + "-" + ts;
+}
+
+/** 生成不与现有索引冲突的存档 id（同名时追加 -2/-3…）。 */
+function uniqueSaveId(name: string): string {
+  const idx = readIndexRaw();
+  const base = composeSaveId(name);
+  if (!idx.some((e) => e && e.id === base)) return base;
+  let n = 2;
+  while (idx.some((e) => e && e.id === `${base}-${n}`)) n++;
+  return `${base}-${n}`;
 }

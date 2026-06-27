@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useSplash, type SaveIndexEntry, type MjSavePayload } from "./useSplash";
 import { useScrollLock } from "../composables/useScrollLock";
 import "./start_frame.css";
@@ -40,6 +40,8 @@ const {
   closeHelp,
   refreshSaveList,
   loadSave,
+  exportSave,
+  importSaveFromFile,
   deleteSave,
   deleteAllSaves,
 } = useSplash();
@@ -65,6 +67,24 @@ function onStartNewLife() {
 function onLoadSave(it: SaveIndexEntry) {
   const res = loadSave(it);
   if (res) emit("save-loaded", res);
+}
+
+const importInput = ref<HTMLInputElement | null>(null);
+
+function onExportSave(it: SaveIndexEntry) {
+  exportSave(it);
+}
+
+function triggerImport() {
+  importInput.value?.click();
+}
+
+function onImportFilePicked(e: Event) {
+  const target = e.target as HTMLInputElement;
+  const file = target.files && target.files[0];
+  target.value = "";
+  if (!file) return;
+  importSaveFromFile(file);
 }
 </script>
 
@@ -202,24 +222,36 @@ function onLoadSave(it: SaveIndexEntry) {
             <p class="save-load-name">
               {{ it.name || it.id }}
               <span v-if="it.ended" class="save-load-badge save-load-badge--ended">已殒落</span>
+              <span v-if="it.imported" class="save-load-badge save-load-badge--imported">导入</span>
             </p>
             <p v-if="it.realm || it.location" class="save-load-meta">{{ it.realm }}<template v-if="it.realm && it.location"> · </template>{{ it.location }}</p>
-            <p class="save-load-meta">创建：{{ fmtTime(it.createdAt) }} · 更新：{{ fmtTime(it.updatedAt) }}</p>
+            <p class="save-load-meta">创建：{{ fmtTime(it.createdAt) }} · 更新：{{ fmtTime(it.updatedAt) }}<template v-if="it.importedAt"> · 导入：{{ fmtTime(it.importedAt) }}</template></p>
           </div>
           <div class="save-load-actions">
             <button type="button" class="splash-btn" @click="onLoadSave(it)">读取</button>
+            <button type="button" class="splash-btn splash-btn--secondary" @click="onExportSave(it)">
+              导出
+            </button>
             <button type="button" class="splash-btn splash-btn--secondary" @click="deleteSave(it)">
               删除
             </button>
           </div>
         </div>
       </div>
-      <div class="splash-modal-actions splash-modal-actions--2">
+      <div class="splash-modal-actions splash-modal-actions--3">
         <button type="button" class="splash-btn splash-btn--secondary" @click="refreshSaveList">
           刷新
         </button>
+        <button type="button" class="splash-btn" @click="triggerImport">导入</button>
         <button type="button" class="splash-btn splash-btn--secondary" @click="deleteAllSaves">清空</button>
       </div>
+      <input
+        ref="importInput"
+        type="file"
+        accept=".json,application/json"
+        class="hidden"
+        @change="onImportFilePicked"
+      />
       <div
         class="splash-modal-status"
         :class="{
@@ -268,7 +300,7 @@ function onLoadSave(it: SaveIndexEntry) {
             <section class="help-section">
               <h4 class="help-h">修为与突破</h4>
               <p class="help-p">
-                修为是数值（不是百分比），每境界有固定门槛（如练气初期需 2000）。修为攒满后会触发
+                修为是数值（不是百分比），每境界有固定门槛（如练气初期需 1000）。修为攒满后会触发
                 「突破任务」（由剧情推动），完成后境界提升、修为归零。突破失败不会损失修为，但可能折损气血、灵石或时间。
               </p>
             </section>
