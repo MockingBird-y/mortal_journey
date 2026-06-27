@@ -500,6 +500,7 @@
 }
 
 .main-panel--player .mj-gongfa-grid .mj-inventory-slot {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;

@@ -341,7 +341,7 @@ onUnmounted(() => {
                     @keydown="cell && ($event.key === 'Enter' || $event.key === ' ') && (openGongfaDetail(gi), $event.preventDefault())"
                   >
                     <span class="mj-gongfa-slot-label">{{ cell ? gongfaCellName(cell) : '' }}</span>
-                    <span v-if="cell && (cell.mastery ?? 1) > 1" class="mj-gongfa-slot-mastery">{{ gongfaMasteryLabel(cell) }}</span>
+                    <span v-if="cell" class="mj-gongfa-slot-mastery">{{ gongfaMasteryLabel(cell) }}</span>
                   </div>
                 </div>
 
