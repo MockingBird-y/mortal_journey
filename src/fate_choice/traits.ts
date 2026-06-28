@@ -193,7 +193,7 @@ function defineStatTraits(rarity: TraitRarity): readonly TraitRow[] {
 
 /** 平庸词条池（对应「下品」量级）。 */
 export const traitSamplesPingyong = defineTraits("平庸", [
-  { name: "囊中羞涩", desc: "出身清贫，随身仅有几十颗灵石，聊作盘缠。", effect: { kind: "spiritStones", count: 50 } },
+  { name: "囊中羞涩", desc: "出身清贫，随身仅有几十颗灵石，聊作盘缠。", effect: { kind: "spiritStones", count: 20 } },
   { name: "意外之财", desc: "行路时捡得一只旧钱袋，倒出几十颗灵石。", effect: { kind: "spiritStones", count: 80 } },
   { name: "采药童子", desc: "自幼随长辈进山采药，识得几味下品灵草。", effect: { kind: "materials", grade: "下品", count: 9 } },
   { name: "伤药一瓶", desc: "怀中常备一瓶粗制的伤药，危急时可救急。", effect: { kind: "elixir", grade: "下品", count: 1, effectType: "恢复血量" } },
@@ -210,7 +210,7 @@ export const traitSamplesPingyong = defineTraits("平庸", [
 
 /** 普通词条池（对应「中品」量级）。 */
 export const traitSamplesPutong = defineTraits("普通", [
-  { name: "小有积蓄", desc: "多年攒下些许身家，随身带有数百灵石。", effect: { kind: "spiritStones", count: 200 } },
+  { name: "小有积蓄", desc: "多年攒下些许身家，随身带有数百灵石。", effect: { kind: "spiritStones", count: 50 } },
   { name: "药田收成", desc: "家中有一小片灵药田，此番收成几份中品灵草。", effect: { kind: "materials", grade: "中品", count: 6 } },
   { name: "筑基丹方", desc: "偶得一份筑基丹方，服之可助凝练真元、增进修为。", effect: { kind: "elixir", grade: "中品", count: 1, effectType: "提升修为" } },
   { name: "锻体秘方", desc: "得传一份锻体丹方，服之可强筋健骨、增长体魄。", effect: { kind: "elixir", grade: "中品", count: 1, effectType: "提升体魄" } },
@@ -227,7 +227,7 @@ export const traitSamplesPutong = defineTraits("普通", [
 
 /** 稀有词条池（对应「上品」量级）。 */
 export const traitSamplesXiyou = defineTraits("稀有", [
-  { name: "灵石矿脉", desc: "名下有一处小型灵石矿脉，变卖后得数百灵石。", effect: { kind: "spiritStones", count: 500 } },
+  { name: "灵石矿脉", desc: "名下有一处小型灵石矿脉，变卖后得数百灵石。", effect: { kind: "spiritStones", count: 100 } },
   { name: "珍稀药草", desc: "机缘之下采得几份上品珍稀灵草，药香扑鼻。", effect: { kind: "materials", grade: "上品", count: 6 } },
   { name: "益寿丹方", desc: "得一份上品益寿丹方，服之可延寿百年、固本培元。", effect: { kind: "elixir", grade: "上品", count: 1, effectType: "提升寿元" } },
   { name: "淬体秘药", desc: "手中有一份上品淬体秘药，服之脱胎换骨、体魄大增。", effect: { kind: "elixir", grade: "上品", count: 1, effectType: "提升体魄" } },
@@ -243,7 +243,7 @@ export const traitSamplesXiyou = defineTraits("稀有", [
 
 /** 史诗词条池（对应「极品」量级）。 */
 export const traitSamplesShishi = defineTraits("史诗", [
-  { name: "家底丰厚", desc: "家底殷实，随身的储物袋中沉甸甸满是灵石。", effect: { kind: "spiritStones", count: 2000 } },
+  { name: "家底丰厚", desc: "家底殷实，随身的储物袋中沉甸甸满是灵石。", effect: { kind: "spiritStones", count: 200 } },
   { name: "灵药满匣", desc: "怀揣一只满载极品灵药的药匣，药香四溢。", effect: { kind: "materials", grade: "极品", count: 3 } },
   { name: "凝煞丹方", desc: "得一份极品凝煞丹方，服之修为大涨、直指金丹。", effect: { kind: "elixir", grade: "极品", count: 1, effectType: "提升修为" } },
   { name: "明心秘药", desc: "手中有一份极品明心丹方，服之灵台洞开、悟性暴涨。", effect: { kind: "elixir", grade: "极品", count: 1, effectType: "提升悟性" } },
@@ -259,7 +259,7 @@ export const traitSamplesShishi = defineTraits("史诗", [
 
 /** 传说词条池（对应「仙品」量级）。 */
 export const traitSamplesChuanshuo = defineTraits("传说", [
-  { name: "灵石宝库", desc: "继承了一处上古灵石宝库，一夜之间富甲一方。", effect: { kind: "spiritStones", count: 5000 } },
+  { name: "灵石宝库", desc: "继承了一处上古灵石宝库，一夜之间富甲一方。", effect: { kind: "spiritStones", count: 500 } },
   { name: "仙草灵根", desc: "于秘境中采得几株仙品灵根，仙气氤氲不散。", effect: { kind: "materials", grade: "仙品", count: 3 } },
   { name: "元婴丹方", desc: "得一份仙品元婴丹方，服之一粒抵数十年苦修。", effect: { kind: "elixir", grade: "仙品", count: 1, effectType: "提升修为" } },
   { name: "松鹤秘药", desc: "手中有一份仙品松鹤丹方，服之寿逾千载、松鹤延年。", effect: { kind: "elixir", grade: "仙品", count: 1, effectType: "提升寿元" } },
@@ -275,7 +275,7 @@ export const traitSamplesChuanshuo = defineTraits("传说", [
 
 /** 神迹词条池（对应「神品」量级）。 */
 export const traitSamplesShenji = defineTraits("神迹", [
-  { name: "富可敌国", desc: "坐拥一处上古神石宝库，灵石之多富可敌国。", effect: { kind: "spiritStones", count: 10000 } },
+  { name: "富可敌国", desc: "坐拥一处上古神石宝库，灵石之多富可敌国。", effect: { kind: "spiritStones", count: 1000 } },
   { name: "神材天降", desc: "天降一份神品天材，神韵流转、近乎不朽。", effect: { kind: "materials", grade: "神品", count: 3 } },
   { name: "造化神丹", desc: "得一颗夺天地造化的神品神丹，一步登天、修为暴涨。", effect: { kind: "elixir", grade: "神品", count: 1, effectType: "提升修为" } },
   { name: "与天同寿", desc: "手中有一颗神品与天同寿丹，服之寿元无穷、近乎不死。", effect: { kind: "elixir", grade: "神品", count: 1, effectType: "提升寿元" } },

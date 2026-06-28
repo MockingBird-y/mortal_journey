@@ -204,7 +204,7 @@ function onBagSlotClick(index: number) {
   const gfg = (gf: GongfaItemDefinition) => getGongfaScalingStat(p, gf);
   const sng = (gf: GongfaItemDefinition) => getGongfaScalingStatName(gf);
   const dsg = (gf: GongfaItemDefinition) => getGongfaDerivedStats(p);
-  openDetail(buildInventoryStackDetailPayload(cell, index, p.linggen, gfg, sng, dsg, computeLinggenCombatBonuses(p.linggen, p.realm.major).cooldownReduce));
+  openDetail(buildInventoryStackDetailPayload(cell, index, p.linggen, gfg, sng, dsg, computeLinggenCombatBonuses(p.linggen, p.realm.major).cooldownReduce, p.realm.major));
 }
 
 function onDetailAction(a: ProtagonistDetailAction) {
@@ -215,6 +215,9 @@ function onDetailAction(a: ProtagonistDetailAction) {
     return;
   }
   props.protagonist?.applyDetailAction(a);
+  if (a.id === "sellFromBag") {
+    writeActiveSave();
+  }
   closeDetail();
 }
 

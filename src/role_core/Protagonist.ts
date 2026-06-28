@@ -17,7 +17,7 @@ import type { TreasureSpecialEffect } from "./types/treasure";
 import { rollTreasureFunction, rollTreasureSpecialEffect } from "./types/treasure";
 import type { GongfaSpecialEffect, GongfaSystem } from "./types/gongfa";
 import { rollGongfaFunction, normalizeGongfaSystem, normalizeGongfaRole } from "./types/gongfa";
-import { GONGFA_GRADE_ATTRI_TABLE, rollGradeAttriValue } from "./types/gameConstants";
+import { GONGFA_GRADE_ATTRI_TABLE, rollGradeAttriValue, getItemSellPrice } from "./types/gameConstants";
 import { parseStorageObject } from "../ai/parseAiItem";
 
 type SpecialEffect = TreasureSpecialEffect | GongfaSpecialEffect;
@@ -341,6 +341,8 @@ export class Protagonist extends Character {
     let result: boolean;
     if (a.id === "consumeElixir") {
       result = this.consumeElixir(a.inventoryIndex);
+    } else if (a.id === "sellFromBag") {
+      result = this.sellFromBag(a.inventoryIndex, a.count) > 0;
     } else {
       result = super.applyDetailAction(a);
     }
@@ -391,6 +393,31 @@ export class Protagonist extends Character {
     }
     Protagonist.notifyChanged();
     return true;
+  }
+
+  // ===================================================================
+  // 售卖储物袋物品
+  // ===================================================================
+
+  /**
+   * 售卖储物袋物品：按当前境界×品阶定价（领域层重算，不信任 UI 传值），
+   * 灵石入账后扣减/清空该格。灵石堆叠与空格不可售卖。
+   * @returns 实际获得的灵石数；失败返回 0。
+   */
+  sellFromBag(cellIndex: number, count: number): number {
+    const cell = this.inventorySlots[cellIndex];
+    if (!cell || !("itemType" in cell)) return 0;
+    const safeCount = Math.max(1, Math.min(Math.floor(count) || 1, cell.count));
+    if (safeCount <= 0) return 0;
+    const unitPrice = getItemSellPrice(this.realm.major, cell.grade);
+    const gain = unitPrice * safeCount;
+    this.addSpiritStone("灵石", gain);
+    cell.count -= safeCount;
+    if (cell.count <= 0) {
+      this.inventorySlots[cellIndex] = null;
+    }
+    Protagonist.notifyChanged();
+    return gain;
   }
 
   // ===================================================================

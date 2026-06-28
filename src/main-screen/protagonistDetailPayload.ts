@@ -20,7 +20,7 @@ import { TREASURE_MODIFIER_NAMES } from "../role_core/types/treasure";
 import type { GongfaSpecialEffect } from "../role_core/types/gongfa";
 import { resolveGongfaEffectDisplay } from "../role_core/types/gongfa";
 import { gradeToTraitRarity, getGongfaMasteryProgress } from "./protagonistPanelDisplay";
-import { GONGFA_MASTERY_COMBAT_MULT, GONGFA_MASTERY_ATTRI_MULT } from "../role_core/types/gameConstants";
+import { GONGFA_MASTERY_COMBAT_MULT, GONGFA_MASTERY_ATTRI_MULT, getItemSellPrice } from "../role_core/types/gameConstants";
 import type { ItemGrade } from "../role_core/types/itemInfo";
 import { describeTraitEffect } from "../fate_choice/traitEffect";
 
@@ -145,7 +145,8 @@ export type ProtagonistDetailAction =
   | { id: "equipWearFromBag"; inventoryIndex: number }
   | { id: "equipGongfaFromBag"; inventoryIndex: number }
   | { id: "consumeElixir"; inventoryIndex: number }
-  | { id: "cultivateGongfa"; gongfaIndex: number };
+  | { id: "cultivateGongfa"; gongfaIndex: number }
+  | { id: "sellFromBag"; inventoryIndex: number; count: number };
 
 /**
  * 详情弹窗底部的一个操作按钮。
@@ -186,6 +187,15 @@ export interface ProtagonistDetailPayload {
   actions?: ProtagonistDetailActionButton[];
   /** 以两列网格布局展示 sections */
   gridSections?: boolean;
+  /** 售卖信息：存在时弹窗显示「售卖」按钮（仅储物袋非灵石物品）。 */
+  sell?: {
+    inventoryIndex: number;
+    /** 单件售卖价（灵石），仅用于展示；实际入账由领域层重算。 */
+    unitPrice: number;
+    /** 该格可售卖的最大数量。 */
+    maxCount: number;
+    itemName: string;
+  };
 }
 
 /**
@@ -471,6 +481,7 @@ export function buildInventoryStackDetailPayload(
   statNameGetterForGongfa?: (gf: GongfaItemDefinition) => string,
   derivedStatsGetterForGongfa?: (gf: GongfaItemDefinition) => DerivedStatValues,
   cooldownReduce: number = 0,
+  realmMajor?: string,
 ): ProtagonistDetailPayload {
   if (!("itemType" in cell)) {
     const st = cell as SpiritStoneInventoryStack;
@@ -485,12 +496,14 @@ export function buildInventoryStackDetailPayload(
   }
 
   const it = cell;
+  let payload: ProtagonistDetailPayload;
   switch (it.itemType) {
     case "法宝":
-      return buildWearableDetailPayload(
+      payload = buildWearableDetailPayload(
         it,
         bagIndex != null ? { type: "bag", inventoryIndex: bagIndex } : undefined,
       );
+      break;
     case "功法": {
       const gf = it as GongfaItemDefinition;
       const gfg = primaryStatGetterForGongfa
@@ -502,7 +515,7 @@ export function buildInventoryStackDetailPayload(
       const dsg = derivedStatsGetterForGongfa
         ? () => derivedStatsGetterForGongfa(gf)
         : undefined;
-      return buildGongfaDetailPayload(
+      payload = buildGongfaDetailPayload(
         it,
         bagIndex != null ? { type: "bag", inventoryIndex: bagIndex } : undefined,
         linggen,
@@ -511,6 +524,7 @@ export function buildInventoryStackDetailPayload(
         dsg,
         cooldownReduce,
       );
+      break;
     }
     case "丹药": {
       const pill = it as ElixirItemDefinition;
@@ -523,13 +537,14 @@ export function buildInventoryStackDetailPayload(
       if (bagIndex != null && pill.count > 0) {
         actions.push({ label: "服用", action: { id: "consumeElixir", inventoryIndex: bagIndex }, primary: true });
       }
-      return {
+      payload = {
         title: pill.name,
         subtitle: `丹药`,
         sections,
         dataRarity: gradeToTraitRarity(pill.grade),
         actions: actions.length > 0 ? actions : undefined,
       };
+      break;
     }
     case "材料": {
       const m = it as MaterialItemDefinition;
@@ -537,12 +552,13 @@ export function buildInventoryStackDetailPayload(
       pushSec(sections, "简介", m.desc);
       pushSec(sections, "品级", m.grade);
       pushSec(sections, "数量", m.count);
-      return {
+      payload = {
         title: m.name,
         subtitle: `材料`,
         sections,
         dataRarity: gradeToTraitRarity(m.grade),
       };
+      break;
     }
     case "杂物": {
       const misc = it as MiscItemDefinition;
@@ -550,16 +566,17 @@ export function buildInventoryStackDetailPayload(
       pushSec(sections, "简介", misc.desc);
       pushSec(sections, "品级", misc.grade);
       pushSec(sections, "数量", misc.count);
-      return {
+      payload = {
         title: misc.name,
         subtitle: `杂物`,
         sections,
         dataRarity: gradeToTraitRarity(misc.grade),
       };
+      break;
     }
     default: {
       const u = it as { name?: string; desc?: string; grade?: string; count?: number };
-      return {
+      payload = {
         title: u.name ?? "—",
         subtitle: "物品",
         sections: [{ label: "说明", text: u.desc ?? "—" }],
@@ -567,6 +584,17 @@ export function buildInventoryStackDetailPayload(
       };
     }
   }
+
+  // 储物袋内任意带品阶的非灵石物品均可售卖（UI 展示用单价；实际入账由领域层重算）
+  if (bagIndex != null && realmMajor != null && it.grade && it.count > 0) {
+    payload.sell = {
+      inventoryIndex: bagIndex,
+      unitPrice: getItemSellPrice(realmMajor, it.grade),
+      maxCount: it.count,
+      itemName: it.name,
+    };
+  }
+  return payload;
 }
 
 

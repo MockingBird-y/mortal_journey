@@ -301,6 +301,17 @@
   border-color: rgba(129, 199, 132, 0.55);
 }
 
+.mj-sell-confirm-price {
+  margin-bottom: 14px;
+  font-size: 0.82rem;
+  color: var(--mj-muted, #8a9088);
+}
+
+.mj-sell-confirm-price strong {
+  color: var(--mj-gold, #e8c547);
+  font-weight: 600;
+}
+
 .mj-sell-confirm-actions {
   display: flex;
   flex-wrap: wrap;
