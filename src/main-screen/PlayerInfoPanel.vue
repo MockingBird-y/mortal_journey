@@ -215,9 +215,7 @@ function onDetailAction(a: ProtagonistDetailAction) {
     return;
   }
   props.protagonist?.applyDetailAction(a);
-  if (a.id === "sellFromBag") {
-    writeActiveSave();
-  }
+  writeActiveSave();
   closeDetail();
 }
 

@@ -6,6 +6,7 @@ import type { ElixirItemDefinition } from "../role_core/types/elixir";
 import { computeAlchemyGradeOdds } from "../role_core/alchemy";
 import { gradeToTraitRarity } from "./protagonistPanelDisplay";
 import { useScrollLock } from "../composables/useScrollLock";
+import { writeActiveSave } from "../save/gameSave";
 
 const props = defineProps<{
   open: boolean;
@@ -117,6 +118,7 @@ function doCraft() {
   const elixir = p.craftElixirFromMaterials(selected.value.slice());
   if (!elixir) return;
   result.value = elixir;
+  writeActiveSave();
 }
 
 /** 结果展示用的药效文案。 */

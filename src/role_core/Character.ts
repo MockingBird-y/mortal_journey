@@ -44,6 +44,21 @@ import { applyStatConversions, applyResourceConversions, type TreasureConversion
 const HP_PER_PHYSIQUE = 10;
 const MP_PER_SPIRIT = 10;
 
+/**
+ * 规范化丹药/天赋加成映射：仅保留有限且非零的数值项。
+ *
+ * 用于反序列化（`Protagonist.fromJson` / `Npc.fromJson`）时恢复 `elixirBonuses`，
+ * 避免存档中该字段被丢弃导致属性加成在刷新/读档后消失。
+ */
+export function normalizeElixirBonuses(raw: unknown): Record<string, number> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === "number" && Number.isFinite(v) && v !== 0) out[k] = v;
+  }
+  return out;
+}
+
 export class Character {
 
   id: string;

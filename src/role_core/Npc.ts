@@ -1,4 +1,4 @@
-import { Character } from "./Character";
+import { Character, normalizeElixirBonuses } from "./Character";
 import type {
   NpcPlayInfo,
   PowerTier,
@@ -395,6 +395,7 @@ export class Npc extends Character {
         ? ensureWorldTime(o.lastSeenWorldTime as WorldTime)
         : createDefaultWorldTime(),
       encounterCount: typeof o.encounterCount === "number" ? o.encounterCount : 0,
+      elixirBonuses: normalizeElixirBonuses(o.elixirBonuses),
     };
 
     return new Npc(npcData);

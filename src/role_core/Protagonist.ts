@@ -60,7 +60,7 @@ import {
   buildGongfaSlotsFromParsed,
   buildInventoryFromParsed,
 } from "../ai/init_state_generate";
-import { Character } from "./Character";
+import { Character, normalizeElixirBonuses } from "./Character";
 import {
   DEFAULT_INVENTORY_SLOT_COUNT,
   INVENTORY_SLOT_EXPAND_STEP,
@@ -888,6 +888,7 @@ export class Protagonist extends Character {
       xiuwei: typeof o.xiuwei === "number" && Number.isFinite(o.xiuwei) ? Math.max(0, o.xiuwei) : 0,
       realmComplete: o.realmComplete === true,
       breakthroughStatus: Protagonist.normalizeBreakthroughStatus(o.breakthroughStatus, o.realmComplete === true),
+      elixirBonuses: normalizeElixirBonuses(o.elixirBonuses),
     });
   }
 
