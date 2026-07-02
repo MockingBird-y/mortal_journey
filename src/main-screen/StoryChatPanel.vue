@@ -647,7 +647,8 @@ function formatNpcFullLine(npc: Npc): string {
   const mp = `${npc.currentMp}/${npc.maxMp}`;
   const dead = npc.isDead ? " [已故]" : "";
   const cur = npc.currentLocation ? formatWorldLocationDash(npc.currentLocation) : "未知";
-  return `${npc.displayName}（npcId:${npc.id}，${npc.identity}，${Character.formatRealm(npc.realm)}，当前:${cur}，好感${favor}，HP ${hp}，MP ${mp}）${dead}`;
+  const race = npc.race && npc.race !== "修仙者" ? `，${npc.race}` : "";
+  return `${npc.displayName}（npcId:${npc.id}，${npc.identity}${race}，${Character.formatRealm(npc.realm)}，当前:${cur}，好感${favor}，HP ${hp}，MP ${mp}）${dead}`;
 }
 
 function formatNpcBriefLine(npc: Npc): string {

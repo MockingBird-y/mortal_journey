@@ -2,6 +2,7 @@ import { Character, normalizeElixirBonuses } from "./Character";
 import type {
   NpcPlayInfo,
   PowerTier,
+  NpcRace,
   TraitEntry,
   EquippedSlotsState,
   GongfaSlotsState,
@@ -29,6 +30,13 @@ function parsePowerTier(raw: unknown): PowerTier {
   return "普通NPC";
 }
 
+const VALID_RACES = new Set<string>(["修仙者", "人形妖兽", "妖兽"]);
+
+function parseRace(raw: unknown): NpcRace {
+  if (typeof raw === "string" && VALID_RACES.has(raw)) return raw as NpcRace;
+  return "修仙者";
+}
+
 export class Npc extends Character {
 
   readonly role = "npc" as const;
@@ -36,11 +44,12 @@ export class Npc extends Character {
   favorability: number;
   isDead: boolean;
   powerTier: PowerTier;
-  currentStageGoal: string;
-  longTermGoal: string;
-  hobby: string;
-  fear: string;
-  personality: string;
+  /** 种族：决定外貌/服装的文生图要素清单。 */
+  race: NpcRace;
+  /** 外貌特征（自由文本，按种族含发型/脸型/身材/毛色/兽角等要素），用于文生图。 */
+  appearance: string;
+  /** 服装特征（自由文本；兽形"妖兽"可为空），用于文生图。 */
+  clothing: string;
   traits: TraitEntry[];
   xiuwei: number;
   /** 当前所在地点（权威位置字段，由状态 AI 维护）。 */
@@ -58,11 +67,9 @@ export class Npc extends Character {
     this.favorability = data.favorability;
     this.isDead = data.isDead;
     this.powerTier = data.powerTier;
-    this.currentStageGoal = data.currentStageGoal;
-    this.longTermGoal = data.longTermGoal;
-    this.hobby = data.hobby;
-    this.fear = data.fear;
-    this.personality = data.personality;
+    this.race = data.race;
+    this.appearance = data.appearance;
+    this.clothing = data.clothing;
     this.traits = data.traits;
     this.xiuwei = data.xiuwei;
     this.currentLocation = data.currentLocation ?? null;
@@ -145,11 +152,9 @@ export class Npc extends Character {
       favorability: entry.favorability ?? 0,
       isDead: entry.isDead ?? false,
       powerTier: parsePowerTier(entry.powerTier),
-      currentStageGoal: entry.currentStageGoal ?? "",
-      longTermGoal: entry.longTermGoal ?? "",
-      hobby: entry.hobby ?? "",
-      fear: entry.fear ?? "",
-      personality: entry.personality ?? "",
+      race: parseRace(entry.race),
+      appearance: entry.appearance ?? "",
+      clothing: entry.clothing ?? "",
       traits: [],
       xiuwei: 0,
       currentLocation: entry.currentLocation ? { ...entry.currentLocation } : (currentLocation ? { ...currentLocation } : null),
@@ -176,12 +181,14 @@ export class Npc extends Character {
    * 合并 AI 返回的 nearbyNpcs 条目到已有 NPC。
    *
    * 【白名单策略 · 严格事件驱动】
-   * - dynamic 层（identity/favorability/goals/hobby/fear/personality/hp/mp/isDead）：
+   * - dynamic 层（identity/favorability/hp/mp/isDead）：
    *   AI 可自由更新，非空即覆盖。
-   * - 核心层（realm/equippedSlots/gongfaSlots/inventorySlots）：**默认完全忽略**，
-   *   即便 AI 返回了也不动。核心层变化必须走显式的 `<MJ_NPC_CORE_CHANGE_TAG>`
-   *   事件通道（由 npcStore.applyNpcUpdates 统一应用），以此杜绝「数据漂移」。
-   *   检测到 AI 违规返回核心字段时会告警，便于定位 prompt 问题。
+   * - 核心层（realm/equippedSlots/gongfaSlots/inventorySlots/race/appearance/clothing）：
+   *   **默认完全忽略**，即便 AI 返回了也不动。核心层变化必须走显式的
+   *   `<MJ_NPC_CORE_CHANGE_TAG>` 事件通道（由 npcStore.applyNpcUpdates 统一应用），
+   *   或在重评估管线（applyReevaluation）中整体替换，以此杜绝「数据漂移」。
+   *   race/appearance/clothing 属核心层（文生图一致性要求长相稳定）。检测到 AI 违规
+   *   返回核心字段时会告警，便于定位 prompt 问题。
    * - 不重算 maxHp/maxMp：核心层未变 ⇒ 主属性未变 ⇒ 上限稳定。
    */
   mergeFromAi(entry: NpcNearbyEntry, _protagonistLinggen?: string[]): void {
@@ -194,11 +201,6 @@ export class Npc extends Character {
       this.currentHp = 0;
       return;
     }
-    if (entry.currentStageGoal) this.currentStageGoal = entry.currentStageGoal;
-    if (entry.longTermGoal) this.longTermGoal = entry.longTermGoal;
-    if (entry.hobby) this.hobby = entry.hobby;
-    if (entry.fear) this.fear = entry.fear;
-    if (entry.personality) this.personality = entry.personality;
     // 位置字段：每次合并更新（信任 AI 的 currentLocation 输出；未给则保留旧值）。
     if (entry.currentLocation) this.currentLocation = { ...entry.currentLocation };
     if (typeof entry.hpPercent === "number") {
@@ -213,8 +215,17 @@ export class Npc extends Character {
       && (entry.realm.major !== this.realm.major || entry.realm.minor !== this.realm.minor);
     if (realmChanged) {
       gameLog.warn(
-        `[Npc.mergeFromAi] 忽略 ${this.displayName} 的境界变更（${this.realm.major}${this.realm.minor}→${entry.realm?.major}${entry.realm?.minor}）。突破须走 <MJ_NPC_CORE_CHANGE_TAG> 事件。`,
+        `[Npc.mergeFromAi] 忽略 ${this.displayName} 的境界变更（${this.realm.major}${this.realm.minor}→${entry.realm?.major}${entry.realm.minor}）。突破须走 <MJ_NPC_CORE_CHANGE_TAG> 事件。`,
       );
+    }
+    if (entry.race && entry.race !== this.race) {
+      gameLog.warn(`[Npc.mergeFromAi] 忽略 ${this.displayName} 的 race 变更（须走核心变更事件/重评估）。`);
+    }
+    if (entry.appearance) {
+      gameLog.warn(`[Npc.mergeFromAi] 忽略 ${this.displayName} 的 appearance 变更（须走核心变更事件/重评估）。`);
+    }
+    if (entry.clothing) {
+      gameLog.warn(`[Npc.mergeFromAi] 忽略 ${this.displayName} 的 clothing 变更（须走核心变更事件/重评估）。`);
     }
     if (Array.isArray(entry.equippedSlots) && entry.equippedSlots.length > 0) {
       gameLog.warn(`[Npc.mergeFromAi] 忽略 ${this.displayName} 的 equippedSlots 变更（须走核心变更事件）。`);
@@ -235,7 +246,8 @@ export class Npc extends Character {
    * 整体写回。这是「严格事件驱动」策略的受控例外——低频、批量、整体性更新，与 AI 实时
    * 声明的单点事件不同。
    *
-   * identity/性格/目标等 dynamic 字段保持不变，只替换核心战斗数据。
+   * identity/好感等 dynamic 字段保持不变，只替换核心战斗数据与文生图数据。
+   * race/appearance/clothing 也在此整体替换（长岁月可能改变外貌，如妖兽化形、修士衰老）。
    */
   applyReevaluation(entry: NpcNearbyEntry, protagonistLinggen?: string[]): void {
     if (this.isDead) return;
@@ -243,6 +255,11 @@ export class Npc extends Character {
     if (entry.realm) {
       this.setRealm(entry.realm.major || this.realm.major, entry.realm.minor || this.realm.minor);
     }
+
+    // 文生图核心层：种族/外貌/服装（重评估整体替换）。
+    if (entry.race) this.race = parseRace(entry.race);
+    if (entry.appearance) this.appearance = entry.appearance;
+    if (entry.clothing) this.clothing = entry.clothing;
 
     if (Array.isArray(entry.equippedSlots) && entry.equippedSlots.length > 0) {
       const newSlots: EquippedSlotsState = Array.from({ length: EQUIP_SLOT_COUNT }, () => null);
@@ -297,11 +314,9 @@ export class Npc extends Character {
       favorability: this.favorability,
       isDead: this.isDead,
       powerTier: this.powerTier,
-      currentStageGoal: this.currentStageGoal,
-      longTermGoal: this.longTermGoal,
-      hobby: this.hobby,
-      fear: this.fear,
-      personality: this.personality,
+      race: this.race,
+      appearance: this.appearance,
+      clothing: this.clothing,
       traits: this.traits,
       xiuwei: this.xiuwei,
       currentLocation: this.currentLocation ? { ...this.currentLocation } : null,
@@ -378,11 +393,9 @@ export class Npc extends Character {
       favorability: typeof o.favorability === "number" ? o.favorability : 0,
       isDead: o.isDead === true,
       powerTier: parsePowerTier(o.powerTier),
-      currentStageGoal: typeof o.currentStageGoal === "string" ? o.currentStageGoal : "",
-      longTermGoal: typeof o.longTermGoal === "string" ? o.longTermGoal : "",
-      hobby: typeof o.hobby === "string" ? o.hobby : "",
-      fear: typeof o.fear === "string" ? o.fear : "",
-      personality: typeof o.personality === "string" ? o.personality : "",
+      race: parseRace(o.race),
+      appearance: typeof o.appearance === "string" ? o.appearance : "",
+      clothing: typeof o.clothing === "string" ? o.clothing : "",
       traits: Array.isArray(o.traits) ? o.traits : [],
       xiuwei: typeof o.xiuwei === "number" ? o.xiuwei : 0,
       currentLocation: o.currentLocation && typeof o.currentLocation === "object"

@@ -5,6 +5,7 @@ import { npcStore } from "../role_core/npcStore";
 import type { WorldLocation } from "../role_core/types/worldLocation";
 import { isWorldLocationEqual } from "../role_core/types/worldLocation";
 import type { Npc } from "../role_core/Npc";
+import { npcColorTheme } from "../role_core/npcTheme";
 import { useScrollLock } from "../composables/useScrollLock";
 import NpcDetailModal from "./NpcDetailModal.vue";
 
@@ -270,6 +271,7 @@ onUnmounted(() => {
                     :key="entry.name"
                     class="map-npc-card"
                     :class="{ 'map-npc-card--dead': entry.npc?.isDead }"
+                    :data-npc-theme="entry.npc ? npcColorTheme(entry.npc.gender, entry.npc.race) : 'default'"
                     @click="entry.npc && openNpcDetail(entry.npc)"
                   >
                     <div class="map-npc-avatar">

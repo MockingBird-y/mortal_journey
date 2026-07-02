@@ -218,6 +218,14 @@ export interface ProtagonistPlayInfo extends CharacterPlayInfoCommon {
 export type PowerTier = "小怪" | "精英怪" | "小boss" | "大boss" | "普通NPC";
 
 /**
+ * NPC 种族（决定外貌/服装的文生图要素清单）：
+ * - 修仙者   人形修士，穿戴正常服饰。
+ * - 人形妖兽 整体人形体态，但头部/躯干保留妖兽特征（兽耳/兽角/鳞片/毛色等），穿衣。
+ * - 妖兽     兽形，无人类服饰（clothing 可为空）。
+ */
+export type NpcRace = "修仙者" | "人形妖兽" | "妖兽";
+
+/**
  * NPC 在场状态机：
  * - active   当前在主角所在地点，参与剧情 sim。
  * - dormant  归属本地点但主角暂时离开；保留全部数据，回归时唤醒。
@@ -232,11 +240,12 @@ export interface NpcPlayInfo extends CharacterPlayInfoCommon {
   favorability: number;
   isDead: boolean;
   powerTier: PowerTier;
-  currentStageGoal: string;
-  longTermGoal: string;
-  hobby: string;
-  fear: string;
-  personality: string;
+  /** 种族：决定外貌/服装的文生图要素清单。旧存档缺省视为"修仙者"。 */
+  race: NpcRace;
+  /** 外貌特征（自由文本，按种族含发型/脸型/身材/毛色/兽角等要素），用于文生图。 */
+  appearance: string;
+  /** 服装特征（自由文本，含服装类型/主色调/纹样/配饰；兽形"妖兽"可为空），用于文生图。 */
+  clothing: string;
   traits: TraitEntry[];
   xiuwei: number;
   /** 当前所在地点（权威位置字段，由状态 AI 每回合维护；用于在场判定/地图展示/迁移）。 */

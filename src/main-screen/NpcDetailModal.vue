@@ -26,11 +26,10 @@ import {
 } from "./protagonistPanelDisplay";
 import ProtagonistDetailModal from "./ProtagonistDetailModal.vue";
 import { useScrollLock } from "../composables/useScrollLock";
-import { resizeImageFileToAvatar } from "./avatarUpload";
+import { resizeImageFileToPortrait } from "./avatarUpload";
 import { writeActiveSave } from "../save/gameSave";
 import { npcStore } from "../role_core/npcStore";
-
-type NpcTab = "combat" | "story";
+import { npcColorTheme } from "../role_core/npcTheme";
 
 const props = defineProps<{
   open: boolean;
@@ -42,12 +41,11 @@ const emit = defineEmits<{
 }>();
 
 const scrollLock = useScrollLock();
-const activeTab = ref<NpcTab>("combat");
 
 const itemDetailOpen = ref(false);
 const itemDetailPayload = shallowRef<ProtagonistDetailPayload | null>(null);
 
-// ── NPC 头像上传 ────────────────────────────────────────────────────────────
+// ── NPC 立绘上传 ────────────────────────────────────────────────────────────
 const avatarFileInput = ref<HTMLInputElement | null>(null);
 const avatarError = ref("");
 
@@ -62,19 +60,23 @@ async function onNpcAvatarFileChange(e: Event) {
   const npc = props.npc;
   if (file && npc) {
     try {
-      const dataUrl = await resizeImageFileToAvatar(file);
+      const dataUrl = await resizeImageFileToPortrait(file);
       npc.setAvatarUrl(dataUrl);
       npcStore.setNpc(npc);
       writeActiveSave();
       avatarError.value = "";
     } catch (err) {
-      avatarError.value = err instanceof Error ? err.message : "头像上传失败。";
+      avatarError.value = err instanceof Error ? err.message : "立绘上传失败。";
     }
   }
   if (input) input.value = "";
 }
 
 const primaryStats = computed(() => props.npc?.getPrimaryStats() ?? null);
+
+const npcTheme = computed(() =>
+  props.npc ? npcColorTheme(props.npc.gender, props.npc.race) : "default",
+);
 
 const equipSlots = computed(() => {
   const npc = props.npc;
@@ -88,26 +90,6 @@ const equipSlots = computed(() => {
 
 const gongfaSlots = computed(() => props.npc?.gongfaSlots ?? []);
 const bagSlots = computed(() => getInventoryBagDisplaySlots(props.npc?.inventorySlots ?? null));
-
-function favorLabel(f: number): string {
-  if (f >= 80) return "生死之交";
-  if (f >= 60) return "亲密无间";
-  if (f >= 40) return "亲密";
-  if (f >= 20) return "朋友";
-  if (f >= -19) return "普通";
-  if (f >= -39) return "疏离";
-  if (f >= -59) return "厌恶";
-  if (f >= -79) return "仇视";
-  return "不死不休";
-}
-
-function switchTab(tab: NpcTab) {
-  activeTab.value = tab;
-  if (tab !== "combat") {
-    itemDetailOpen.value = false;
-    itemDetailPayload.value = null;
-  }
-}
 
 function getNpcDerivedStats(npc: Npc): DerivedStatValues {
   const ps = npc.getPrimaryStats();
@@ -187,7 +169,6 @@ watch(
   (v) => {
     if (v) {
       scrollLock.acquire();
-      activeTab.value = "combat";
     } else {
       scrollLock.release();
       itemDetailOpen.value = false;
@@ -225,6 +206,7 @@ onUnmounted(() => {
             role="dialog"
             aria-modal="true"
             :data-rarity="npc.realm.major === '化神' ? '传说' : npc.realm.major === '元婴' ? '史诗' : npc.realm.major === '结丹' ? '稀有' : npc.realm.major === '筑基' ? '精良' : undefined"
+            :data-npc-theme="npcTheme"
             @click.stop
           >
             <button type="button" class="mj-trait-modal-close" aria-label="关闭" @click="onCloseClick">
@@ -238,41 +220,48 @@ onUnmounted(() => {
               <template v-else>{{ npc.displayName }}</template>
             </h4>
             <div class="mj-trait-modal-rarity">
-              {{ npc.identity }} · {{ Character.formatRealm(npc.realm) }} · {{ npc.powerTier }}
+              {{ npc.identity }} · {{ Character.formatRealm(npc.realm) }}
             </div>
 
-            <div
-              class="mj-npc-avatar-wrap"
-              role="button"
-              tabindex="0"
-              title="点击上传头像"
-              @click="onNpcAvatarClick"
-              @keydown="($event.key === 'Enter' || $event.key === ' ') && (onNpcAvatarClick(), $event.preventDefault())"
-            >
-              <img v-if="npc.avatarUrl" class="mj-npc-avatar" :src="npc.avatarUrl" :alt="npc.displayName" />
-              <div v-else class="mj-npc-avatar mj-npc-avatar--placeholder">{{ npc.displayName.slice(0, 1) }}</div>
-              <span class="mj-npc-avatar-edit" aria-hidden="true">✎</span>
-              <input ref="avatarFileInput" type="file" accept="image/*" class="mj-npc-avatar-input" @change="onNpcAvatarFileChange" />
-            </div>
-            <p v-if="avatarError" class="mj-npc-avatar-error">{{ avatarError }}</p>
+            <div class="mj-npc-layout">
+              <div class="mj-npc-portrait-col">
+                <div
+                  class="mj-npc-avatar-wrap"
+                  role="button"
+                  tabindex="0"
+                  title="点击上传立绘（512×1024）"
+                  @click="onNpcAvatarClick"
+                  @keydown="($event.key === 'Enter' || $event.key === ' ') && (onNpcAvatarClick(), $event.preventDefault())"
+                >
+                  <img v-if="npc.avatarUrl" class="mj-npc-avatar" :src="npc.avatarUrl" :alt="npc.displayName" />
+                  <div v-else class="mj-npc-avatar mj-npc-avatar--placeholder">{{ npc.displayName.slice(0, 1) }}</div>
+                  <span class="mj-npc-avatar-edit" aria-hidden="true">✎</span>
+                  <input ref="avatarFileInput" type="file" accept="image/*" class="mj-npc-avatar-input" @change="onNpcAvatarFileChange" />
+                </div>
+                <p v-if="avatarError" class="mj-npc-avatar-error">{{ avatarError }}</p>
+              </div>
 
-            <div class="mj-npc-tabs">
-              <button
-                type="button"
-                class="mj-npc-tab"
-                :class="{ 'mj-npc-tab--active': activeTab === 'combat' }"
-                @click="switchTab('combat')"
-              >战斗</button>
-              <button
-                type="button"
-                class="mj-npc-tab"
-                :class="{ 'mj-npc-tab--active': activeTab === 'story' }"
-                @click="switchTab('story')"
-              >剧情</button>
-            </div>
+              <div class="mj-npc-content-col">
+                <div class="mj-npc-section-title">基础</div>
+                <div class="mj-npc-story-grid">
+                  <div class="mj-stat-cell">
+                    <span class="mj-stat-k">性别</span>
+                    <span class="mj-stat-v">{{ npc.gender || '—' }}</span>
+                  </div>
+                  <div class="mj-stat-cell">
+                    <span class="mj-stat-k">灵根</span>
+                    <span class="mj-stat-v">{{ Character.formatLinggenElements(npc.linggen) }}</span>
+                  </div>
+                  <div class="mj-stat-cell">
+                    <span class="mj-stat-k">年龄</span>
+                    <span class="mj-stat-v">{{ npc.age }}</span>
+                  </div>
+                  <div class="mj-stat-cell">
+                    <span class="mj-stat-k">寿元</span>
+                    <span class="mj-stat-v">{{ npc.shouyuan }}</span>
+                  </div>
+                </div>
 
-            <div class="mj-npc-tab-content">
-              <template v-if="activeTab === 'combat'">
                 <div class="mj-npc-hpmp-row">
                   <div class="mj-resource-label">
                     <span>血量</span>
@@ -366,56 +355,7 @@ onUnmounted(() => {
                     <span v-if="inventorySlotParts(cell).qty" class="mj-inventory-slot-qty">{{ inventorySlotParts(cell).qty }}</span>
                   </div>
                 </div>
-              </template>
-
-              <template v-else>
-                <div class="mj-npc-story-grid">
-                  <div class="mj-stat-cell">
-                    <span class="mj-stat-k">性别</span>
-                    <span class="mj-stat-v">{{ npc.gender || '—' }}</span>
-                  </div>
-                  <div class="mj-stat-cell">
-                    <span class="mj-stat-k">灵根</span>
-                    <span class="mj-stat-v">{{ Character.formatLinggenElements(npc.linggen) }}</span>
-                  </div>
-                  <div class="mj-stat-cell">
-                    <span class="mj-stat-k">年龄</span>
-                    <span class="mj-stat-v">{{ npc.age }}</span>
-                  </div>
-                  <div class="mj-stat-cell">
-                    <span class="mj-stat-k">寿元</span>
-                    <span class="mj-stat-v">{{ npc.shouyuan }}</span>
-                  </div>
-                  <div class="mj-stat-cell">
-                    <span class="mj-stat-k">修为</span>
-                    <span class="mj-stat-v">{{ npc.xiuwei }}</span>
-                  </div>
-                  <div class="mj-stat-cell">
-                    <span class="mj-stat-k">好感度</span>
-                    <span class="mj-stat-v">{{ npc.favorability }}（{{ favorLabel(npc.favorability) }}）</span>
-                  </div>
-                </div>
-                <div class="mj-npc-story-section" v-if="npc.personality">
-                  <span class="mj-stat-k">性格</span>
-                  <div class="mj-npc-story-text">{{ npc.personality }}</div>
-                </div>
-                <div class="mj-npc-story-section" v-if="npc.currentStageGoal">
-                  <span class="mj-stat-k">短期目标</span>
-                  <div class="mj-npc-story-text">{{ npc.currentStageGoal }}</div>
-                </div>
-                <div class="mj-npc-story-section" v-if="npc.longTermGoal">
-                  <span class="mj-stat-k">长期目标</span>
-                  <div class="mj-npc-story-text">{{ npc.longTermGoal }}</div>
-                </div>
-                <div class="mj-npc-story-section" v-if="npc.hobby">
-                  <span class="mj-stat-k">爱好</span>
-                  <div class="mj-npc-story-text">{{ npc.hobby }}</div>
-                </div>
-                <div class="mj-npc-story-section" v-if="npc.fear">
-                  <span class="mj-stat-k">恐惧</span>
-                  <div class="mj-npc-story-text">{{ npc.fear }}</div>
-                </div>
-              </template>
+              </div>
             </div>
           </div>
         </Transition>
@@ -430,18 +370,46 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.mj-npc-detail-panel {
-  max-width: 400px;
-  max-height: min(80vh, 620px);
-  overflow: auto;
+.mj-trait-modal.mj-npc-detail-panel {
+  max-width: 600px;
+  max-height: min(82vh, 680px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 性别配色（修仙者/人形妖兽；妖兽沿用基类默认色）——仅改边框，背景保持默认 */
+.mj-trait-modal.mj-npc-detail-panel[data-npc-theme="male"] {
+  border-color: rgba(80, 120, 190, 0.55);
+}
+
+.mj-trait-modal.mj-npc-detail-panel[data-npc-theme="female"] {
+  border-color: rgba(190, 116, 146, 0.55);
+}
+
+.mj-npc-layout {
+  display: flex;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.mj-npc-portrait-col {
+  width: 290px;
+  flex-shrink: 0;
+  align-self: stretch;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .mj-npc-avatar-wrap {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin: 8px 0 4px;
+  display: block;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   cursor: pointer;
 }
 
@@ -456,10 +424,12 @@ onUnmounted(() => {
 }
 
 .mj-npc-avatar {
-  width: 80px;
-  height: 80px;
+  display: block;
+  width: 100%;
+  height: 100%;
   border-radius: 10px;
   object-fit: cover;
+  object-position: top;
   border: 1px solid var(--mj-border, rgba(140, 120, 83, 0.45));
 }
 
@@ -476,8 +446,8 @@ onUnmounted(() => {
 
 .mj-npc-avatar-edit {
   position: absolute;
-  top: 60px;
-  right: calc(50% - 40px);
+  top: 6px;
+  right: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -505,54 +475,54 @@ onUnmounted(() => {
 }
 
 .mj-npc-avatar-error {
-  margin: 2px 0 6px;
+  margin: 4px 0 0;
   font-size: 0.72rem;
   color: #e8a598;
   text-align: center;
+}
+
+.mj-npc-content-col {
+  flex: 1;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+@media (max-width: 639px) {
+  .mj-trait-modal.mj-npc-detail-panel {
+    max-width: 92vw;
+    overflow: auto;
+  }
+  .mj-npc-layout {
+    flex-direction: column;
+    flex: none;
+  }
+  .mj-npc-portrait-col {
+    width: 220px;
+    max-width: 100%;
+    margin: 0 auto;
+    align-self: center;
+  }
+  .mj-npc-avatar-wrap {
+    flex: none;
+    height: auto;
+    aspect-ratio: 1 / 2;
+  }
+  .mj-npc-content-col {
+    overflow-y: visible;
+    padding-right: 0;
+  }
+  .mj-inventory-grid {
+    grid-template-columns: repeat(auto-fill, minmax(52px, 58px));
+    justify-content: start;
+  }
 }
 
 .mj-npc-dead-tag {
   font-size: 0.78rem;
   color: #c62828;
   font-weight: normal;
-}
-
-.mj-npc-tabs {
-  display: flex;
-  gap: 0;
-  margin-bottom: 12px;
-  border-radius: 6px;
-  overflow: hidden;
-  border: 1px solid rgba(140, 120, 83, 0.35);
-}
-
-.mj-npc-tab {
-  flex: 1;
-  padding: 7px 0;
-  border: none;
-  background: transparent;
-  color: var(--mj-muted, #8a9088);
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.mj-npc-tab:first-child {
-  border-right: 1px solid rgba(140, 120, 83, 0.35);
-}
-
-.mj-npc-tab--active {
-  background: rgba(180, 150, 60, 0.15);
-  color: var(--mj-gold, #e8c547);
-  font-weight: 600;
-}
-
-.mj-npc-tab:hover:not(.mj-npc-tab--active) {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.mj-npc-tab-content {
-  padding-right: 2px;
 }
 
 .mj-npc-hpmp-row {

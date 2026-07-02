@@ -68,7 +68,9 @@ function formatNpcForReevaluation(npc: Npc, idx: number): string {
   const gongfaNames = npc.gongfaSlots.filter(Boolean).map(formatSlotBrief).join("、") || "无";
   const invNames = npc.inventorySlots.filter(Boolean).map(formatSlotBrief).join("、") || "无";
   return [
-    `${idx}. npcId:${npc.id} | ${npc.displayName} | ${npc.identity} | ${npc.realm.major}${npc.realm.minor} | 灵根:${npc.linggen.join("") || "无"} | ${npc.age}岁 | 战力:${npc.powerTier} | 好感:${npc.favorability}`,
+    `${idx}. npcId:${npc.id} | ${npc.displayName} | ${npc.identity} | 种族:${npc.race} | ${npc.realm.major}${npc.realm.minor} | 灵根:${npc.linggen.join("") || "无"} | ${npc.age}岁 | 战力:${npc.powerTier} | 好感:${npc.favorability}`,
+    `   旧外貌: ${npc.appearance || "无"}`,
+    `   旧服装: ${npc.clothing || "无"}`,
     `   旧法宝: ${equipNames}`,
     `   旧功法: ${gongfaNames}`,
     `   旧储物: ${invNames}`,
@@ -119,11 +121,9 @@ export function parseNpcReevaluation(raw: string): NpcNearbyEntry[] {
       identity: "",
       isDead: false,
       favorability: 0,
-      currentStageGoal: "",
-      longTermGoal: "",
-      hobby: "",
-      fear: "",
-      personality: "",
+      race: (typeof o.race === "string" && ["修仙者", "人形妖兽", "妖兽"].includes(o.race)) ? o.race as "修仙者" | "人形妖兽" | "妖兽" : "修仙者",
+      appearance: typeof o.appearance === "string" ? o.appearance : "",
+      clothing: typeof o.clothing === "string" ? o.clothing : "",
       gender: "男",
       age: 0,
       linggen: [],
