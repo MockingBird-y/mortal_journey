@@ -35,6 +35,10 @@ export interface StorySerialData {
   initSnapshot: string;
   actionOptions: ActionSuggestions | null;
   chatMessages: ChatMessage[];
+  /** 滚动大总结（约 1000 字剧情总纲），替代已被压缩的旧轮快照。空串表示无大总结。 */
+  grandSummary: string;
+  /** 大总结覆盖到的 chatMessages 索引（不含）；index < 此值的 story 已被吃进大总结。 */
+  grandSummaryUpTo: number;
 }
 
 const storyBody = ref("");
@@ -45,6 +49,10 @@ const worldLocation = ref<WorldLocation | null>(null);
 const initSnapshot = ref("");
 const actionOptions = ref<ActionSuggestions | null>(null);
 const chatMessages = ref<ChatMessage[]>([]);
+/** 滚动大总结（约 1000 字剧情总纲）。空串表示尚无大总结。 */
+const grandSummary = ref("");
+/** 大总结覆盖到的 chatMessages 索引（不含）；index < 此值的 story 已被吃进大总结。 */
+const grandSummaryUpTo = ref(0);
 /** 游戏结束原因（战败/寿尽），仅在 phase==="ended" 时展示用；不持久化，进入 ended 状态时实时写入。 */
 const gameOverReason = ref("");
 
@@ -66,6 +74,8 @@ function clearStory(): void {
   initSnapshot.value = "";
     actionOptions.value = null;
     chatMessages.value = [];
+    grandSummary.value = "";
+    grandSummaryUpTo.value = 0;
     gameOverReason.value = "";
     restored.value = false;
 }
@@ -81,6 +91,8 @@ function serializeStory(): StorySerialData {
     initSnapshot: initSnapshot.value,
     actionOptions: actionOptions.value,
     chatMessages: chatMessages.value.map((m) => ({ ...m })),
+    grandSummary: grandSummary.value,
+    grandSummaryUpTo: grandSummaryUpTo.value,
   };
 }
 
@@ -98,6 +110,8 @@ function restoreStory(data: StorySerialData | null | undefined): void {
   initSnapshot.value = d.initSnapshot || "";
   actionOptions.value = d.actionOptions ?? null;
   chatMessages.value = (d.chatMessages ?? []).map((m) => ({ ...m }));
+  grandSummary.value = d.grandSummary ?? "";
+  grandSummaryUpTo.value = d.grandSummaryUpTo ?? 0;
   restored.value = true;
 }
 
@@ -120,6 +134,8 @@ function applyStorySnapshot(data: StorySerialData | null | undefined): void {
   initSnapshot.value = d.initSnapshot || "";
   actionOptions.value = d.actionOptions ?? null;
   chatMessages.value = (d.chatMessages ?? []).map((m) => ({ ...m }));
+  grandSummary.value = d.grandSummary ?? "";
+  grandSummaryUpTo.value = d.grandSummaryUpTo ?? 0;
 }
 
 export const storyStore = {
@@ -131,6 +147,8 @@ export const storyStore = {
   initSnapshot,
   actionOptions,
   chatMessages,
+  grandSummary,
+  grandSummaryUpTo,
   gameOverReason,
   restored,
   clearStory,
