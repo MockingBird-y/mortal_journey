@@ -17,9 +17,11 @@ import type { WorldLocation } from "./types/worldLocation";
 import type { WorldTime } from "./worldTime";
 import { cloneWorldTime, createDefaultWorldTime } from "./worldTime";
 
-/** 单条聊天消息。story 消息可携带 AI 生成的快照（compact summary），用于后续上下文。 */
+/** 单条聊天消息。story 消息可携带 AI 生成的快照（compact summary），用于后续上下文。
+ *  summary 类型用于滚动大总结裁剪历史后，作为聊天栏顶部的「早期经历总纲」占位消息，
+ *  替代已被物理删除的旧 story 消息。 */
 export interface ChatMessage {
-  type: "story" | "user";
+  type: "story" | "user" | "summary";
   content: string;
   snapshot?: string;
 }

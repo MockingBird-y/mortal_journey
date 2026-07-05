@@ -12,7 +12,7 @@ import type { CultivationInput } from "../ai/cultivation_types";
 import { protagonist, Protagonist } from "../role_core/Protagonist";
 import { npcStore } from "../role_core/npcStore";
 import { worldMapStore, type WorldMapSerialData } from "../role_core/worldMapStore";
-import { storyStore, type StorySerialData } from "../role_core/storyStore";
+import { storyStore, type StorySerialData, type ChatMessage } from "../role_core/storyStore";
 import { writeActiveSave, getActiveDifficulty } from "../save/gameSave";
 import type { NpcPlayInfo } from "../role_core/types/playInfo";
 import type { InventoryStackItem } from "../role_core/types/itemInfo";
@@ -110,16 +110,25 @@ function buildChatHistory(): StoryChatEntry[] {
     }
   }
 
-  const entries: StoryChatEntry[] = [];
-
-  // 滚动大总结作为最前置剧情（若有）：替代已被压缩的旧轮快照。
-  if (grand.trim()) {
-    entries.push({ role: "assistant", content: `【剧情总纲·截至早期】\n${grand.trim()}` });
+  // summary 消息永远在 index 0（物理裁剪后置顶），只扫前几条即可判断是否已裁剪。
+  let hasSummaryMsg = false;
+  for (let i = 0; i < Math.min(msgs.length, 3); i++) {
+    if (msgs[i].type === "summary") {
+      hasSummaryMsg = true;
+      break;
+    }
   }
 
+  const entries: StoryChatEntry[] = [];
+
   // index < upTo 的消息已被大总结覆盖，跳过；从 upTo 起纳入近期历史。
+  // 注：物理裁剪后 upTo 通常归零，summary 消息作为首条纳入，替代旧版的合成前缀。
   for (let idx = Math.max(0, upTo); idx < msgs.length; idx++) {
     const m = msgs[idx];
+    if (m.type === "summary") {
+      entries.push({ role: "assistant", content: `【剧情总纲·截至早期】\n${m.content.trim()}` });
+      continue;
+    }
     const isStory = m.type === "story";
     const isLatest = isStory && idx === latestStoryIdx;
     const useSnapshot = isStory && !isLatest && m.snapshot;
@@ -127,6 +136,13 @@ function buildChatHistory(): StoryChatEntry[] {
       role: isStory ? ("assistant" as const) : ("user" as const),
       content: useSnapshot ? m.snapshot! : m.content,
     });
+  }
+
+  // 兼容旧存档：grandSummary 已生成但尚未物理裁剪时（chatMessages 中无 summary 消息），
+  // 沿用旧版合成前缀，避免 AI 在第一次裁剪触发前丢失早期记忆。
+  // 一旦物理裁剪发生（summary 消息进入 chatMessages），此兜底自动失效。
+  if (!hasSummaryMsg && grand.trim()) {
+    entries.unshift({ role: "assistant", content: `【剧情总纲·截至早期】\n${grand.trim()}` });
   }
 
   return entries;
@@ -176,9 +192,16 @@ async function maybeGenerateGrandSummary(
     if (signal.aborted) return;
     const summary = result.grandSummary.trim();
     if (summary) {
+      // 先用旧引用切片，再整体替换数组。newMsgs 构造完才赋值，避免引用失效。
+      const kept = msgs.slice(recentStartIdx);
+      const newMsgs: ChatMessage[] = [
+        { type: "summary", content: summary },
+        ...kept,
+      ];
+      chatMessages.value = newMsgs;
       grandSummary.value = summary;
-      grandSummaryUpTo.value = recentStartIdx;
-      gameLog.info(`[StoryChat] 滚动大总结已更新（压缩 ${toSummarize.length} 条快照，覆盖至第 ${recentStartIdx} 条消息）。`);
+      grandSummaryUpTo.value = 0;
+      gameLog.info(`[StoryChat] 滚动大总结已更新并裁剪历史（压缩 ${toSummarize.length} 条快照，保留近期 ${kept.length} 条消息）。`);
     }
   } catch (e) {
     gameLog.error("[StoryChat] 大总结生成失败：" + (e instanceof Error ? e.message : String(e)));
@@ -885,9 +908,15 @@ watch(
           <div
             v-for="(msg, idx) in chatMessages"
             :key="idx"
-            :class="['main-panel__chat-item', msg.type === 'user' ? 'main-panel__chat-item--user' : 'main-panel__chat-item--story']"
+            :class="['main-panel__chat-item', `main-panel__chat-item--${msg.type}`]"
           >
-            <template v-if="msg.type === 'story'">
+            <template v-if="msg.type === 'summary'">
+              <div class="main-panel__chat-bubble main-panel__chat-bubble--summary">
+                <div class="main-panel__summary-title">【剧情总纲·早期经历】</div>
+                <div class="main-panel__story-prose">{{ msg.content }}</div>
+              </div>
+            </template>
+            <template v-else-if="msg.type === 'story'">
               <div class="main-panel__chat-bubble main-panel__chat-bubble--story">
                 <div class="main-panel__story-prose">{{ msg.content }}</div>
               </div>
