@@ -6,12 +6,13 @@ import { generateStory, type StoryChatEntry } from "../ai/story_generate";
 import { generateState, type StateParsed, type BattleTriggerEntry } from "../ai/state_generate";
 import { generateCultivationStory } from "../ai/cultivation_story_generate";
 import { generateFinaleStory } from "../ai/finale_story_generate";
+import { generateGrandSummary } from "../ai/grand_summary_generate";
 import { generateNpcReevaluation } from "../ai/npc_reevaluation_generate";
 import type { CultivationInput } from "../ai/cultivation_types";
 import { protagonist, Protagonist } from "../role_core/Protagonist";
 import { npcStore } from "../role_core/npcStore";
 import { worldMapStore, type WorldMapSerialData } from "../role_core/worldMapStore";
-import { storyStore, type StorySerialData } from "../role_core/storyStore";
+import { storyStore, type StorySerialData, type ChatMessage } from "../role_core/storyStore";
 import { writeActiveSave, getActiveDifficulty } from "../save/gameSave";
 import type { NpcPlayInfo } from "../role_core/types/playInfo";
 import type { InventoryStackItem } from "../role_core/types/itemInfo";
@@ -62,10 +63,12 @@ const emit = defineEmits<{
 }>();
 
 const chatMessages = storyStore.chatMessages;
+const grandSummary = storyStore.grandSummary;
+const grandSummaryUpTo = storyStore.grandSummaryUpTo;
 const gameOverReason = storyStore.gameOverReason;
 const inputText = ref("");
 const generating = ref(false);
-const generatingPhase = ref<"story" | "state">("story");
+const generatingPhase = ref<"story" | "state" | "summary">("story");
 const genError = ref("");
 /** 当前显示的四个行动建议（来自状态 AI）。null 时隐藏按钮区。 */
 const actionOptions = storyStore.actionOptions;
@@ -96,6 +99,9 @@ let abortCtl: AbortController | null = null;
 
 function buildChatHistory(): StoryChatEntry[] {
   const msgs = chatMessages.value;
+  const upTo = grandSummaryUpTo.value;
+  const grand = grandSummary.value;
+
   let latestStoryIdx = -1;
   for (let i = msgs.length - 1; i >= 0; i--) {
     if (msgs[i].type === "story") {
@@ -103,15 +109,103 @@ function buildChatHistory(): StoryChatEntry[] {
       break;
     }
   }
-  return msgs.map((m, idx) => {
+
+  // summary 消息永远在 index 0（物理裁剪后置顶），只扫前几条即可判断是否已裁剪。
+  let hasSummaryMsg = false;
+  for (let i = 0; i < Math.min(msgs.length, 3); i++) {
+    if (msgs[i].type === "summary") {
+      hasSummaryMsg = true;
+      break;
+    }
+  }
+
+  const entries: StoryChatEntry[] = [];
+
+  // index < upTo 的消息已被大总结覆盖，跳过；从 upTo 起纳入近期历史。
+  // 注：物理裁剪后 upTo 通常归零，summary 消息作为首条纳入，替代旧版的合成前缀。
+  for (let idx = Math.max(0, upTo); idx < msgs.length; idx++) {
+    const m = msgs[idx];
+    if (m.type === "summary") {
+      entries.push({ role: "assistant", content: `【剧情总纲·截至早期】\n${m.content.trim()}` });
+      continue;
+    }
     const isStory = m.type === "story";
     const isLatest = isStory && idx === latestStoryIdx;
     const useSnapshot = isStory && !isLatest && m.snapshot;
-    return {
+    entries.push({
       role: isStory ? ("assistant" as const) : ("user" as const),
       content: useSnapshot ? m.snapshot! : m.content,
-    };
-  });
+    });
+  }
+
+  // 兼容旧存档：grandSummary 已生成但尚未物理裁剪时（chatMessages 中无 summary 消息），
+  // 沿用旧版合成前缀，避免 AI 在第一次裁剪触发前丢失早期记忆。
+  // 一旦物理裁剪发生（summary 消息进入 chatMessages），此兜底自动失效。
+  if (!hasSummaryMsg && grand.trim()) {
+    entries.unshift({ role: "assistant", content: `【剧情总纲·截至早期】\n${grand.trim()}` });
+  }
+
+  return entries;
+}
+
+/** 滚动大总结：待总结区达阈值时，把旧快照压缩进约 1000 字总纲。 */
+const GRAND_SUMMARY_THRESHOLD = 30;
+const GRAND_SUMMARY_KEEP_RECENT = 30;
+
+async function maybeGenerateGrandSummary(
+  url: string,
+  model: string,
+  apiKey: string | undefined,
+  signal: AbortSignal,
+): Promise<void> {
+  const msgs = chatMessages.value;
+  const storyIndices: number[] = [];
+  for (let i = 0; i < msgs.length; i++) {
+    if (msgs[i].type === "story") storyIndices.push(i);
+  }
+  // story 总数不足「保留窗口 + 触发阈值」时无需总结。
+  if (storyIndices.length <= GRAND_SUMMARY_KEEP_RECENT + GRAND_SUMMARY_THRESHOLD) return;
+
+  const upTo = grandSummaryUpTo.value;
+  // 最近 KEEP_RECENT 条 story 的起始索引：其之前、尚未被总结的 story 构成待总结区。
+  const recentStartIdx = storyIndices[storyIndices.length - GRAND_SUMMARY_KEEP_RECENT];
+
+  const toSummarize: string[] = [];
+  for (const idx of storyIndices) {
+    if (idx < upTo || idx >= recentStartIdx) continue;
+    const m = msgs[idx];
+    const snap = (m.snapshot && m.snapshot.trim()) || m.content.trim();
+    if (snap) toSummarize.push(snap);
+  }
+  if (toSummarize.length < GRAND_SUMMARY_THRESHOLD) return;
+
+  generatingPhase.value = "summary";
+  try {
+    const result = await generateGrandSummary({
+      apiUrl: url,
+      apiKey,
+      model,
+      oldGrandSummary: grandSummary.value,
+      snapshots: toSummarize,
+      signal,
+    });
+    if (signal.aborted) return;
+    const summary = result.grandSummary.trim();
+    if (summary) {
+      // 先用旧引用切片，再整体替换数组。newMsgs 构造完才赋值，避免引用失效。
+      const kept = msgs.slice(recentStartIdx);
+      const newMsgs: ChatMessage[] = [
+        { type: "summary", content: summary },
+        ...kept,
+      ];
+      chatMessages.value = newMsgs;
+      grandSummary.value = summary;
+      grandSummaryUpTo.value = 0;
+      gameLog.info(`[StoryChat] 滚动大总结已更新并裁剪历史（压缩 ${toSummarize.length} 条快照，保留近期 ${kept.length} 条消息）。`);
+    }
+  } catch (e) {
+    gameLog.error("[StoryChat] 大总结生成失败：" + (e instanceof Error ? e.message : String(e)));
+  }
 }
 
 type RoundKind = "chat" | "battle" | "cultivation";
@@ -535,6 +629,9 @@ async function runStoryGenerationRound(ctx: RoundContext): Promise<void> {
         }
       }
 
+      // 滚动大总结：当待总结区达阈值时同步压缩旧快照（失败不影响本轮）。
+      await maybeGenerateGrandSummary(url, model, String(apiKey.value || "").trim() || undefined, ac.signal);
+
       if (gameOverReason) {
         // 寿元耗尽：生成走马灯结局叙事（不走状态 AI），然后触发 game over。
         await generateAndAppendFinale(gameOverReason);
@@ -812,9 +909,15 @@ watch(
           <div
             v-for="(msg, idx) in chatMessages"
             :key="idx"
-            :class="['main-panel__chat-item', msg.type === 'user' ? 'main-panel__chat-item--user' : 'main-panel__chat-item--story']"
+            :class="['main-panel__chat-item', `main-panel__chat-item--${msg.type}`]"
           >
-            <template v-if="msg.type === 'story'">
+            <template v-if="msg.type === 'summary'">
+              <div class="main-panel__chat-bubble main-panel__chat-bubble--summary">
+                <div class="main-panel__summary-title">【剧情总纲·早期经历】</div>
+                <div class="main-panel__story-prose">{{ msg.content }}</div>
+              </div>
+            </template>
+            <template v-else-if="msg.type === 'story'">
               <div class="main-panel__chat-bubble main-panel__chat-bubble--story">
                 <div class="main-panel__story-prose">{{ msg.content }}</div>
               </div>
@@ -839,7 +942,7 @@ watch(
       <div class="main-panel__composer-area">
         <div v-if="generating || (phase === 'loading' && chatMessages.length > 0)" class="main-panel__composer-status main-panel__composer-status--loading">
           <span class="main-panel__status-pulse"></span>
-          {{ phase === 'loading' && chatMessages.length > 0 ? 'AI 正在更新开局状态…' : (generatingPhase === 'state' ? 'AI 正在更新状态…' : 'AI 正在生成剧情…') }}
+          {{ phase === 'loading' && chatMessages.length > 0 ? 'AI 正在更新开局状态…' : (generatingPhase === 'state' ? 'AI 正在更新状态…' : (generatingPhase === 'summary' ? 'AI 正在整理过往经历…' : 'AI 正在生成剧情…')) }}
         </div>
         <div v-else-if="genError" class="main-panel__composer-status main-panel__composer-status--error">
           <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ genError }}

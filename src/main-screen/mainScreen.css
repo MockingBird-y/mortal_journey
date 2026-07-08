@@ -473,6 +473,41 @@
   max-width: 80%;
 }
 
+/* 滚动大总结裁剪历史后，作为聊天栏顶部的「早期经历总纲」占位消息样式。 */
+.main-panel__chat-item--summary {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.main-panel__chat-bubble--summary {
+  background: rgba(60, 50, 30, 0.18);
+  border: 1px dashed var(--mj-gold-dim);
+  color: var(--mj-fg);
+  max-width: 92%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  word-break: break-word;
+  white-space: pre-wrap;
+  opacity: 0.92;
+}
+
+.main-panel__summary-title {
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  color: var(--mj-gold-dim);
+  margin-bottom: 6px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.main-panel__chat-bubble--summary .main-panel__story-prose {
+  font-size: 0.85rem;
+  line-height: 1.7;
+}
+
 .main-panel__retry-btn {
   flex: 0 0 auto;
   display: inline-flex;
