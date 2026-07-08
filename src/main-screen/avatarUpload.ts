@@ -79,14 +79,14 @@ export function resizeImageFileToAvatar(
 /**
  * NPC 立绘（半身/全身）尺寸（宽×高）。世界地图与战斗模块取其上半部分作为方形头像。
  */
-export const NPC_PORTRAIT_WIDTH = 512;
+export const NPC_PORTRAIT_WIDTH = 683;
 export const NPC_PORTRAIT_HEIGHT = 1024;
 
 /**
- * 将图片文件处理为 NPC 立绘 dataURL（默认 512×1024）。
+ * 将图片文件处理为 NPC 立绘 dataURL（默认 683×1024）。
  *
  * 采用「等比 contain + 背景填充」：按比例缩放使整张图完整放入目标画布，居中，
- * 空白区域填充背景色。这样任意比例的图都不会裁掉角色（文生图 2:1 输出刚好铺满）。
+ * 空白区域填充背景色。这样任意比例的图都不会裁掉角色（文生图 2:3 输出刚好铺满）。
  * 世界地图/战斗模块通过 CSS `object-position: top` 取其上半部分作为方形头像。
  *
  * @throws 若文件不是图片类型，或图片解码失败。

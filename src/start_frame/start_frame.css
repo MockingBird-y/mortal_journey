@@ -213,6 +213,34 @@
   opacity: 0.85;
   font-size: 0.9rem;
 }
+.splash-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 14px;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+}
+.splash-tab {
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: 8px 16px;
+  font-size: 0.95rem;
+  color: var(--mj-fg);
+  opacity: 0.55;
+  cursor: pointer;
+  transition: color 0.15s, opacity 0.15s, border-color 0.15s;
+}
+.splash-tab:hover {
+  opacity: 0.85;
+  color: var(--mj-gold);
+}
+.splash-tab.is-active {
+  opacity: 1;
+  color: var(--mj-gold);
+  border-bottom-color: var(--mj-gold);
+}
 .splash-modal-close {
   position: absolute;
   top: 10px;

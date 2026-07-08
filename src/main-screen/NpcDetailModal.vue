@@ -30,6 +30,7 @@ import { resizeImageFileToPortrait } from "./avatarUpload";
 import { writeActiveSave } from "../save/gameSave";
 import { npcStore } from "../role_core/npcStore";
 import { npcColorTheme } from "../role_core/npcTheme";
+import { generateNpcPortrait, isImageApiConfigured } from "../image_generate";
 
 const props = defineProps<{
   open: boolean;
@@ -48,6 +49,11 @@ const itemDetailPayload = shallowRef<ProtagonistDetailPayload | null>(null);
 // ── NPC 立绘上传 ────────────────────────────────────────────────────────────
 const avatarFileInput = ref<HTMLInputElement | null>(null);
 const avatarError = ref("");
+
+// ── NPC 文生图（立绘生成）──────────────────────────────────────────────────
+const generatingPortrait = ref(false);
+const portraitGenError = ref("");
+const imageApiReady = computed(() => isImageApiConfigured());
 
 function onNpcAvatarClick() {
   avatarError.value = "";
@@ -70,6 +76,25 @@ async function onNpcAvatarFileChange(e: Event) {
     }
   }
   if (input) input.value = "";
+}
+
+// ── 文生图：为 NPC 生成 683×1024 立绘（仅首次，已有立绘则不显示按钮）────────
+async function onGeneratePortrait() {
+  const npc = props.npc;
+  if (!npc || generatingPortrait.value) return;
+  if (npc.avatarUrl) return;
+  generatingPortrait.value = true;
+  portraitGenError.value = "";
+  try {
+    const dataUrl = await generateNpcPortrait(npc);
+    npc.setAvatarUrl(dataUrl);
+    npcStore.setNpc(npc);
+    writeActiveSave();
+  } catch (err) {
+    portraitGenError.value = err instanceof Error ? err.message : "立绘生成失败。";
+  } finally {
+    generatingPortrait.value = false;
+  }
 }
 
 const primaryStats = computed(() => props.npc?.getPrimaryStats() ?? null);
@@ -229,7 +254,7 @@ onUnmounted(() => {
                   class="mj-npc-avatar-wrap"
                   role="button"
                   tabindex="0"
-                  title="点击上传立绘（512×1024）"
+                  title="点击上传立绘（683×1024）"
                   @click="onNpcAvatarClick"
                   @keydown="($event.key === 'Enter' || $event.key === ' ') && (onNpcAvatarClick(), $event.preventDefault())"
                 >
@@ -239,6 +264,27 @@ onUnmounted(() => {
                   <input ref="avatarFileInput" type="file" accept="image/*" class="mj-npc-avatar-input" @change="onNpcAvatarFileChange" />
                 </div>
                 <p v-if="avatarError" class="mj-npc-avatar-error">{{ avatarError }}</p>
+                <button
+                  v-if="!npc.avatarUrl && imageApiReady && !generatingPortrait"
+                  type="button"
+                  class="main-screen__btn mj-npc-gen-btn"
+                  title="根据 NPC 的种族/外貌/服装生成修仙立绘"
+                  @click="onGeneratePortrait"
+                >
+                  ✨ 生成立绘
+                </button>
+                <button
+                  v-else-if="!npc.avatarUrl && imageApiReady && generatingPortrait"
+                  type="button"
+                  class="main-screen__btn mj-npc-gen-btn"
+                  disabled
+                >
+                  生成中…
+                </button>
+                <p v-if="!npc.avatarUrl && !imageApiReady" class="mj-npc-avatar-hint">
+                  未配置文生图，仅可上传
+                </p>
+                <p v-if="portraitGenError" class="mj-npc-avatar-error">{{ portraitGenError }}</p>
               </div>
 
               <div class="mj-npc-content-col">
@@ -371,7 +417,7 @@ onUnmounted(() => {
 
 <style scoped>
 .mj-trait-modal.mj-npc-detail-panel {
-  max-width: 600px;
+  max-width: 670px;
   max-height: min(82vh, 680px);
   display: flex;
   flex-direction: column;
@@ -396,7 +442,7 @@ onUnmounted(() => {
 }
 
 .mj-npc-portrait-col {
-  width: 290px;
+  width: 360px;
   flex-shrink: 0;
   align-self: stretch;
   min-width: 0;
@@ -481,6 +527,26 @@ onUnmounted(() => {
   text-align: center;
 }
 
+.mj-npc-gen-btn {
+  margin-top: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+}
+
+.mj-npc-gen-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.mj-npc-avatar-hint {
+  margin: 4px 0 0;
+  font-size: 0.7rem;
+  color: var(--mj-muted, #8a9088);
+  text-align: center;
+  opacity: 0.8;
+}
+
 .mj-npc-content-col {
   flex: 1;
   min-width: 0;
@@ -499,7 +565,7 @@ onUnmounted(() => {
     flex: none;
   }
   .mj-npc-portrait-col {
-    width: 220px;
+    width: 280px;
     max-width: 100%;
     margin: 0 auto;
     align-self: center;
@@ -507,7 +573,7 @@ onUnmounted(() => {
   .mj-npc-avatar-wrap {
     flex: none;
     height: auto;
-    aspect-ratio: 1 / 2;
+    aspect-ratio: 2 / 3;
   }
   .mj-npc-content-col {
     overflow-y: visible;

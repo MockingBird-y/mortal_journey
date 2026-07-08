@@ -5,6 +5,7 @@ import {
   API_OVERRIDE_KEY,
 } from "../ai/useApiConfig";
 import type { ApiOverrideStored } from "../ai/useApiConfig";
+import { useImageApiConfig } from "../image_generate/useImageApiConfig";
 import {
   readSaveIndex as readIndexFromGameSave,
   readSave,
@@ -19,6 +20,7 @@ import { downloadJson, readJsonFile } from "../save/saveFileTransfer";
 export { API_OVERRIDE_KEY } from "../ai/useApiConfig";
 export type { ApiOverrideStored } from "../ai/useApiConfig";
 export { isApiConfigured } from "../ai/useApiConfig";
+export { IMAGE_API_OVERRIDE_KEY } from "../image_generate/useImageApiConfig";
 export { SAVE_INDEX_KEY, SAVE_PREFIX } from "../save/gameSave";
 export type { SaveIndexEntry, MjSavePayload } from "../save/gameSave";
 
@@ -31,6 +33,11 @@ export interface UseSplashReturn {
   apiModel: Ref<string>;
   apiStatus: Ref<string>;
   apiStatusOk: Ref<boolean>;
+  imageBaseUrl: Ref<string>;
+  imageApiKey: Ref<string>;
+  imageModel: Ref<string>;
+  imageStatus: Ref<string>;
+  imageStatusOk: Ref<boolean>;
   saveStatus: Ref<string>;
   saveStatusOk: Ref<boolean>;
   saves: Ref<SaveIndexEntry[]>;
@@ -41,6 +48,9 @@ export interface UseSplashReturn {
   saveApiSettings: () => void;
   clearApiSettings: () => void;
   testApiSettings: () => void;
+  saveImageApiSettings: () => void;
+  clearImageApiSettings: () => void;
+  testImageApiSettings: () => void;
   openSaveLoad: () => void;
   closeSaveLoad: () => void;
   openHelp: () => void;
@@ -55,12 +65,23 @@ export interface UseSplashReturn {
 
 export function useSplash(): UseSplashReturn {
   const { apiUrl, apiKey, apiModel, loadFromStorage, save, clear, test } = useApiConfig();
+  const {
+    baseUrl: imageBaseUrl,
+    apiKey: imageApiKey,
+    model: imageModel,
+    loadFromStorage: imageLoadFromStorage,
+    save: imageSave,
+    clear: imageClear,
+    test: imageTest,
+  } = useImageApiConfig();
 
   const apiModalOpen = ref(false);
   const saveModalOpen = ref(false);
   const helpModalOpen = ref(false);
   const apiStatus = ref("");
   const apiStatusOk = ref(true);
+  const imageStatus = ref("");
+  const imageStatusOk = ref(true);
   const saveStatus = ref("");
   const saveStatusOk = ref(true);
   const saves = ref<SaveIndexEntry[]>([]);
@@ -74,7 +95,9 @@ export function useSplash(): UseSplashReturn {
 
   function openApiSettings(): void {
     apiStatus.value = "";
+    imageStatus.value = "";
     loadFromStorage();
+    imageLoadFromStorage();
     apiModalOpen.value = true;
   }
 
@@ -98,6 +121,30 @@ export function useSplash(): UseSplashReturn {
     test().then((result) => {
       const ok = result.startsWith("测试成功");
       setApiStatus(result, ok);
+    });
+  }
+
+  function setImageStatus(msg: string | null | undefined, ok: boolean): void {
+    imageStatus.value = msg != null ? String(msg) : "";
+    imageStatusOk.value = !!ok;
+  }
+
+  function saveImageApiSettings(): void {
+    const result = imageSave();
+    const ok = result === "已保存。";
+    setImageStatus(result, ok);
+  }
+
+  function clearImageApiSettings(): void {
+    imageClear();
+    setImageStatus("已清除。", true);
+  }
+
+  function testImageApiSettings(): void {
+    setImageStatus("正在测试连接…", true);
+    imageTest().then((result) => {
+      const ok = result.startsWith("测试成功");
+      setImageStatus(result, ok);
     });
   }
 
@@ -228,6 +275,7 @@ export function useSplash(): UseSplashReturn {
 
   onMounted(() => {
     loadFromStorage();
+    imageLoadFromStorage();
   });
 
   return {
@@ -238,6 +286,11 @@ export function useSplash(): UseSplashReturn {
     apiModel,
     apiStatus,
     apiStatusOk,
+    imageBaseUrl,
+    imageApiKey,
+    imageModel,
+    imageStatus,
+    imageStatusOk,
     saveStatus,
     saveStatusOk,
     saves,
@@ -248,6 +301,9 @@ export function useSplash(): UseSplashReturn {
     saveApiSettings,
     clearApiSettings,
     testApiSettings,
+    saveImageApiSettings,
+    clearImageApiSettings,
+    testImageApiSettings,
     openSaveLoad,
     closeSaveLoad,
     openHelp,
