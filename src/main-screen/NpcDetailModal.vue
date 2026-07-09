@@ -26,7 +26,6 @@ import {
 } from "./protagonistPanelDisplay";
 import ProtagonistDetailModal from "./ProtagonistDetailModal.vue";
 import { useScrollLock } from "../composables/useScrollLock";
-import { resizeImageFileToPortrait } from "./avatarUpload";
 import { writeActiveSave } from "../save/gameSave";
 import { npcStore } from "../role_core/npcStore";
 import { npcColorTheme } from "../role_core/npcTheme";
@@ -46,48 +45,29 @@ const scrollLock = useScrollLock();
 const itemDetailOpen = ref(false);
 const itemDetailPayload = shallowRef<ProtagonistDetailPayload | null>(null);
 
-// ── NPC 立绘上传 ────────────────────────────────────────────────────────────
-const avatarFileInput = ref<HTMLInputElement | null>(null);
-const avatarError = ref("");
-
-// ── NPC 文生图（立绘生成）──────────────────────────────────────────────────
+// ── NPC 文生图（立绘生成 / 候选池切换）──────────────────────────────────────
 const generatingPortrait = ref(false);
 const portraitGenError = ref("");
 const imageApiReady = computed(() => isImageApiConfigured());
 
-function onNpcAvatarClick() {
-  avatarError.value = "";
-  avatarFileInput.value?.click();
+/** 历史立绘弹窗是否打开。 */
+const historyModalOpen = ref(false);
+function openHistoryModal() {
+  historyModalOpen.value = true;
+}
+function closeHistoryModal() {
+  historyModalOpen.value = false;
 }
 
-async function onNpcAvatarFileChange(e: Event) {
-  const input = e.target as HTMLInputElement | null;
-  const file = input?.files?.[0];
-  const npc = props.npc;
-  if (file && npc) {
-    try {
-      const dataUrl = await resizeImageFileToPortrait(file);
-      npc.setAvatarUrl(dataUrl);
-      npcStore.setNpc(npc);
-      writeActiveSave();
-      avatarError.value = "";
-    } catch (err) {
-      avatarError.value = err instanceof Error ? err.message : "立绘上传失败。";
-    }
-  }
-  if (input) input.value = "";
-}
-
-// ── 文生图：为 NPC 生成 683×1024 立绘（仅首次，已有立绘则不显示按钮）────────
+/** 重新生成一张立绘：追加到候选池并自动选用（已有立绘也可重生）。 */
 async function onGeneratePortrait() {
   const npc = props.npc;
   if (!npc || generatingPortrait.value) return;
-  if (npc.avatarUrl) return;
   generatingPortrait.value = true;
   portraitGenError.value = "";
   try {
     const dataUrl = await generateNpcPortrait(npc);
-    npc.setAvatarUrl(dataUrl);
+    npc.addPortraitCandidate(dataUrl);
     npcStore.setNpc(npc);
     writeActiveSave();
   } catch (err) {
@@ -95,6 +75,24 @@ async function onGeneratePortrait() {
   } finally {
     generatingPortrait.value = false;
   }
+}
+
+/** 从候选池切换当前立绘。 */
+function onSelectCandidate(url: string) {
+  const npc = props.npc;
+  if (!npc) return;
+  npc.selectPortrait(url);
+  npcStore.setNpc(npc);
+  writeActiveSave();
+}
+
+/** 从候选池删除一张立绘。 */
+function onRemoveCandidate(url: string) {
+  const npc = props.npc;
+  if (!npc) return;
+  npc.removePortraitCandidate(url);
+  npcStore.setNpc(npc);
+  writeActiveSave();
 }
 
 const primaryStats = computed(() => props.npc?.getPrimaryStats() ?? null);
@@ -250,39 +248,34 @@ onUnmounted(() => {
 
             <div class="mj-npc-layout">
               <div class="mj-npc-portrait-col">
-                <div
-                  class="mj-npc-avatar-wrap"
-                  role="button"
-                  tabindex="0"
-                  title="点击上传立绘（683×1024）"
-                  @click="onNpcAvatarClick"
-                  @keydown="($event.key === 'Enter' || $event.key === ' ') && (onNpcAvatarClick(), $event.preventDefault())"
-                >
+                <div class="mj-npc-avatar-wrap">
                   <img v-if="npc.avatarUrl" class="mj-npc-avatar" :src="npc.avatarUrl" :alt="npc.displayName" />
                   <div v-else class="mj-npc-avatar mj-npc-avatar--placeholder">{{ npc.displayName.slice(0, 1) }}</div>
-                  <span class="mj-npc-avatar-edit" aria-hidden="true">✎</span>
-                  <input ref="avatarFileInput" type="file" accept="image/*" class="mj-npc-avatar-input" @change="onNpcAvatarFileChange" />
                 </div>
-                <p v-if="avatarError" class="mj-npc-avatar-error">{{ avatarError }}</p>
-                <button
-                  v-if="!npc.avatarUrl && imageApiReady && !generatingPortrait"
-                  type="button"
-                  class="main-screen__btn mj-npc-gen-btn"
-                  title="根据 NPC 的种族/外貌/服装生成修仙立绘"
-                  @click="onGeneratePortrait"
-                >
-                  ✨ 生成立绘
-                </button>
-                <button
-                  v-else-if="!npc.avatarUrl && imageApiReady && generatingPortrait"
-                  type="button"
-                  class="main-screen__btn mj-npc-gen-btn"
-                  disabled
-                >
-                  生成中…
-                </button>
-                <p v-if="!npc.avatarUrl && !imageApiReady" class="mj-npc-avatar-hint">
-                  未配置文生图，仅可上传
+
+                <div class="mj-npc-portrait-actions">
+                  <button
+                    type="button"
+                    class="main-screen__btn mj-npc-gen-btn"
+                    :disabled="!imageApiReady || generatingPortrait"
+                    :title="imageApiReady ? '生成一张修仙立绘' : '未配置文生图'"
+                    @click="onGeneratePortrait"
+                  >
+                    {{ generatingPortrait ? '生成中…' : (npc.avatarUrl ? '✨ 重新生成' : '✨ 生成立绘') }}
+                  </button>
+                  <button
+                    type="button"
+                    class="main-screen__btn mj-npc-history-btn"
+                    :disabled="npc.avatarCandidates.length === 0"
+                    title="管理历史立绘"
+                    @click="openHistoryModal"
+                  >
+                    📜 历史<span v-if="npc.avatarCandidates.length" class="mj-npc-history-count">{{ npc.avatarCandidates.length }}</span>
+                  </button>
+                </div>
+
+                <p v-if="!imageApiReady" class="mj-npc-avatar-hint">
+                  未配置文生图，无法生成立绘
                 </p>
                 <p v-if="portraitGenError" class="mj-npc-avatar-error">{{ portraitGenError }}</p>
               </div>
@@ -413,6 +406,48 @@ onUnmounted(() => {
       @close="closeItemDetail"
     />
   </Teleport>
+
+  <Teleport to="body">
+    <Transition name="mj-backdrop">
+      <div
+        v-if="historyModalOpen && npc"
+        class="mj-npc-history-root"
+        @keydown="(e: KeyboardEvent) => { if (e.key === 'Escape') { closeHistoryModal(); e.preventDefault(); } }"
+      >
+        <div class="mj-npc-history-backdrop" @click="closeHistoryModal"></div>
+        <Transition name="mj-modal" appear>
+          <div class="mj-npc-history-panel" role="dialog" aria-modal="true">
+            <button type="button" class="mj-npc-history-close" aria-label="关闭" @click="closeHistoryModal">×</button>
+            <h4 class="mj-npc-history-title">历史立绘 · {{ npc.displayName }}</h4>
+            <p class="mj-npc-history-sub">点击选用，× 删除（高亮者为当前立绘）</p>
+            <div v-if="npc.avatarCandidates.length" class="mj-npc-history-grid">
+              <div
+                v-for="(url, idx) in npc.avatarCandidates"
+                :key="idx"
+                class="mj-npc-history-card"
+                :class="{ 'is-selected': url === npc.avatarUrl }"
+                title="点击选用这张立绘"
+                @click="onSelectCandidate(url)"
+              >
+                <img :src="url" :alt="`${npc.displayName} 立绘 ${idx + 1}`" />
+                <span v-if="url === npc.avatarUrl" class="mj-npc-history-badge">当前</span>
+                <button
+                  type="button"
+                  class="mj-npc-history-del"
+                  title="删除这张立绘"
+                  @click.stop="onRemoveCandidate(url)"
+                >×</button>
+              </div>
+            </div>
+            <p v-else class="mj-npc-history-empty">暂无历史立绘，点击「重新生成」创建。</p>
+            <div class="mj-npc-history-footer">
+              <button type="button" class="main-screen__btn" @click="closeHistoryModal">完成</button>
+            </div>
+          </div>
+        </Transition>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -442,9 +477,9 @@ onUnmounted(() => {
 }
 
 .mj-npc-portrait-col {
-  width: 360px;
+  width: min(360px, 44vh);
   flex-shrink: 0;
-  align-self: stretch;
+  align-self: flex-start;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -454,19 +489,8 @@ onUnmounted(() => {
   position: relative;
   display: block;
   width: 100%;
-  flex: 1 1 auto;
-  min-height: 0;
-  cursor: pointer;
-}
-
-.mj-npc-avatar-wrap:hover .mj-npc-avatar {
-  border-color: var(--mj-gold-dim, #c9a227);
-}
-
-.mj-npc-avatar-wrap:focus-visible {
-  outline: 2px solid var(--mj-gold, #e8c547);
-  outline-offset: 3px;
-  border-radius: 12px;
+  flex: none;
+  aspect-ratio: 2 / 3;
 }
 
 .mj-npc-avatar {
@@ -490,34 +514,176 @@ onUnmounted(() => {
   user-select: none;
 }
 
-.mj-npc-avatar-edit {
-  position: absolute;
-  top: 6px;
-  right: 6px;
+.mj-npc-portrait-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-top: 8px;
+  flex-shrink: 0;
+}
+
+.mj-npc-portrait-actions > button {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-top: 0;
+}
+
+.mj-npc-history-btn {
+  padding: 8px 10px;
+  font-size: 0.82rem;
+}
+
+.mj-npc-history-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mj-npc-history-count {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 6px;
+  min-width: 16px;
+  font-size: 0.68rem;
+  line-height: 16px;
+  text-align: center;
+  border-radius: 9px;
+  background: rgba(232, 197, 71, 0.18);
+  color: var(--mj-gold, #e8c547);
+}
+
+.mj-npc-history-root {
+  position: fixed;
+  inset: 0;
+  z-index: 9100;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
-  color: var(--mj-gold, #e8c547);
-  font-size: 0.7rem;
-  line-height: 1;
-  pointer-events: none;
-  opacity: 0.85;
+  padding: 16px;
+  box-sizing: border-box;
 }
 
-.mj-npc-avatar-input {
+.mj-npc-history-backdrop {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+}
+
+.mj-npc-history-panel {
+  position: relative;
+  z-index: 1;
+  width: min(640px, 94vw);
+  max-height: min(86vh, 720px);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 18px 14px;
+  border: 1px solid rgba(212, 175, 55, 0.5);
+  background: rgba(10, 16, 12, 0.96);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.mj-npc-history-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--mj-gold, #e8c547);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mj-npc-history-title {
+  margin: 0 36px 4px;
+  font-size: 1.1rem;
+  color: var(--mj-gold, #e8c547);
+}
+
+.mj-npc-history-sub {
+  margin: 0 0 12px;
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
+.mj-npc-history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.mj-npc-history-card {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  border-radius: 6px;
   overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+  border: 2px solid transparent;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.mj-npc-history-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+
+.mj-npc-history-card.is-selected {
+  border-color: var(--mj-gold, #e8c547);
+}
+
+.mj-npc-history-badge {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  padding: 1px 6px;
+  font-size: 0.66rem;
+  border-radius: 3px;
+  background: rgba(232, 197, 71, 0.92);
+  color: #1a1a2e;
+}
+
+.mj-npc-history-del {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  color: #e8a598;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mj-npc-history-del:hover {
+  background: rgba(180, 40, 40, 0.85);
+  color: #fff;
+}
+
+.mj-npc-history-empty {
+  margin: 24px 0;
+  text-align: center;
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.mj-npc-history-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
 }
 
 .mj-npc-avatar-error {
@@ -528,8 +694,6 @@ onUnmounted(() => {
 }
 
 .mj-npc-gen-btn {
-  margin-top: 6px;
-  width: 100%;
   padding: 8px 10px;
   font-size: 0.82rem;
 }
@@ -565,15 +729,10 @@ onUnmounted(() => {
     flex: none;
   }
   .mj-npc-portrait-col {
-    width: 280px;
+    width: min(280px, 60vw);
     max-width: 100%;
     margin: 0 auto;
     align-self: center;
-  }
-  .mj-npc-avatar-wrap {
-    flex: none;
-    height: auto;
-    aspect-ratio: 2 / 3;
   }
   .mj-npc-content-col {
     overflow-y: visible;

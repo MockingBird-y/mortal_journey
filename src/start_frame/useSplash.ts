@@ -36,6 +36,7 @@ export interface UseSplashReturn {
   imageBaseUrl: Ref<string>;
   imageApiKey: Ref<string>;
   imageModel: Ref<string>;
+  imageAutoGenerate: Ref<boolean>;
   imageStatus: Ref<string>;
   imageStatusOk: Ref<boolean>;
   saveStatus: Ref<string>;
@@ -51,6 +52,7 @@ export interface UseSplashReturn {
   saveImageApiSettings: () => void;
   clearImageApiSettings: () => void;
   testImageApiSettings: () => void;
+  toggleImageAutoGenerate: () => void;
   openSaveLoad: () => void;
   closeSaveLoad: () => void;
   openHelp: () => void;
@@ -69,10 +71,12 @@ export function useSplash(): UseSplashReturn {
     baseUrl: imageBaseUrl,
     apiKey: imageApiKey,
     model: imageModel,
+    autoGenerate: imageAutoGenerate,
     loadFromStorage: imageLoadFromStorage,
     save: imageSave,
     clear: imageClear,
     test: imageTest,
+    setAutoGenerate: imageSetAutoGenerate,
   } = useImageApiConfig();
 
   const apiModalOpen = ref(false);
@@ -146,6 +150,10 @@ export function useSplash(): UseSplashReturn {
       const ok = result.startsWith("测试成功");
       setImageStatus(result, ok);
     });
+  }
+
+  function toggleImageAutoGenerate(): void {
+    imageSetAutoGenerate(!imageAutoGenerate.value);
   }
 
   function fmtTime(ts: number | undefined): string {
@@ -289,6 +297,7 @@ export function useSplash(): UseSplashReturn {
     imageBaseUrl,
     imageApiKey,
     imageModel,
+    imageAutoGenerate,
     imageStatus,
     imageStatusOk,
     saveStatus,
@@ -304,6 +313,7 @@ export function useSplash(): UseSplashReturn {
     saveImageApiSettings,
     clearImageApiSettings,
     testImageApiSettings,
+    toggleImageAutoGenerate,
     openSaveLoad,
     closeSaveLoad,
     openHelp,

@@ -30,6 +30,7 @@ import type { BattleResult } from "../battle_engine/types";
 import type { WorldLocation } from "../role_core/types/worldLocation";
 import { formatWorldLocationDash, isEmptyWorldLocation, isWorldLocationEqual } from "../role_core/types/worldLocation";
 import type { Npc } from "../role_core/Npc";
+import { autoGeneratePortraits } from "../image_generate";
 
 const props = withDefaults(
   defineProps<{
@@ -431,11 +432,12 @@ async function applyStateResult(stateResult: StateParsed, linggen: string[]): Pr
     }
 
     if (nearbyNpcsToApply.length > 0 || stateResult.npcCoreChanges.length > 0) {
-      npcStore.applyNpcUpdates(nearbyNpcsToApply, linggen, {
+      const createdNpcs = npcStore.applyNpcUpdates(nearbyNpcsToApply, linggen, {
         coreChangeEvents: stateResult.npcCoreChanges,
         currentLocation: newLocation,
         currentWorldTime: newWorldTime ?? null,
       });
+      autoGeneratePortraits(createdNpcs);
     }
   } catch (e) {
     gameLog.error("[StoryChat] NPC 更新失败：" + (e instanceof Error ? e.message : String(e)));

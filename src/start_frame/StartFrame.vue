@@ -27,6 +27,7 @@ const {
   imageBaseUrl,
   imageApiKey,
   imageModel,
+  imageAutoGenerate,
   imageStatus,
   imageStatusOk,
   saveStatus,
@@ -42,6 +43,7 @@ const {
   saveImageApiSettings,
   clearImageApiSettings,
   testImageApiSettings,
+  toggleImageAutoGenerate,
   openSaveLoad,
   closeSaveLoad,
   openHelp,
@@ -237,7 +239,7 @@ function onImportFilePicked(e: Event) {
 
       <div v-show="apiTab === 'image'" role="tabpanel">
         <p class="splash-modal-sub">
-          火山方舟 Ark 文生图（OpenAI 兼容）。地址可为 Ark 直连、自建 CORS 代理或网关。
+          仅支持火山方舟（Ark）文生图，模型为 doubao-seedream 系列。地址可为 Ark 直连、自建 CORS 代理或网关。
         </p>
 
         <div class="splash-form">
@@ -288,6 +290,25 @@ function onImportFilePicked(e: Event) {
           aria-live="polite"
         >
           {{ imageStatus }}
+        </div>
+
+        <div class="splash-switch-row">
+          <div class="splash-switch-label">
+            <span class="splash-field-k">立绘生成方式</span>
+            <span class="splash-toggle-hint">
+              {{ imageAutoGenerate ? '新 NPC 出现时自动生成立绘，建议手动生成' : '在 NPC 详情中手动生成，推荐' }}
+            </span>
+          </div>
+          <button
+            type="button"
+            class="splash-switch"
+            :class="{ 'is-on': imageAutoGenerate }"
+            role="switch"
+            :aria-checked="imageAutoGenerate"
+            @click="toggleImageAutoGenerate"
+          >
+            <span class="splash-switch-knob"></span>
+          </button>
         </div>
       </div>
     </div>
@@ -429,9 +450,6 @@ function onImportFilePicked(e: Event) {
                 <li>每回合自动存档到本机浏览器，刷新页面可续玩；也可在标题界面用「读取人生」加载历史存档。</li>
               </ul>
             </section>
-          </div>
-          <div class="splash-modal-actions">
-            <button type="button" class="splash-btn" @click="closeHelp">明白了</button>
           </div>
         </div>
       </Transition>

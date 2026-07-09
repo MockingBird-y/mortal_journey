@@ -17,6 +17,8 @@ export interface ArkImageConfig {
   apiKey: string;
   /** 模型 ID / Endpoint ID，如 `doubao-seedream-4-0-...`。 */
   model: string;
+  /** 是否为新出现的 NPC 自动生成立绘（默认 false）。 */
+  autoGenerate: boolean;
 }
 
 /** 目标图像形状：主角正方形 / NPC 立绘。 */

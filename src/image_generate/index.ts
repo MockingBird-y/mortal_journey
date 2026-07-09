@@ -14,6 +14,7 @@ export type { GenerateImageParams } from "./volcImageBridge";
 export {
   useImageApiConfig,
   isImageApiConfigured,
+  isAutoGenerateEnabled,
   getArkImageConfig,
   IMAGE_API_OVERRIDE_KEY,
 } from "./useImageApiConfig";
@@ -22,3 +23,5 @@ export type { UseImageApiConfigReturn } from "./useImageApiConfig";
 export { buildNpcPortraitPrompt } from "./promptBuilder";
 
 export { generateImage, generateNpcPortrait } from "./imageGenerate";
+
+export { autoGeneratePortraits } from "./autoPortrait";

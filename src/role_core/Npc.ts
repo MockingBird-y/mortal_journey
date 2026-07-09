@@ -60,6 +60,8 @@ export class Npc extends Character {
   lastSeenWorldTime: WorldTime;
   /** 累计相遇次数。 */
   encounterCount: number;
+  /** 立绘候选池（dataURL）：所有生成过的立绘，玩家可在弹窗中切换/删除。 */
+  avatarCandidates: string[];
 
   constructor(data: NpcPlayInfo) {
     super(data);
@@ -78,6 +80,13 @@ export class Npc extends Character {
       ? cloneWorldTime(data.lastSeenWorldTime)
       : createDefaultWorldTime();
     this.encounterCount = typeof data.encounterCount === "number" ? data.encounterCount : 0;
+    this.avatarCandidates = Array.isArray(data.avatarCandidates)
+      ? data.avatarCandidates.filter((u): u is string => typeof u === "string")
+      : [];
+    // 旧存档迁移：已有立绘但无候选池时，把现有立绘作为唯一候选保留。
+    if (this.avatarUrl && this.avatarCandidates.length === 0) {
+      this.avatarCandidates = [this.avatarUrl];
+    }
   }
 
   static fromAiData(
@@ -305,6 +314,31 @@ export class Npc extends Character {
     this.setMaxHpMp(maxHp, maxMp);
   }
 
+  /** 追加一张新立绘到候选池，并自动选为当前立绘。 */
+  addPortraitCandidate(url: string): void {
+    const u = url != null ? String(url) : "";
+    if (!u) return;
+    // 用「重新赋值」而非 push：属性级 set 必然触发响应式（与 avatarUrl 同款），
+    // 避免嵌套数组就地变更在某些响应式链路下不触发重渲染。
+    this.avatarCandidates = [...(Array.isArray(this.avatarCandidates) ? this.avatarCandidates : []), u];
+    this.avatarUrl = u;
+  }
+
+  /** 从候选池切换当前立绘（url 必须在池中）。 */
+  selectPortrait(url: string): void {
+    if (this.avatarCandidates.includes(url)) {
+      this.avatarUrl = url;
+    }
+  }
+
+  /** 从候选池删除一张立绘；若删的正是当前选中，则回退到池首或清空。 */
+  removePortraitCandidate(url: string): void {
+    this.avatarCandidates = this.avatarCandidates.filter((u) => u !== url);
+    if (this.avatarUrl === url) {
+      this.avatarUrl = this.avatarCandidates[0] ?? "";
+    }
+  }
+
   toData(): NpcPlayInfo {
     const base = this.toCommonData();
     return {
@@ -323,6 +357,7 @@ export class Npc extends Character {
       presence: this.presence,
       lastSeenWorldTime: cloneWorldTime(this.lastSeenWorldTime),
       encounterCount: this.encounterCount,
+      avatarCandidates: [...this.avatarCandidates],
     };
   }
 
@@ -408,6 +443,9 @@ export class Npc extends Character {
         ? ensureWorldTime(o.lastSeenWorldTime as WorldTime)
         : createDefaultWorldTime(),
       encounterCount: typeof o.encounterCount === "number" ? o.encounterCount : 0,
+      avatarCandidates: Array.isArray(o.avatarCandidates)
+        ? o.avatarCandidates.filter((u: unknown): u is string => typeof u === "string")
+        : [],
       elixirBonuses: normalizeElixirBonuses(o.elixirBonuses),
     };
 

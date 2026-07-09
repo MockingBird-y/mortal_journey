@@ -256,6 +256,8 @@ export interface NpcPlayInfo extends CharacterPlayInfoCommon {
   lastSeenWorldTime?: WorldTime | null;
   /** 累计相遇次数。 */
   encounterCount?: number;
+  /** 立绘候选池（dataURL）：所有生成过的立绘都保留，玩家可切换/删除。旧存档缺省为空。 */
+  avatarCandidates?: string[];
 }
 
 export type EquipSlotKey = number;

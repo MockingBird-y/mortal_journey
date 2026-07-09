@@ -23,6 +23,7 @@ import { npcStore } from "../role_core/npcStore";
 import { worldMapStore } from "../role_core/worldMapStore";
 import { storyStore } from "../role_core/storyStore";
 import { writeActiveSave } from "../save/gameSave";
+import { autoGeneratePortraits } from "../image_generate";
 import type { FateChoiceResult } from "../fate_choice/types";
 import type { WorldLocation } from "../role_core/types/worldLocation";
 import { isEmptyWorldLocation } from "../role_core/types/worldLocation";
@@ -178,10 +179,11 @@ export function useOpeningStoryFromFateChoice(
             current.applyInitState(stateResult);
           }
           if (stateResult.nearbyNpcs.length > 0) {
-            npcStore.applyNpcUpdates(stateResult.nearbyNpcs, p.linggen, {
+            const createdNpcs = npcStore.applyNpcUpdates(stateResult.nearbyNpcs, p.linggen, {
               currentLocation: stateResult.worldLocation ?? null,
               currentWorldTime: storyStore.worldTime.value,
             });
+            autoGeneratePortraits(createdNpcs);
           }
 
           if (stateResult.worldLocation && !isEmptyWorldLocation(stateResult.worldLocation)) {

@@ -126,17 +126,19 @@ export function useNpcStore() {
    * 匹配顺序：① entry.npcId 命中已有 NPC 的稳定 id；② 回退到按 displayName 匹配。
    * 已存在 NPC 调 {@link Npc.mergeFromAi}（白名单策略，核心层默认冻结）。
     * 新 NPC 调 {@link Npc.fromAiData} 构造，currentLocation 取 entry.currentLocation 或回退到 options.currentLocation。
-   * 全部 nearbyNpcs 处理完后，统一标记为 active 并刷新 lastSeen。
-   * 最后应用 coreChangeEvents。
-   */
+    * 全部 nearbyNpcs 处理完后，统一标记为 active 并刷新 lastSeen。
+    * 最后应用 coreChangeEvents。
+    * @return 本次新建的 NPC 列表（供调用方按需触发立绘自动生成等副作用）。
+    */
   function applyNpcUpdates(
     entries: NpcNearbyEntry[],
     protagonistLinggen?: string[],
     options?: ApplyNpcUpdatesOptions,
-  ): void {
+  ): Npc[] {
     const currentLocation = options?.currentLocation ?? null;
     const currentWorldTime = options?.currentWorldTime ?? null;
     const touchedThisRound = new Set<Npc>();
+    const createdThisRound: Npc[] = [];
 
     for (const entry of entries) {
       const name = entry.displayName?.trim();
@@ -155,6 +157,7 @@ export function useNpcStore() {
         const npc = Npc.fromAiData(entry, protagonistLinggen, currentLocation, currentWorldTime);
         npcMap.value.set(name, npc);
         touchedThisRound.add(npc);
+        createdThisRound.push(npc);
       }
     }
 
@@ -173,6 +176,8 @@ export function useNpcStore() {
         }
       }
     }
+
+    return createdThisRound;
   }
 
   /**

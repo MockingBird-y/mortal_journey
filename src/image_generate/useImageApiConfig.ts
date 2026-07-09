@@ -16,6 +16,7 @@ export const IMAGE_API_OVERRIDE_KEY = "IMMORTAL_ST_BRIDGE_IMAGE_API_OVERRIDE_V1"
 const _baseUrl: Ref<string> = ref("");
 const _apiKey: Ref<string> = ref("");
 const _model: Ref<string> = ref("");
+const _autoGenerate: Ref<boolean> = ref(false);
 let _initialized = false;
 
 /** 从 localStorage 读取配置填充共享 refs（仅初始化一次）。 */
@@ -35,10 +36,12 @@ function loadFromStorage(): void {
       _baseUrl.value = rec.baseUrl != null ? String(rec.baseUrl) : "";
       _apiKey.value = rec.apiKey != null ? String(rec.apiKey) : "";
       _model.value = rec.model != null ? String(rec.model) : "";
+      _autoGenerate.value = rec.autoGenerate === true;
     } else {
       _baseUrl.value = "";
       _apiKey.value = "";
       _model.value = "";
+      _autoGenerate.value = false;
     }
   } catch {
     /* ignore corrupt storage */
@@ -51,6 +54,12 @@ export function isImageApiConfigured(): boolean {
   return _baseUrl.value.trim().length > 0 && _model.value.trim().length > 0;
 }
 
+/** 是否开启「新 NPC 自动生成立绘」。 */
+export function isAutoGenerateEnabled(): boolean {
+  ensureInitialized();
+  return _autoGenerate.value === true;
+}
+
 /** 当前配置快照（供非响应式调用方使用）。 */
 export function getArkImageConfig(): ArkImageConfig {
   ensureInitialized();
@@ -58,6 +67,7 @@ export function getArkImageConfig(): ArkImageConfig {
     baseUrl: _baseUrl.value.trim(),
     apiKey: _apiKey.value.trim(),
     model: _model.value.trim(),
+    autoGenerate: _autoGenerate.value,
   };
 }
 
@@ -65,11 +75,13 @@ export interface UseImageApiConfigReturn {
   baseUrl: Ref<string>;
   apiKey: Ref<string>;
   model: Ref<string>;
+  autoGenerate: Ref<boolean>;
   isConfigured: ComputedRef<boolean>;
   loadFromStorage: () => void;
   save: () => string;
   clear: () => void;
   test: () => Promise<string>;
+  setAutoGenerate: (v: boolean) => void;
 }
 
 /** 文生图配置 composable；返回的 refs 为模块级共享单例。 */
@@ -89,6 +101,7 @@ export function useImageApiConfig(): UseImageApiConfigReturn {
           baseUrl: u,
           apiKey: _apiKey.value.trim(),
           model: m,
+          autoGenerate: _autoGenerate.value,
         } satisfies ArkImageConfig),
       );
       return "已保存。";
@@ -107,6 +120,7 @@ export function useImageApiConfig(): UseImageApiConfigReturn {
     _baseUrl.value = "";
     _apiKey.value = "";
     _model.value = "";
+    _autoGenerate.value = false;
   }
 
   async function test(): Promise<string> {
@@ -116,14 +130,34 @@ export function useImageApiConfig(): UseImageApiConfigReturn {
     return pingReachable(u, k);
   }
 
+  /**
+   * 翻转自动生成开关并立即持久化。
+   *
+   * 采用「读改写」storage：仅覆写 autoGenerate 字段，不动已持久化的 baseUrl/apiKey/model，
+   * 避免把表单中尚未点「保存」的草稿值误存。
+   */
+  function setAutoGenerate(v: boolean): void {
+    _autoGenerate.value = !!v;
+    try {
+      const raw = localStorage.getItem(IMAGE_API_OVERRIDE_KEY);
+      const cur = raw ? safeJsonParse<Partial<ArkImageConfig>>(raw, {}) : {};
+      cur.autoGenerate = _autoGenerate.value;
+      localStorage.setItem(IMAGE_API_OVERRIDE_KEY, JSON.stringify(cur));
+    } catch {
+      /* ignore */
+    }
+  }
+
   return {
     baseUrl: _baseUrl,
     apiKey: _apiKey,
     model: _model,
+    autoGenerate: _autoGenerate,
     isConfigured,
     loadFromStorage,
     save,
     clear,
     test,
+    setAutoGenerate,
   };
 }
