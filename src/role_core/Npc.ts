@@ -80,9 +80,11 @@ export class Npc extends Character {
       ? cloneWorldTime(data.lastSeenWorldTime)
       : createDefaultWorldTime();
     this.encounterCount = typeof data.encounterCount === "number" ? data.encounterCount : 0;
-    this.avatarCandidates = Array.isArray(data.avatarCandidates)
+    const rawCandidates = Array.isArray(data.avatarCandidates)
       ? data.avatarCandidates.filter((u): u is string => typeof u === "string")
       : [];
+    // 去重（保留首次出现、保持顺序），清理旧存档中可能存在的重复立绘。
+    this.avatarCandidates = rawCandidates.filter((u, i) => rawCandidates.indexOf(u) === i);
     // 旧存档迁移：已有立绘但无候选池时，把现有立绘作为唯一候选保留。
     if (this.avatarUrl && this.avatarCandidates.length === 0) {
       this.avatarCandidates = [this.avatarUrl];
@@ -318,6 +320,11 @@ export class Npc extends Character {
   addPortraitCandidate(url: string): void {
     const u = url != null ? String(url) : "";
     if (!u) return;
+    // 立绘去重：若候选池已有相同立绘，仅切换为当前立绘，不重复追加。
+    if (this.avatarCandidates.includes(u)) {
+      this.avatarUrl = u;
+      return;
+    }
     // 用「重新赋值」而非 push：属性级 set 必然触发响应式（与 avatarUrl 同款），
     // 避免嵌套数组就地变更在某些响应式链路下不触发重渲染。
     this.avatarCandidates = [...(Array.isArray(this.avatarCandidates) ? this.avatarCandidates : []), u];

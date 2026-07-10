@@ -30,6 +30,7 @@ import { writeActiveSave } from "../save/gameSave";
 import { npcStore } from "../role_core/npcStore";
 import { npcColorTheme } from "../role_core/npcTheme";
 import { generateNpcPortrait, isImageApiConfigured } from "../image_generate";
+import { resizeImageFileToPortrait } from "./avatarUpload";
 
 const props = defineProps<{
   open: boolean;
@@ -93,6 +94,37 @@ function onRemoveCandidate(url: string) {
   npc.removePortraitCandidate(url);
   npcStore.setNpc(npc);
   writeActiveSave();
+}
+
+// ── 手动上传立绘（玩家自选图片 → 缩放为 683×1024 → 加入历史立绘并选用）────────
+const uploadFileInput = ref<HTMLInputElement | null>(null);
+const uploadError = ref("");
+
+function onUploadClick() {
+  uploadError.value = "";
+  uploadFileInput.value?.click();
+}
+
+async function onUploadFileChange(e: Event) {
+  const input = e.target as HTMLInputElement | null;
+  const file = input?.files?.[0];
+  const npc = props.npc;
+  if (!file || !npc) {
+    if (input) input.value = "";
+    return;
+  }
+  try {
+    const dataUrl = await resizeImageFileToPortrait(file);
+    npc.addPortraitCandidate(dataUrl);
+    npcStore.setNpc(npc);
+    writeActiveSave();
+    uploadError.value = "";
+  } catch (err) {
+    uploadError.value = err instanceof Error ? err.message : "立绘上传失败。";
+  } finally {
+    // 重置 input，允许再次选择同一文件。
+    if (input) input.value = "";
+  }
 }
 
 const primaryStats = computed(() => props.npc?.getPrimaryStats() ?? null);
@@ -441,7 +473,9 @@ onUnmounted(() => {
             </div>
             <p v-else class="mj-npc-history-empty">暂无历史立绘，点击「重新生成」创建。</p>
             <div class="mj-npc-history-footer">
-              <button type="button" class="main-screen__btn" @click="closeHistoryModal">完成</button>
+              <p v-if="uploadError" class="mj-npc-history-upload-error">{{ uploadError }}</p>
+              <button type="button" class="main-screen__btn mj-npc-history-upload-btn" @click="onUploadClick">⬆ 上传立绘</button>
+              <input ref="uploadFileInput" type="file" accept="image/*" class="mj-npc-history-file-input" @change="onUploadFileChange" />
             </div>
           </div>
         </Transition>
@@ -614,7 +648,16 @@ onUnmounted(() => {
   grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
   gap: 10px;
   overflow-y: auto;
+  min-height: 0;
+  max-height: 250px;
   padding-right: 4px;
+}
+
+/* 小屏下卡片更宽更高，放宽一行的可视高度。 */
+@media (max-width: 639px) {
+  .mj-npc-history-grid {
+    max-height: 250px;
+  }
 }
 
 .mj-npc-history-card {
@@ -682,8 +725,33 @@ onUnmounted(() => {
 
 .mj-npc-history-footer {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   margin-top: 14px;
+}
+
+.mj-npc-history-upload-btn {
+  min-width: 140px;
+}
+
+.mj-npc-history-upload-error {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #e8a598;
+  text-align: center;
+}
+
+.mj-npc-history-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .mj-npc-avatar-error {

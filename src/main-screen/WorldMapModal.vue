@@ -295,24 +295,24 @@ onUnmounted(() => {
                       <div class="map-npc-identity">
                         {{ entry.npc?.identity ?? "未知" }}
                       </div>
-                    </div>
-                    <div v-if="entry.npc" class="map-npc-bars">
-                      <div class="map-npc-bar-row">
-                        <span class="map-npc-bar-label">HP</span>
-                        <div class="map-npc-bar">
-                          <div
-                            class="map-npc-bar-fill map-npc-bar-fill--hp"
-                            :style="{ width: (entry.npc.maxHp > 0 ? Math.round(entry.npc.currentHp / entry.npc.maxHp * 100) : 0) + '%' }"
-                          />
+                      <div v-if="entry.npc" class="map-npc-bars">
+                        <div class="map-npc-bar-row">
+                          <span class="map-npc-bar-label">HP</span>
+                          <div class="map-npc-bar">
+                            <div
+                              class="map-npc-bar-fill map-npc-bar-fill--hp"
+                              :style="{ width: (entry.npc.maxHp > 0 ? Math.round(entry.npc.currentHp / entry.npc.maxHp * 100) : 0) + '%' }"
+                            />
+                          </div>
                         </div>
-                      </div>
-                      <div class="map-npc-bar-row">
-                        <span class="map-npc-bar-label">MP</span>
-                        <div class="map-npc-bar">
-                          <div
-                            class="map-npc-bar-fill map-npc-bar-fill--mp"
-                            :style="{ width: (entry.npc.maxMp > 0 ? Math.round(entry.npc.currentMp / entry.npc.maxMp * 100) : 0) + '%' }"
-                          />
+                        <div class="map-npc-bar-row">
+                          <span class="map-npc-bar-label">MP</span>
+                          <div class="map-npc-bar">
+                            <div
+                              class="map-npc-bar-fill map-npc-bar-fill--mp"
+                              :style="{ width: (entry.npc.maxMp > 0 ? Math.round(entry.npc.currentMp / entry.npc.maxMp * 100) : 0) + '%' }"
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
