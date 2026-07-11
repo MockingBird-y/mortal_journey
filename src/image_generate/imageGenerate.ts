@@ -11,8 +11,9 @@ import { generateImageSync } from "./volcImageBridge";
 import { getArkImageConfig } from "./useImageApiConfig";
 import { SHAPE_SIZE, type ImageShape } from "./types";
 import { resizeImageFileToAvatar, resizeImageFileToPortrait } from "../main-screen/avatarUpload";
-import { buildNpcPortraitPrompt } from "./promptBuilder";
+import { buildNpcPortraitPrompt, buildProtagonistPortraitPrompt } from "./promptBuilder";
 import type { Npc } from "../role_core/Npc";
+import type { Protagonist } from "../role_core/Protagonist";
 
 /**
  * 生成一张图：同步请求 → 返回 JPEG dataURL。
@@ -54,5 +55,21 @@ export async function generateImage(prompt: string, shape: ImageShape, signal?: 
  */
 export async function generateNpcPortrait(npc: Npc, signal?: AbortSignal): Promise<string> {
   const prompt = buildNpcPortraitPrompt(npc);
+  return generateImage(prompt, "portrait", signal);
+}
+
+/**
+ * 为主角生成 683×1024 立绘：拼 prompt → 生成 → 返回 JPEG dataURL。
+ *
+ * Prompt 综合性别、境界、年龄感、出身、天赋、灵根、法宝与功法信息，
+ * 确保生成帅气/美丽的修仙者立绘。
+ *
+ * @throws {Error} 同 {@link generateImage}。
+ */
+export async function generateProtagonistPortrait(
+  protagonist: Protagonist,
+  signal?: AbortSignal,
+): Promise<string> {
+  const prompt = buildProtagonistPortraitPrompt(protagonist);
   return generateImage(prompt, "portrait", signal);
 }

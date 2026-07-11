@@ -20,54 +20,20 @@
   gap: 6px;
   margin-bottom: 12px;
   position: relative;
-  cursor: pointer;
 }
 
-.main-panel--player .mj-player-avatar-wrap:hover .mj-player-avatar {
-  border-color: var(--mj-gold-dim);
-}
-
-.main-panel--player .mj-player-avatar-wrap:focus-visible {
-  outline: 2px solid var(--mj-gold);
-  outline-offset: 3px;
-  border-radius: 12px;
-}
-
-.main-panel--player .mj-player-avatar-edit {
-  position: absolute;
-  top: 78px;
-  right: calc(50% - 48px);
+/* 头像行：头像 + 右侧操作按钮 */
+.main-panel--player .mj-player-avatar-row {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
-  color: var(--mj-gold, #e8c547);
-  font-size: 0.7rem;
-  line-height: 1;
-  pointer-events: none;
-  opacity: 0.85;
+  gap: 6px;
 }
 
-.main-panel--player .mj-player-avatar-input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.main-panel--player .mj-player-avatar-error {
-  margin: -6px 0 10px;
-  font-size: 0.72rem;
-  color: #e8a598;
-  text-align: center;
+/* 头像区域（供 edit 图标绝对定位） */
+.main-panel--player .mj-player-avatar-area {
+  position: relative;
+  flex-shrink: 0;
 }
 
 .main-panel--player .mj-player-name-vertical {
@@ -79,11 +45,63 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
+/* 主角立绘操作按钮（生成 / 历史）——垂直排列在头像右侧 */
+.main-panel--player .mj-player-portrait-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.main-panel--player .mj-player-gen-btn,
+.main-panel--player .mj-player-history-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  font-size: 0.72rem;
+  line-height: 1;
+  border-radius: 4px;
+  border: 1px solid rgba(140, 120, 83, 0.4);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--mj-gold-dim, #b89a4a);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.main-panel--player .mj-player-gen-btn:hover:not(:disabled),
+.main-panel--player .mj-player-history-btn:hover:not(:disabled) {
+  border-color: var(--mj-gold, #e8c547);
+  color: var(--mj-gold, #e8c547);
+  background: rgba(232, 197, 71, 0.1);
+}
+
+.main-panel--player .mj-player-gen-btn:disabled,
+.main-panel--player .mj-player-history-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.main-panel--player .mj-player-gen-hint {
+  margin: 2px 0 0;
+  font-size: 0.64rem;
+  color: var(--mj-muted, #8a9088);
+  text-align: center;
+}
+
+.main-panel--player .mj-player-gen-error {
+  margin: 2px 0 0;
+  font-size: 0.68rem;
+  color: #e8a598;
+  text-align: center;
+}
+
 .main-panel--player .mj-player-avatar {
   width: 96px;
   height: 96px;
   border-radius: 10px;
   object-fit: cover;
+  object-position: top;
   border: 1px solid var(--mj-border);
 }
 
@@ -609,3 +627,4 @@
   font-size: 0.78em;
   opacity: 0.8;
 }
+

@@ -124,6 +124,8 @@ export class Protagonist extends Character {
   realmComplete: boolean;
   /** 突破任务状态：idle=正常修炼, ready=修为圆满可尝试突破, in_quest=突破任务进行中。 */
   breakthroughStatus: BreakthroughStatus;
+  /** 立绘候选池（dataURL）：所有生成/上传过的立绘，玩家可在弹窗中切换/删除。 */
+  avatarCandidates: string[];
 
   /**
    * 从 `ProtagonistPlayInfo` 数据对象构造实例。
@@ -139,6 +141,42 @@ export class Protagonist extends Character {
     this.xiuwei = data.xiuwei;
     this.realmComplete = data.realmComplete;
     this.breakthroughStatus = data.breakthroughStatus ?? (data.realmComplete ? "ready" : "idle");
+    const rawCandidates = Array.isArray(data.avatarCandidates)
+      ? data.avatarCandidates.filter((u): u is string => typeof u === "string")
+      : [];
+    this.avatarCandidates = rawCandidates.filter((u, i) => rawCandidates.indexOf(u) === i);
+    if (this.avatarUrl && this.avatarCandidates.length === 0) {
+      this.avatarCandidates = [this.avatarUrl];
+    }
+  }
+
+  // ── 立绘候选池管理 ─────────────────────────────────────────────────────
+
+  /** 追加一张新立绘到候选池，并自动选为当前立绘。 */
+  addPortraitCandidate(url: string): void {
+    const u = url != null ? String(url) : "";
+    if (!u) return;
+    if (this.avatarCandidates.includes(u)) {
+      this.avatarUrl = u;
+      return;
+    }
+    this.avatarCandidates = [...this.avatarCandidates, u];
+    this.avatarUrl = u;
+  }
+
+  /** 从候选池切换当前立绘（url 必须在池中）。 */
+  selectPortrait(url: string): void {
+    if (this.avatarCandidates.includes(url)) {
+      this.avatarUrl = url;
+    }
+  }
+
+  /** 从候选池删除一张立绘；若删的正是当前选中，则回退到池首或清空。 */
+  removePortraitCandidate(url: string): void {
+    this.avatarCandidates = this.avatarCandidates.filter((u) => u !== url);
+    if (this.avatarUrl === url) {
+      this.avatarUrl = this.avatarCandidates[0] ?? "";
+    }
   }
 
   // ===================================================================
@@ -750,6 +788,7 @@ export class Protagonist extends Character {
       xiuwei: this.xiuwei,
       realmComplete: this.realmComplete,
       breakthroughStatus: this.breakthroughStatus,
+      avatarCandidates: [...this.avatarCandidates],
     };
   }
 

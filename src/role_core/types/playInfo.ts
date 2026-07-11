@@ -213,6 +213,8 @@ export interface ProtagonistPlayInfo extends CharacterPlayInfoCommon {
   xiuwei: number;
   realmComplete: boolean;
   breakthroughStatus: BreakthroughStatus;
+  /** 立绘候选池（dataURL）。旧存档缺省为空。 */
+  avatarCandidates?: string[];
 }
 
 export type PowerTier = "小怪" | "精英怪" | "小boss" | "大boss" | "普通NPC";

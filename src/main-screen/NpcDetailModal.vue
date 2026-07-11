@@ -30,7 +30,7 @@ import { writeActiveSave } from "../save/gameSave";
 import { npcStore } from "../role_core/npcStore";
 import { npcColorTheme } from "../role_core/npcTheme";
 import { generateNpcPortrait, isImageApiConfigured } from "../image_generate";
-import { resizeImageFileToPortrait } from "./avatarUpload";
+import PortraitHistoryModal from "./PortraitHistoryModal.vue";
 
 const props = defineProps<{
   open: boolean;
@@ -96,35 +96,12 @@ function onRemoveCandidate(url: string) {
   writeActiveSave();
 }
 
-// ── 手动上传立绘（玩家自选图片 → 缩放为 683×1024 → 加入历史立绘并选用）────────
-const uploadFileInput = ref<HTMLInputElement | null>(null);
-const uploadError = ref("");
-
-function onUploadClick() {
-  uploadError.value = "";
-  uploadFileInput.value?.click();
-}
-
-async function onUploadFileChange(e: Event) {
-  const input = e.target as HTMLInputElement | null;
-  const file = input?.files?.[0];
+function onHistoryUpload(dataUrl: string) {
   const npc = props.npc;
-  if (!file || !npc) {
-    if (input) input.value = "";
-    return;
-  }
-  try {
-    const dataUrl = await resizeImageFileToPortrait(file);
-    npc.addPortraitCandidate(dataUrl);
-    npcStore.setNpc(npc);
-    writeActiveSave();
-    uploadError.value = "";
-  } catch (err) {
-    uploadError.value = err instanceof Error ? err.message : "立绘上传失败。";
-  } finally {
-    // 重置 input，允许再次选择同一文件。
-    if (input) input.value = "";
-  }
+  if (!npc) return;
+  npc.addPortraitCandidate(dataUrl);
+  npcStore.setNpc(npc);
+  writeActiveSave();
 }
 
 const primaryStats = computed(() => props.npc?.getPrimaryStats() ?? null);
@@ -298,7 +275,6 @@ onUnmounted(() => {
                   <button
                     type="button"
                     class="main-screen__btn mj-npc-history-btn"
-                    :disabled="npc.avatarCandidates.length === 0"
                     title="管理历史立绘"
                     @click="openHistoryModal"
                   >
@@ -439,49 +415,16 @@ onUnmounted(() => {
     />
   </Teleport>
 
-  <Teleport to="body">
-    <Transition name="mj-backdrop">
-      <div
-        v-if="historyModalOpen && npc"
-        class="mj-npc-history-root"
-        @keydown="(e: KeyboardEvent) => { if (e.key === 'Escape') { closeHistoryModal(); e.preventDefault(); } }"
-      >
-        <div class="mj-npc-history-backdrop" @click="closeHistoryModal"></div>
-        <Transition name="mj-modal" appear>
-          <div class="mj-npc-history-panel" role="dialog" aria-modal="true">
-            <button type="button" class="mj-npc-history-close" aria-label="关闭" @click="closeHistoryModal">×</button>
-            <h4 class="mj-npc-history-title">历史立绘 · {{ npc.displayName }}</h4>
-            <p class="mj-npc-history-sub">点击选用，× 删除（高亮者为当前立绘）</p>
-            <div v-if="npc.avatarCandidates.length" class="mj-npc-history-grid">
-              <div
-                v-for="(url, idx) in npc.avatarCandidates"
-                :key="idx"
-                class="mj-npc-history-card"
-                :class="{ 'is-selected': url === npc.avatarUrl }"
-                title="点击选用这张立绘"
-                @click="onSelectCandidate(url)"
-              >
-                <img :src="url" :alt="`${npc.displayName} 立绘 ${idx + 1}`" />
-                <span v-if="url === npc.avatarUrl" class="mj-npc-history-badge">当前</span>
-                <button
-                  type="button"
-                  class="mj-npc-history-del"
-                  title="删除这张立绘"
-                  @click.stop="onRemoveCandidate(url)"
-                >×</button>
-              </div>
-            </div>
-            <p v-else class="mj-npc-history-empty">暂无历史立绘，点击「重新生成」创建。</p>
-            <div class="mj-npc-history-footer">
-              <p v-if="uploadError" class="mj-npc-history-upload-error">{{ uploadError }}</p>
-              <button type="button" class="main-screen__btn mj-npc-history-upload-btn" @click="onUploadClick">⬆ 上传立绘</button>
-              <input ref="uploadFileInput" type="file" accept="image/*" class="mj-npc-history-file-input" @change="onUploadFileChange" />
-            </div>
-          </div>
-        </Transition>
-      </div>
-    </Transition>
-  </Teleport>
+  <PortraitHistoryModal
+    :open="historyModalOpen && !!npc"
+    :display-name="npc?.displayName ?? ''"
+    :candidates="npc?.avatarCandidates ?? []"
+    :avatar-url="npc?.avatarUrl ?? ''"
+    @close="closeHistoryModal"
+    @select="onSelectCandidate"
+    @remove="onRemoveCandidate"
+    @upload="onHistoryUpload"
+  />
 </template>
 
 <style scoped>
@@ -513,10 +456,11 @@ onUnmounted(() => {
 .mj-npc-portrait-col {
   width: min(360px, 44vh);
   flex-shrink: 0;
-  align-self: flex-start;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
 }
 
 .mj-npc-avatar-wrap {
@@ -584,174 +528,6 @@ onUnmounted(() => {
   border-radius: 9px;
   background: rgba(232, 197, 71, 0.18);
   color: var(--mj-gold, #e8c547);
-}
-
-.mj-npc-history-root {
-  position: fixed;
-  inset: 0;
-  z-index: 9100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  box-sizing: border-box;
-}
-
-.mj-npc-history-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  cursor: pointer;
-}
-
-.mj-npc-history-panel {
-  position: relative;
-  z-index: 1;
-  width: min(640px, 94vw);
-  max-height: min(86vh, 720px);
-  display: flex;
-  flex-direction: column;
-  padding: 18px 18px 14px;
-  border: 1px solid rgba(212, 175, 55, 0.5);
-  background: rgba(10, 16, 12, 0.96);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
-}
-
-.mj-npc-history-close {
-  position: absolute;
-  top: 8px;
-  right: 10px;
-  width: 30px;
-  height: 30px;
-  border: 1px solid rgba(212, 175, 55, 0.4);
-  background: rgba(0, 0, 0, 0.35);
-  color: var(--mj-gold, #e8c547);
-  font-size: 1.2rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.mj-npc-history-title {
-  margin: 0 36px 4px;
-  font-size: 1.1rem;
-  color: var(--mj-gold, #e8c547);
-}
-
-.mj-npc-history-sub {
-  margin: 0 0 12px;
-  font-size: 0.8rem;
-  opacity: 0.75;
-}
-
-.mj-npc-history-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: 10px;
-  overflow-y: auto;
-  min-height: 0;
-  max-height: 250px;
-  padding-right: 4px;
-}
-
-/* 小屏下卡片更宽更高，放宽一行的可视高度。 */
-@media (max-width: 639px) {
-  .mj-npc-history-grid {
-    max-height: 250px;
-  }
-}
-
-.mj-npc-history-card {
-  position: relative;
-  aspect-ratio: 2 / 3;
-  border-radius: 6px;
-  overflow: hidden;
-  border: 2px solid transparent;
-  cursor: pointer;
-  background: rgba(0, 0, 0, 0.35);
-}
-
-.mj-npc-history-card img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: top;
-}
-
-.mj-npc-history-card.is-selected {
-  border-color: var(--mj-gold, #e8c547);
-}
-
-.mj-npc-history-badge {
-  position: absolute;
-  bottom: 4px;
-  left: 4px;
-  padding: 1px 6px;
-  font-size: 0.66rem;
-  border-radius: 3px;
-  background: rgba(232, 197, 71, 0.92);
-  color: #1a1a2e;
-}
-
-.mj-npc-history-del {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 20px;
-  height: 20px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.7);
-  color: #e8a598;
-  font-size: 0.8rem;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.mj-npc-history-del:hover {
-  background: rgba(180, 40, 40, 0.85);
-  color: #fff;
-}
-
-.mj-npc-history-empty {
-  margin: 24px 0;
-  text-align: center;
-  font-size: 0.85rem;
-  opacity: 0.7;
-}
-
-.mj-npc-history-footer {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.mj-npc-history-upload-btn {
-  min-width: 140px;
-}
-
-.mj-npc-history-upload-error {
-  margin: 0;
-  font-size: 0.78rem;
-  color: #e8a598;
-  text-align: center;
-}
-
-.mj-npc-history-file-input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
 }
 
 .mj-npc-avatar-error {

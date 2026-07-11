@@ -10,6 +10,8 @@
 
 import { Character } from "../role_core/Character";
 import type { Npc } from "../role_core/Npc";
+import type { Protagonist } from "../role_core/Protagonist";
+import type { TraitEntry } from "../role_core/types/playInfo";
 
 /** 统一画风前缀：3D 建模 / 虚幻引擎渲染 / 电影级质感，背景由模型自行适配，避免每张立绘画风漂移。 */
 const STYLE_PREFIX =
@@ -40,17 +42,19 @@ function realmAuraDescriptor(npc: Npc): string {
  * 修者寿元绵长（化神可达数千岁），同比例下外貌远比凡人年轻；凡人接近寿元上限则显老。
  * age 或 shouyuan 非正时返回空串（不臆造）。
  */
-function apparentAgeDescriptor(npc: Npc): string {
-  const age = typeof npc.age === "number" ? npc.age : -1;
-  const sy = typeof npc.shouyuan === "number" ? npc.shouyuan : 0;
-  if (age <= 0 || sy <= 0) return "";
-  const ratio = age / sy;
+function computeApparentAge(age: number, shouyuan: number): string {
+  if (age <= 0 || shouyuan <= 0) return "";
+  const ratio = age / shouyuan;
   if (ratio < 0.15) return "外貌年轻，宛如少年";
   if (ratio < 0.35) return "外貌为青年";
   if (ratio < 0.6) return "外貌为盛年";
   if (ratio < 0.8) return "外貌为沉稳中年";
   if (ratio < 0.92) return "外貌略显老态";
   return "外貌苍老，暮气沉沉";
+}
+
+function apparentAgeDescriptor(npc: Npc): string {
+  return computeApparentAge(npc.age, npc.shouyuan);
 }
 
 /** 拼装角色信息片段（身份 / 境界 / 灵气 / 外貌年龄），逗号连接；全空返回空串。 */
@@ -103,6 +107,90 @@ export function buildNpcPortraitPrompt(npc: Npc): string {
       break;
     }
   }
+
+  return `${STYLE_PREFIX} ${subject}。`;
+}
+
+// ── 主角立绘 Prompt ──────────────────────────────────────────────────────────
+
+function extractOriginIdentity(originStory: string): string {
+  const s = (originStory || "").trim();
+  if (!s) return "";
+  if (s.includes("散修")) return "散修出身";
+  if (s.includes("家族") || s.includes("世家")) return "修仙世家出身";
+  if (s.includes("宗门") || s.includes("门派")) return "宗门弟子";
+  if (s.includes("凡人") || s.includes("国")) return "凡人修仙";
+  if (s.includes("魔") || s.includes("邪")) return "魔道出身";
+  return "";
+}
+
+function extractTraitHints(traits: TraitEntry[]): string {
+  if (!traits || traits.length === 0) return "";
+  const names = traits
+    .map((t) => (typeof t === "string" ? t : t.name))
+    .filter((n) => n && n.length <= 6)
+    .slice(0, 2);
+  if (names.length === 0) return "";
+  return names.join("、");
+}
+
+function extractCombatHints(p: Protagonist): string {
+  const hints: string[] = [];
+  for (const item of p.equippedSlots) {
+    if (item && item.name) {
+      hints.push(`法宝「${item.name}」`);
+      break;
+    }
+  }
+  for (const cell of p.gongfaSlots) {
+    if (cell && cell.name) {
+      const tag = (cell as { system?: string }).system === "炼体" ? "炼体功法" : "功法";
+      hints.push(`${tag}「${cell.name}」`);
+      if (hints.length >= 2) break;
+    }
+  }
+  if (hints.length === 0) return "";
+  return hints.join("、");
+}
+
+/**
+ * 为主角构建文生图 prompt，充分考虑性别、境界、年龄感、出身、天赋、
+ * 灵根、法宝与功法等角色信息，确保生成帅气/美丽的修仙者立绘。
+ */
+export function buildProtagonistPortraitPrompt(protagonist: Protagonist): string {
+  const parts: string[] = [];
+
+  const genderDesc =
+    protagonist.gender === "女性"
+      ? "容颜绝美，仙姿玉骨，气质清冷出尘"
+      : "面容英俊，剑眉星目，气度非凡，丰神俊朗";
+  parts.push(genderDesc);
+
+  const realmZh = Character.formatRealm(protagonist.realm);
+  if (realmZh && realmZh !== "—") parts.push(`境界${realmZh}`);
+
+  const aura = REALM_AURA[protagonist.realm?.major ?? ""];
+  if (aura) parts.push(aura);
+
+  const ageDesc = computeApparentAge(protagonist.age, protagonist.shouyuan);
+  if (ageDesc) parts.push(ageDesc);
+
+  const originId = extractOriginIdentity(protagonist.originStory);
+  if (originId) parts.push(originId);
+
+  if (protagonist.linggen && protagonist.linggen.length > 0) {
+    const elements = protagonist.linggen.join("、");
+    parts.push(`${elements}灵根`);
+  }
+
+  const traitHints = extractTraitHints(protagonist.traits);
+  if (traitHints) parts.push(`天赋${traitHints}`);
+
+  const combatHints = extractCombatHints(protagonist);
+  if (combatHints) parts.push(combatHints);
+
+  const charInfo = parts.join("，");
+  const subject = `一位${charInfo}的修仙者，身着精致修仙服饰，半身立绘构图，自腰部以上，面部表情与上半身服饰细节清晰`;
 
   return `${STYLE_PREFIX} ${subject}。`;
 }
