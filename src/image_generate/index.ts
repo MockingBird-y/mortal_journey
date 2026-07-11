@@ -20,8 +20,8 @@ export {
 } from "./useImageApiConfig";
 export type { UseImageApiConfigReturn } from "./useImageApiConfig";
 
-export { buildNpcPortraitPrompt, buildProtagonistPortraitPrompt } from "./promptBuilder";
+export { buildNpcPortraitPrompt, buildProtagonistPortraitPrompt, buildLocationBackgroundPrompt } from "./promptBuilder";
 
-export { generateImage, generateNpcPortrait, generateProtagonistPortrait } from "./imageGenerate";
+export { generateImage, generateNpcPortrait, generateProtagonistPortrait, generateLocationBackground } from "./imageGenerate";
 
-export { autoGeneratePortraits } from "./autoPortrait";
+export { autoGeneratePortraits, autoGenerateLocationBackgrounds } from "./autoPortrait";

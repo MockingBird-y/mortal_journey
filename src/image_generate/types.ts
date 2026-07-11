@@ -21,17 +21,18 @@ export interface ArkImageConfig {
   autoGenerate: boolean;
 }
 
-/** 目标图像形状：主角正方形 / NPC 立绘。 */
-export type ImageShape = "square" | "portrait";
+/** 目标图像形状：主角正方形 / NPC 立绘 / 地点横版背景。 */
+export type ImageShape = "square" | "portrait" | "landscape";
 
 /**
  * 各形状对应的请求尺寸（2K 档，4.0+ 模型在 [3.6M, 16M] 区间内）。
  *
- * 返回的 2K 大图会经 avatarUpload.ts 下采样到 512×512 / 683×1024。
+ * 返回的 2K 大图会经 avatarUpload.ts 下采样到目标尺寸。
  */
 export const SHAPE_SIZE: Record<ImageShape, string> = {
-  square: "2048x2048", // 1:1，4,194,304 px
-  portrait: "1664x2496", // 2:3，4,153,344 px
+  square: "2048x2048",       // 1:1，4,194,304 px → 512×512
+  portrait: "1664x2496",     // 2:3，4,153,344 px → 683×1024
+  landscape: "2304x1728",    // 4:3，3,981,312 px → 1024×768
 };
 
 /** 单次同步生成请求的超时上限（毫秒）；2K 大图通常 10~30s。 */

@@ -214,6 +214,29 @@
   box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
+/* 有地点背景图时，半透明遮罩保证文字可读 */
+.main-panel__chat-messages--has-bg {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  position: relative;
+}
+
+.main-panel__chat-messages--has-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(10, 16, 12, 0.82);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.main-panel__chat-messages--has-bg > * {
+  position: relative;
+  z-index: 1;
+}
+
 .main-panel__story-prose {
   margin: 0;
   font-family: var(--mj-font-story);

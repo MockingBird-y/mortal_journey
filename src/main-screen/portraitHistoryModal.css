@@ -72,6 +72,10 @@
   padding-right: 4px;
 }
 
+.mj-portrait-hist-panel[data-aspect="4/3"] .mj-portrait-hist-grid {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
 .mj-portrait-hist-card {
   position: relative;
   aspect-ratio: 2 / 3;
@@ -80,6 +84,10 @@
   border: 2px solid transparent;
   cursor: pointer;
   background: rgba(0, 0, 0, 0.35);
+}
+
+.mj-portrait-hist-card[data-aspect="4/3"] {
+  aspect-ratio: 4 / 3;
 }
 
 .mj-portrait-hist-card img {

@@ -77,14 +77,16 @@
 
 .side-modal--map .side-modal__body {
   padding: 0;
+  flex: none;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .map-panel {
   display: flex;
   gap: 0;
   padding: 0 !important;
-  min-height: 480px;
-  max-height: calc(90vh - 52px);
+  height: min(580px, calc(90vh - 52px));
 }
 
 .map-cascader {
@@ -159,6 +161,89 @@
 
 .map-panel__npcs > .map-cascader__label {
   padding: 10px 0 8px;
+}
+
+/* 地点背景预览区域 */
+.map-location-bg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(140, 120, 83, 0.25);
+}
+
+.map-location-bg-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--mj-border, rgba(140, 120, 83, 0.45));
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.map-location-bg-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.map-location-bg-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 0.82rem;
+  color: var(--mj-muted, #8a9088);
+}
+
+.map-location-bg-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.map-location-gen-btn,
+.map-location-hist-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 0.78rem;
+}
+
+.map-location-gen-btn:disabled,
+.map-location-hist-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.map-location-hist-count {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 5px;
+  min-width: 14px;
+  font-size: 0.65rem;
+  line-height: 14px;
+  text-align: center;
+  border-radius: 7px;
+  background: rgba(232, 197, 71, 0.18);
+  color: var(--mj-gold, #e8c547);
+}
+
+.map-location-bg-hint {
+  margin: 2px 0 0;
+  font-size: 0.68rem;
+  color: var(--mj-muted, #8a9088);
+  text-align: center;
+}
+
+.map-location-bg-error {
+  margin: 2px 0 0;
+  font-size: 0.68rem;
+  color: #e8a598;
+  text-align: center;
 }
 
 .map-npc-card {

@@ -10,10 +10,11 @@ import { gameLog } from "../log/gameLog";
 import { generateImageSync } from "./volcImageBridge";
 import { getArkImageConfig } from "./useImageApiConfig";
 import { SHAPE_SIZE, type ImageShape } from "./types";
-import { resizeImageFileToAvatar, resizeImageFileToPortrait } from "../main-screen/avatarUpload";
-import { buildNpcPortraitPrompt, buildProtagonistPortraitPrompt } from "./promptBuilder";
+import { resizeImageFileToAvatar, resizeImageFileToPortrait, resizeImageFileToLandscape } from "../main-screen/avatarUpload";
+import { buildNpcPortraitPrompt, buildProtagonistPortraitPrompt, buildLocationBackgroundPrompt } from "./promptBuilder";
 import type { Npc } from "../role_core/Npc";
 import type { Protagonist } from "../role_core/Protagonist";
+import type { WorldLocation } from "../role_core/types/worldLocation";
 
 /**
  * 生成一张图：同步请求 → 返回 JPEG dataURL。
@@ -43,7 +44,14 @@ export async function generateImage(prompt: string, shape: ImageShape, signal?: 
   // 2K 大图下采样到目标尺寸，复用现有缩放管线（含背景填充、JPEG 0.85 质量）。
   const blob = await (await fetch(dataUrl)).blob();
   const file = new File([blob], "volc-gen.jpg", { type: blob.type || "image/jpeg" });
-  const normalized = shape === "square" ? resizeImageFileToAvatar(file) : resizeImageFileToPortrait(file);
+  let normalized: string;
+  if (shape === "square") {
+    normalized = await resizeImageFileToAvatar(file);
+  } else if (shape === "landscape") {
+    normalized = await resizeImageFileToLandscape(file);
+  } else {
+    normalized = await resizeImageFileToPortrait(file);
+  }
   gameLog.info(`[图 完成] shape=${shape} -> dataURL`);
   return normalized;
 }
@@ -72,4 +80,20 @@ export async function generateProtagonistPortrait(
 ): Promise<string> {
   const prompt = buildProtagonistPortraitPrompt(protagonist);
   return generateImage(prompt, "portrait", signal);
+}
+
+/**
+ * 为地点生成 1024×768 横版背景图：拼 prompt → 生成 → 返回 JPEG dataURL。
+ *
+ * @param location 世界地点（四层结构）。
+ * @param realmMajor 当前主角境界（用于氛围注入，可选）。
+ * @throws {Error} 同 {@link generateImage}。
+ */
+export async function generateLocationBackground(
+  location: WorldLocation,
+  realmMajor?: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const prompt = buildLocationBackgroundPrompt(location, realmMajor);
+  return generateImage(prompt, "landscape", signal);
 }

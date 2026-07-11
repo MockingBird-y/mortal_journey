@@ -30,7 +30,8 @@ import type { BattleResult } from "../battle_engine/types";
 import type { WorldLocation } from "../role_core/types/worldLocation";
 import { formatWorldLocationDash, isEmptyWorldLocation, isWorldLocationEqual } from "../role_core/types/worldLocation";
 import type { Npc } from "../role_core/Npc";
-import { autoGeneratePortraits } from "../image_generate";
+import { autoGeneratePortraits, autoGenerateLocationBackgrounds } from "../image_generate";
+import { locationImageStore } from "../role_core/locationImageStore";
 
 const props = withDefaults(
   defineProps<{
@@ -67,6 +68,12 @@ const chatMessages = storyStore.chatMessages;
 const grandSummary = storyStore.grandSummary;
 const grandSummaryUpTo = storyStore.grandSummaryUpTo;
 const gameOverReason = storyStore.gameOverReason;
+
+const chatBgUrl = computed(() => {
+  const loc = storyStore.worldLocation.value;
+  if (!loc) return null;
+  return locationImageStore.get(loc)?.avatarUrl ?? null;
+});
 const inputText = ref("");
 const generating = ref(false);
 const generatingPhase = ref<"story" | "state" | "summary">("story");
@@ -447,6 +454,10 @@ async function applyStateResult(stateResult: StateParsed, linggen: string[]): Pr
   try {
     if (stateResult.worldLocation && !isEmptyWorldLocation(stateResult.worldLocation)) {
       worldMapStore.addLocation(stateResult.worldLocation);
+      autoGenerateLocationBackgrounds(
+        [stateResult.worldLocation],
+        protagonist.value?.realm?.major,
+      );
     }
   } catch (e) {
     gameLog.error("[StoryChat] 世界地图更新失败：" + (e instanceof Error ? e.message : String(e)));
@@ -891,7 +902,13 @@ watch(
       </div>
     </header>
     <div class="main-panel__body">
-      <div class="main-panel__chat-messages" aria-label="剧情正文区域" aria-live="polite">
+      <div
+        class="main-panel__chat-messages"
+        :class="{ 'main-panel__chat-messages--has-bg': chatBgUrl }"
+        :style="chatBgUrl ? { backgroundImage: `url(${chatBgUrl})` } : {}"
+        aria-label="剧情正文区域"
+        aria-live="polite"
+      >
         <p v-if="phase === 'loading' && chatMessages.length === 0" class="main-panel__story-status main-panel__story-status--loading">
           正在生成开局剧情…
         </p>

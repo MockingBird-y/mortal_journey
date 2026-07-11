@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import { useScrollLock } from "../composables/useScrollLock";
-import { resizeImageFileToPortrait } from "./avatarUpload";
+import { resizeImageFileToPortrait, resizeImageFileToLandscape } from "./avatarUpload";
 
 const props = defineProps<{
   open: boolean;
   displayName: string;
   candidates: string[];
   avatarUrl: string;
+  aspectRatio?: string;
 }>();
 
 const emit = defineEmits<{
@@ -43,7 +44,10 @@ async function onUploadFileChange(e: Event) {
     return;
   }
   try {
-    const dataUrl = await resizeImageFileToPortrait(file);
+    const dataUrl =
+      props.aspectRatio === "4/3"
+        ? await resizeImageFileToLandscape(file)
+        : await resizeImageFileToPortrait(file);
     emit("upload", dataUrl);
     uploadError.value = "";
   } catch (err) {
@@ -87,7 +91,7 @@ function onPreviewKeydown(e: KeyboardEvent) {
       >
         <div class="mj-portrait-hist-backdrop" @click="emit('close')"></div>
         <Transition name="mj-modal" appear>
-          <div class="mj-portrait-hist-panel" role="dialog" aria-modal="true" @click.stop>
+          <div class="mj-portrait-hist-panel" role="dialog" aria-modal="true" :data-aspect="aspectRatio ?? '2/3'" @click.stop>
             <button type="button" class="mj-portrait-hist-close" aria-label="关闭" @click="emit('close')">×</button>
             <h4 class="mj-portrait-hist-title">历史立绘 · {{ displayName }}</h4>
             <p class="mj-portrait-hist-sub">点击选用，× 删除（高亮者为当前立绘）</p>
@@ -97,6 +101,7 @@ function onPreviewKeydown(e: KeyboardEvent) {
                 :key="idx"
                 class="mj-portrait-hist-card"
                 :class="{ 'is-selected': url === avatarUrl }"
+                :data-aspect="aspectRatio ?? '2/3'"
                 title="点击选用这张立绘"
                 @click="emit('select', url)"
               >

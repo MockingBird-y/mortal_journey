@@ -82,6 +82,10 @@ export function resizeImageFileToAvatar(
 export const NPC_PORTRAIT_WIDTH = 683;
 export const NPC_PORTRAIT_HEIGHT = 1024;
 
+/** 地点背景图尺寸（4:3 横版）。 */
+export const LANDSCAPE_WIDTH = 1024;
+export const LANDSCAPE_HEIGHT = 768;
+
 /**
  * 将图片文件处理为 NPC 立绘 dataURL（默认 683×1024）。
  *
@@ -143,6 +147,49 @@ export function resizeImageFileToPortrait(
         } catch (e) {
           reject(e instanceof Error ? e : new Error("图片处理失败。"));
         }
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+export function resizeImageFileToLandscape(
+  file: File,
+  width: number = LANDSCAPE_WIDTH,
+  height: number = LANDSCAPE_HEIGHT,
+  quality: number = AVATAR_QUALITY,
+): Promise<string> {
+  if (!file.type || !file.type.startsWith("image/")) {
+    return Promise.reject(new Error("请选择图片文件。"));
+  }
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("图片读取失败。"));
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      if (typeof dataUrl !== "string") { reject(new Error("图片读取失败。")); return; }
+      const img = new Image();
+      img.onerror = () => reject(new Error("图片解码失败，请换一张试试。"));
+      img.onload = () => {
+        try {
+          const srcW = img.naturalWidth || img.width;
+          const srcH = img.naturalHeight || img.height;
+          if (srcW <= 0 || srcH <= 0) { reject(new Error("图片尺寸无效。")); return; }
+          const scale = Math.min(width / srcW, height / srcH);
+          const dstW = Math.max(1, Math.round(srcW * scale));
+          const dstH = Math.max(1, Math.round(srcH * scale));
+          const dx = Math.round((width - dstW) / 2);
+          const dy = Math.round((height - dstH) / 2);
+          const canvas = document.createElement("canvas");
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) { reject(new Error("无法创建画布上下文。")); return; }
+          ctx.fillStyle = "#1a1a2e";
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, dx, dy, dstW, dstH);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        } catch (e) { reject(e instanceof Error ? e : new Error("图片处理失败。")); }
       };
       img.src = dataUrl;
     };

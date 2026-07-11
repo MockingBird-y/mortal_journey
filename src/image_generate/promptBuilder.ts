@@ -12,6 +12,8 @@ import { Character } from "../role_core/Character";
 import type { Npc } from "../role_core/Npc";
 import type { Protagonist } from "../role_core/Protagonist";
 import type { TraitEntry } from "../role_core/types/playInfo";
+import type { WorldLocation } from "../role_core/types/worldLocation";
+import { formatWorldLocation } from "../role_core/types/worldLocation";
 
 /** 统一画风前缀：3D 建模 / 虚幻引擎渲染 / 电影级质感，背景由模型自行适配，避免每张立绘画风漂移。 */
 const STYLE_PREFIX =
@@ -193,4 +195,26 @@ export function buildProtagonistPortraitPrompt(protagonist: Protagonist): string
   const subject = `一位${charInfo}的修仙者，身着精致修仙服饰，半身立绘构图，自腰部以上，面部表情与上半身服饰细节清晰`;
 
   return `${STYLE_PREFIX} ${subject}。`;
+}
+
+// ── 地点背景 Prompt ──────────────────────────────────────────────────────────
+
+/** 地点背景的画风前缀：无人物、广角场景、仙侠氛围。 */
+const LOCATION_STYLE_PREFIX =
+  "修仙题材场景背景，写实厚涂风，虚幻引擎5渲染，电影级广角镜头，8k超高清，" +
+  "PBR材质，丁达尔效应体积光，仙侠氛围，景深效果，古风意境，" +
+  "无文字，无水印，画面纯净";
+
+/**
+ * 为地点构建背景图 prompt，综合地点四层名称和当前境界氛围生成仙侠场景图。
+ */
+export function buildLocationBackgroundPrompt(
+  loc: WorldLocation,
+  realmMajor?: string,
+): string {
+  const locDesc = formatWorldLocation(loc);
+  const aura = realmMajor ? (REALM_AURA[realmMajor] ?? "") : "";
+  const parts = [locDesc];
+  if (aura) parts.push(aura);
+  return `${LOCATION_STYLE_PREFIX}，场景为${parts.join("，")}。`;
 }

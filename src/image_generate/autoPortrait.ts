@@ -8,10 +8,13 @@
 
 import { gameLog } from "../log/gameLog";
 import { npcStore } from "../role_core/npcStore";
+import { locationImageStore } from "../role_core/locationImageStore";
 import { writeActiveSave } from "../save/gameSave";
-import { generateNpcPortrait } from "./imageGenerate";
+import { generateNpcPortrait, generateLocationBackground } from "./imageGenerate";
 import { isAutoGenerateEnabled, isImageApiConfigured } from "./useImageApiConfig";
 import type { Npc } from "../role_core/Npc";
+import type { WorldLocation } from "../role_core/types/worldLocation";
+import { formatWorldLocation } from "../role_core/types/worldLocation";
 
 /** 串行执行队列，保证任意时刻只有一张立绘在生成。 */
 let _queue: Promise<void> = Promise.resolve();
@@ -48,6 +51,54 @@ async function runPortraitBatch(list: Npc[]): Promise<void> {
     } catch (err) {
       gameLog.warn(
         `[图 自动]「${npc.displayName}」立绘生成失败：` +
+          (err instanceof Error ? err.message : String(err)),
+      );
+    }
+  }
+}
+
+// ── 地点背景自动生成 ─────────────────────────────────────────────────────────
+
+/** 串行执行队列，与 NPC 立绘共享同一队列避免并发。 */
+
+/**
+ * 为「新发现的地点」按需自动生成背景图。
+ *
+ * 守卫：未配置文生图 / 未开启自动生成 / 列表为空 → 直接返回。
+ * 仅处理尚无背景图的地点；逐个串行生成。
+ *
+ * @param locations 新出现的地点列表。
+ * @param realmMajor 当前主角境界（用于 prompt 氛围）。
+ */
+export function autoGenerateLocationBackgrounds(
+  locations: WorldLocation[],
+  realmMajor?: string,
+): void {
+  if (!locations || locations.length === 0) return;
+  if (!isImageApiConfigured() || !isAutoGenerateEnabled()) return;
+  const targets = locations.filter((loc) => !locationImageStore.hasAnyCandidate(loc));
+  if (targets.length === 0) return;
+
+  _queue = _queue
+    .then(() => runLocationBatch(targets, realmMajor))
+    .catch((err) => {
+      gameLog.warn("[图 自动] 地点批次异常：" + (err instanceof Error ? err.message : String(err)));
+    });
+}
+
+async function runLocationBatch(
+  list: WorldLocation[],
+  realmMajor?: string,
+): Promise<void> {
+  for (const loc of list) {
+    try {
+      const dataUrl = await generateLocationBackground(loc, realmMajor);
+      locationImageStore.addCandidate(loc, dataUrl);
+      writeActiveSave();
+      gameLog.info(`[图 自动] 已为地点「${formatWorldLocation(loc)}」生成背景`);
+    } catch (err) {
+      gameLog.warn(
+        `[图 自动] 地点「${formatWorldLocation(loc)}」背景生成失败：` +
           (err instanceof Error ? err.message : String(err)),
       );
     }
