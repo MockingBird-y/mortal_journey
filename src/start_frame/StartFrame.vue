@@ -108,31 +108,26 @@ function onImportFilePicked(e: Event) {
     <div id="splash-bg" aria-hidden="true"></div>
 
     <div id="splash-content">
-      <h1 id="splash-title">凡人修仙传</h1>
-      <p id="splash-info">作者: KAI&nbsp;&nbsp;|&nbsp;&nbsp;版本: 2.0.0</p>
+      <div id="splash-formation" aria-hidden="true"></div>
 
-      <div id="splash-buttons">
+      <div id="splash-header">
+        <h1 id="splash-title">无限仙途</h1>
+        <p id="splash-info">作者 KAI · Version 2.0.0</p>
+      </div>
+
+      <button
+        id="splash-start-btn"
+        type="button"
+        :disabled="!canStart"
+        :title="startDisabledTitle"
+        @click="onStartNewLife"
+      >
+        开始游戏
+      </button>
+
+      <nav id="splash-nav">
         <button
-          id="start-new-life-btn"
-          class="splash-btn"
-          type="button"
-          :disabled="!canStart"
-          :title="startDisabledTitle"
-          @click="onStartNewLife"
-        >
-          开始游戏
-        </button>
-        <button
-          id="help-btn"
-          class="splash-btn"
-          type="button"
-          @click="openHelp"
-        >
-          游玩说明
-        </button>
-        <button
-          id="load-life-btn"
-          class="splash-btn"
+          class="splash-nav-item"
           type="button"
           :disabled="!canStart"
           :title="startDisabledTitle"
@@ -140,10 +135,21 @@ function onImportFilePicked(e: Event) {
         >
           读取人生
         </button>
-        <button class="splash-btn" id="api-settings-btn" type="button" @click="openApiSettings">
+        <button
+          class="splash-nav-item"
+          type="button"
+          @click="openHelp"
+        >
+          游玩说明
+        </button>
+        <button
+          class="splash-nav-item"
+          type="button"
+          @click="openApiSettings"
+        >
           API设置
         </button>
-      </div>
+      </nav>
     </div>
   </div>
 
@@ -217,13 +223,13 @@ function onImportFilePicked(e: Event) {
         </div>
 
         <div class="splash-modal-actions splash-modal-actions--3">
-          <button type="button" class="splash-btn splash-btn--secondary" @click="clearApiSettings">
+          <button type="button" class="splash-modal-btn splash-modal-btn--secondary" @click="clearApiSettings">
             清除
           </button>
-          <button type="button" class="splash-btn splash-btn--secondary" @click="testApiSettings">
+          <button type="button" class="splash-modal-btn splash-modal-btn--secondary" @click="testApiSettings">
             测试
           </button>
-          <button type="button" class="splash-btn" @click="saveApiSettings">保存</button>
+          <button type="button" class="splash-modal-btn" @click="saveApiSettings">保存</button>
         </div>
         <div
           class="splash-modal-status"
@@ -273,13 +279,13 @@ function onImportFilePicked(e: Event) {
         </div>
 
         <div class="splash-modal-actions splash-modal-actions--3">
-          <button type="button" class="splash-btn splash-btn--secondary" @click="clearImageApiSettings">
+          <button type="button" class="splash-modal-btn splash-modal-btn--secondary" @click="clearImageApiSettings">
             清除
           </button>
-          <button type="button" class="splash-btn splash-btn--secondary" @click="testImageApiSettings">
+          <button type="button" class="splash-modal-btn splash-modal-btn--secondary" @click="testImageApiSettings">
             测试
           </button>
-          <button type="button" class="splash-btn" @click="saveImageApiSettings">保存</button>
+          <button type="button" class="splash-modal-btn" @click="saveImageApiSettings">保存</button>
         </div>
         <div
           class="splash-modal-status"
@@ -343,22 +349,22 @@ function onImportFilePicked(e: Event) {
             <p class="save-load-meta">创建：{{ fmtTime(it.createdAt) }} · 更新：{{ fmtTime(it.updatedAt) }}<template v-if="it.importedAt"> · 导入：{{ fmtTime(it.importedAt) }}</template></p>
           </div>
           <div class="save-load-actions">
-            <button type="button" class="splash-btn" @click="onLoadSave(it)">读取</button>
-            <button type="button" class="splash-btn splash-btn--secondary" @click="onExportSave(it)">
+            <button type="button" class="splash-modal-btn" @click="onLoadSave(it)">读取</button>
+            <button type="button" class="splash-modal-btn splash-modal-btn--secondary" @click="onExportSave(it)">
               导出
             </button>
-            <button type="button" class="splash-btn splash-btn--secondary" @click="deleteSave(it)">
+            <button type="button" class="splash-modal-btn splash-modal-btn--secondary" @click="deleteSave(it)">
               删除
             </button>
           </div>
         </div>
       </div>
       <div class="splash-modal-actions splash-modal-actions--3">
-        <button type="button" class="splash-btn splash-btn--secondary" @click="refreshSaveList">
+        <button type="button" class="splash-modal-btn splash-modal-btn--secondary" @click="refreshSaveList">
           刷新
         </button>
-        <button type="button" class="splash-btn" @click="triggerImport">导入</button>
-        <button type="button" class="splash-btn splash-btn--secondary" @click="deleteAllSaves">清空</button>
+        <button type="button" class="splash-modal-btn" @click="triggerImport">导入</button>
+        <button type="button" class="splash-modal-btn splash-modal-btn--secondary" @click="deleteAllSaves">清空</button>
       </div>
       <input
         ref="importInput"

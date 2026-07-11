@@ -199,7 +199,7 @@ export function useFateChoice() {
   const selectedDifficulty = ref<DifficultyLevel>("简单");
 
   // ── 1. 姓名 ──────────────────────────────────────────────────────────────
-  const playerName = ref("韩立");
+  const playerName = ref("无限");
 
   // ── 2. 叙事人称 ──────────────────────────────────────────────────────────
   const narrationPerson = ref<NarrationPerson>("first");
@@ -329,7 +329,7 @@ export function useFateChoice() {
         : "second";
     return {
       basics: {
-        playerName: String(playerName.value || "").trim() || "韩立",
+        playerName: String(playerName.value || "").trim() || "无限",
         narrationPerson: np,
         gender: selectedGender.value,
         realmMajor: er.major,
@@ -353,7 +353,7 @@ export function useFateChoice() {
   /** 将表单恢复为默认值。 */
   function reset(): void {
     selectedDifficulty.value = "简单";
-    playerName.value = "韩立";
+    playerName.value = "无限";
     narrationPerson.value = "first";
     selectedGender.value = CREATION_GENDERS[0]!;
     selectedBirth.value = DEFAULT_BIRTH_KEY;

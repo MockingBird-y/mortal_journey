@@ -154,7 +154,7 @@ function onConfirm(): void {
 function narrationDesc(key: string): string {
   if (key === "first") return "我";
   if (key === "second") return "你";
-  return String(playerName.value || "韩立");
+  return String(playerName.value || "无限");
 }
 
 function setNarrationPerson(key: string): void {
