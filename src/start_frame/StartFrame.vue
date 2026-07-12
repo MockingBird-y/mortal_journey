@@ -2,6 +2,8 @@
 import { computed, ref, watch } from "vue";
 import { useSplash, type SaveIndexEntry, type MjSavePayload } from "./useSplash";
 import { useScrollLock } from "../composables/useScrollLock";
+import splashBgVideo from "./splash-bg.mp4";
+import splashBgPoster from "./splash-bg.png";
 import "./start_frame.css";
 
 const props = defineProps<{
@@ -105,7 +107,18 @@ function onImportFilePicked(e: Event) {
 
 <template>
   <div id="splash-screen">
-    <div id="splash-bg" aria-hidden="true"></div>
+    <div id="splash-bg" aria-hidden="true">
+      <video
+        class="splash-bg-video"
+        :src="splashBgVideo"
+        :poster="splashBgPoster"
+        autoplay
+        muted
+        loop
+        playsinline
+        preload="auto"
+      ></video>
+    </div>
 
     <div id="splash-content">
       <div id="splash-formation" aria-hidden="true"></div>
