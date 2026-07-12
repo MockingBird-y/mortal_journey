@@ -24,6 +24,12 @@ const {
   apiModel,
   apiStatus,
   apiStatusOk,
+  imageBaseUrl,
+  imageApiKey,
+  imageModel,
+  imageAutoGenerate,
+  imageStatus,
+  imageStatusOk,
   saveStatus,
   saveStatusOk,
   saves,
@@ -34,6 +40,10 @@ const {
   saveApiSettings,
   clearApiSettings,
   testApiSettings,
+  saveImageApiSettings,
+  clearImageApiSettings,
+  testImageApiSettings,
+  toggleImageAutoGenerate,
   openSaveLoad,
   closeSaveLoad,
   openHelp,
@@ -53,6 +63,11 @@ watch(
     else scrollLock.release();
   },
 );
+
+const apiTab = ref<"story" | "image">("story");
+watch(apiModalOpen, (open) => {
+  if (open) apiTab.value = "story";
+});
 
 const startDisabledTitle = computed(() =>
   canStart.value
@@ -93,31 +108,26 @@ function onImportFilePicked(e: Event) {
     <div id="splash-bg" aria-hidden="true"></div>
 
     <div id="splash-content">
-      <h1 id="splash-title">凡人修仙传</h1>
-      <p id="splash-info">作者: KAI&nbsp;&nbsp;|&nbsp;&nbsp;版本: 2.0.0</p>
+      <div id="splash-formation" aria-hidden="true"></div>
 
-      <div id="splash-buttons">
+      <div id="splash-header">
+        <h1 id="splash-title">无限仙途</h1>
+        <p id="splash-info">作者: KAI · Version: 2.1.0</p>
+      </div>
+
+      <button
+        id="splash-start-btn"
+        type="button"
+        :disabled="!canStart"
+        :title="startDisabledTitle"
+        @click="onStartNewLife"
+      >
+        开始游戏
+      </button>
+
+      <nav id="splash-nav">
         <button
-          id="start-new-life-btn"
-          class="splash-btn"
-          type="button"
-          :disabled="!canStart"
-          :title="startDisabledTitle"
-          @click="onStartNewLife"
-        >
-          开始游戏
-        </button>
-        <button
-          id="help-btn"
-          class="splash-btn"
-          type="button"
-          @click="openHelp"
-        >
-          游玩说明
-        </button>
-        <button
-          id="load-life-btn"
-          class="splash-btn"
+          class="splash-nav-item"
           type="button"
           :disabled="!canStart"
           :title="startDisabledTitle"
@@ -125,10 +135,21 @@ function onImportFilePicked(e: Event) {
         >
           读取人生
         </button>
-        <button class="splash-btn" id="api-settings-btn" type="button" @click="openApiSettings">
+        <button
+          class="splash-nav-item"
+          type="button"
+          @click="openHelp"
+        >
+          游玩说明
+        </button>
+        <button
+          class="splash-nav-item"
+          type="button"
+          @click="openApiSettings"
+        >
           API设置
         </button>
-      </div>
+      </nav>
     </div>
   </div>
 
@@ -145,56 +166,156 @@ function onImportFilePicked(e: Event) {
         <div class="splash-modal" role="dialog" aria-modal="true" aria-labelledby="api-settings-title">
       <button type="button" class="splash-modal-close" aria-label="关闭" @click="closeApiSettings">×</button>
       <h3 id="api-settings-title" class="splash-modal-title">API 设置</h3>
-      <p class="splash-modal-sub">目前仅支持OpenAI格式的api。</p>
-
-      <div class="splash-form">
-        <label class="splash-field">
-          <span class="splash-field-k">API URL</span>
-          <input
-            v-model="apiUrl"
-            class="splash-field-input"
-            type="text"
-            placeholder="https://api.example.com/v1"
-          />
-        </label>
-        <label class="splash-field">
-          <span class="splash-field-k">API Key</span>
-          <input
-            v-model="apiKey"
-            class="splash-field-input"
-            type="password"
-            placeholder="sk-..."
-          />
-        </label>
-        <label class="splash-field">
-          <span class="splash-field-k">模型</span>
-          <input
-            v-model="apiModel"
-            class="splash-field-input"
-            type="text"
-            placeholder="gpt-4.1-mini"
-          />
-        </label>
+      <div class="splash-tabs" role="tablist" aria-label="API 设置分类">
+        <button
+          type="button"
+          class="splash-tab"
+          :class="{ 'is-active': apiTab === 'story' }"
+          role="tab"
+          :aria-selected="apiTab === 'story'"
+          @click="apiTab = 'story'"
+        >
+          剧情生成
+        </button>
+        <button
+          type="button"
+          class="splash-tab"
+          :class="{ 'is-active': apiTab === 'image' }"
+          role="tab"
+          :aria-selected="apiTab === 'image'"
+          @click="apiTab = 'image'"
+        >
+          文生图
+        </button>
       </div>
 
-      <div class="splash-modal-actions splash-modal-actions--3">
-        <button type="button" class="splash-btn splash-btn--secondary" @click="clearApiSettings">
-          清除
-        </button>
-        <button type="button" class="splash-btn splash-btn--secondary" @click="testApiSettings">
-          测试
-        </button>
-        <button type="button" class="splash-btn" @click="saveApiSettings">保存</button>
+      <div v-show="apiTab === 'story'" role="tabpanel">
+        <p class="splash-modal-sub">目前仅支持 OpenAI 格式的 API。</p>
+
+        <div class="splash-form">
+          <label class="splash-field">
+            <span class="splash-field-k">API URL</span>
+            <input
+              v-model="apiUrl"
+              class="splash-field-input"
+              type="text"
+              placeholder="https://api.example.com/v1"
+            />
+          </label>
+          <label class="splash-field">
+            <span class="splash-field-k">API Key</span>
+            <input
+              v-model="apiKey"
+              class="splash-field-input"
+              type="password"
+              placeholder="sk-..."
+            />
+          </label>
+          <label class="splash-field">
+            <span class="splash-field-k">模型</span>
+            <input
+              v-model="apiModel"
+              class="splash-field-input"
+              type="text"
+              placeholder="gpt-4.1-mini"
+            />
+          </label>
+        </div>
+
+        <div class="splash-modal-actions splash-modal-actions--3">
+          <button type="button" class="splash-modal-btn splash-modal-btn--secondary" @click="clearApiSettings">
+            清除
+          </button>
+          <button type="button" class="splash-modal-btn splash-modal-btn--secondary" @click="testApiSettings">
+            测试
+          </button>
+          <button type="button" class="splash-modal-btn" @click="saveApiSettings">保存</button>
+        </div>
+        <div
+          class="splash-modal-status"
+          :class="{
+            'splash-modal-status--ok': apiStatusOk && apiStatus,
+            'splash-modal-status--bad': !apiStatusOk && apiStatus,
+          }"
+          aria-live="polite"
+        >
+          {{ apiStatus }}
+        </div>
       </div>
-      <div
-        class="splash-modal-status"
-        :class="{
-          'splash-modal-status--ok': apiStatusOk && apiStatus,
-          'splash-modal-status--bad': !apiStatusOk && apiStatus,
-        }"
-        aria-live="polite"
-      >
-        {{ apiStatus }}
+
+      <div v-show="apiTab === 'image'" role="tabpanel">
+        <p class="splash-modal-sub">
+          仅支持火山方舟（Ark）文生图，模型为 doubao-seedream 系列。地址可为 Ark 直连、自建 CORS 代理或网关。
+        </p>
+
+        <div class="splash-form">
+          <label class="splash-field">
+            <span class="splash-field-k">地址</span>
+            <input
+              v-model="imageBaseUrl"
+              class="splash-field-input"
+              type="text"
+              placeholder="https://ark.cn-beijing.volces.com/api/v3"
+            />
+          </label>
+          <label class="splash-field">
+            <span class="splash-field-k">API Key</span>
+            <input
+              v-model="imageApiKey"
+              class="splash-field-input"
+              type="password"
+              placeholder="ark-..."
+            />
+          </label>
+          <label class="splash-field">
+            <span class="splash-field-k">模型</span>
+            <input
+              v-model="imageModel"
+              class="splash-field-input"
+              type="text"
+              placeholder="doubao-seedream-4-0-..."
+            />
+          </label>
+        </div>
+
+        <div class="splash-modal-actions splash-modal-actions--3">
+          <button type="button" class="splash-modal-btn splash-modal-btn--secondary" @click="clearImageApiSettings">
+            清除
+          </button>
+          <button type="button" class="splash-modal-btn splash-modal-btn--secondary" @click="testImageApiSettings">
+            测试
+          </button>
+          <button type="button" class="splash-modal-btn" @click="saveImageApiSettings">保存</button>
+        </div>
+        <div
+          class="splash-modal-status"
+          :class="{
+            'splash-modal-status--ok': imageStatusOk && imageStatus,
+            'splash-modal-status--bad': !imageStatusOk && imageStatus,
+          }"
+          aria-live="polite"
+        >
+          {{ imageStatus }}
+        </div>
+
+        <div class="splash-switch-row">
+          <div class="splash-switch-label">
+            <span class="splash-field-k">立绘生成方式</span>
+            <span class="splash-toggle-hint">
+              {{ imageAutoGenerate ? '新 NPC 出现时自动生成立绘，建议手动生成' : '在 NPC 详情中手动生成，推荐' }}
+            </span>
+          </div>
+          <button
+            type="button"
+            class="splash-switch"
+            :class="{ 'is-on': imageAutoGenerate }"
+            role="switch"
+            :aria-checked="imageAutoGenerate"
+            @click="toggleImageAutoGenerate"
+          >
+            <span class="splash-switch-knob"></span>
+          </button>
+        </div>
       </div>
     </div>
       </Transition>
@@ -228,22 +349,22 @@ function onImportFilePicked(e: Event) {
             <p class="save-load-meta">创建：{{ fmtTime(it.createdAt) }} · 更新：{{ fmtTime(it.updatedAt) }}<template v-if="it.importedAt"> · 导入：{{ fmtTime(it.importedAt) }}</template></p>
           </div>
           <div class="save-load-actions">
-            <button type="button" class="splash-btn" @click="onLoadSave(it)">读取</button>
-            <button type="button" class="splash-btn splash-btn--secondary" @click="onExportSave(it)">
+            <button type="button" class="splash-modal-btn" @click="onLoadSave(it)">读取</button>
+            <button type="button" class="splash-modal-btn splash-modal-btn--secondary" @click="onExportSave(it)">
               导出
             </button>
-            <button type="button" class="splash-btn splash-btn--secondary" @click="deleteSave(it)">
+            <button type="button" class="splash-modal-btn splash-modal-btn--secondary" @click="deleteSave(it)">
               删除
             </button>
           </div>
         </div>
       </div>
       <div class="splash-modal-actions splash-modal-actions--3">
-        <button type="button" class="splash-btn splash-btn--secondary" @click="refreshSaveList">
+        <button type="button" class="splash-modal-btn splash-modal-btn--secondary" @click="refreshSaveList">
           刷新
         </button>
-        <button type="button" class="splash-btn" @click="triggerImport">导入</button>
-        <button type="button" class="splash-btn splash-btn--secondary" @click="deleteAllSaves">清空</button>
+        <button type="button" class="splash-modal-btn" @click="triggerImport">导入</button>
+        <button type="button" class="splash-modal-btn splash-modal-btn--secondary" @click="deleteAllSaves">清空</button>
       </div>
       <input
         ref="importInput"
@@ -335,9 +456,6 @@ function onImportFilePicked(e: Event) {
                 <li>每回合自动存档到本机浏览器，刷新页面可续玩；也可在标题界面用「读取人生」加载历史存档。</li>
               </ul>
             </section>
-          </div>
-          <div class="splash-modal-actions">
-            <button type="button" class="splash-btn" @click="closeHelp">明白了</button>
           </div>
         </div>
       </Transition>

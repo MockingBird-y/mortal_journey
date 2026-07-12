@@ -75,3 +75,124 @@ export function resizeImageFileToAvatar(
     reader.readAsDataURL(file);
   });
 }
+
+/**
+ * NPC 立绘（半身/全身）尺寸（宽×高）。世界地图与战斗模块取其上半部分作为方形头像。
+ */
+export const NPC_PORTRAIT_WIDTH = 683;
+export const NPC_PORTRAIT_HEIGHT = 1024;
+
+/** 地点背景图尺寸（4:3 横版）。 */
+export const LANDSCAPE_WIDTH = 1024;
+export const LANDSCAPE_HEIGHT = 768;
+
+/**
+ * 将图片文件处理为 NPC 立绘 dataURL（默认 683×1024）。
+ *
+ * 采用「等比 contain + 背景填充」：按比例缩放使整张图完整放入目标画布，居中，
+ * 空白区域填充背景色。这样任意比例的图都不会裁掉角色（文生图 2:3 输出刚好铺满）。
+ * 世界地图/战斗模块通过 CSS `object-position: top` 取其上半部分作为方形头像。
+ *
+ * @throws 若文件不是图片类型，或图片解码失败。
+ */
+export function resizeImageFileToPortrait(
+  file: File,
+  width: number = NPC_PORTRAIT_WIDTH,
+  height: number = NPC_PORTRAIT_HEIGHT,
+  quality: number = AVATAR_QUALITY,
+): Promise<string> {
+  if (!file.type || !file.type.startsWith("image/")) {
+    return Promise.reject(new Error("请选择图片文件。"));
+  }
+
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("图片读取失败。"));
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      if (typeof dataUrl !== "string") {
+        reject(new Error("图片读取失败。"));
+        return;
+      }
+      const img = new Image();
+      img.onerror = () => reject(new Error("图片解码失败，请换一张试试。"));
+      img.onload = () => {
+        try {
+          const srcW = img.naturalWidth || img.width;
+          const srcH = img.naturalHeight || img.height;
+          if (srcW <= 0 || srcH <= 0) {
+            reject(new Error("图片尺寸无效。"));
+            return;
+          }
+          // 等比缩放，使整张图完整放入 width×height 画布（contain）。
+          const scale = Math.min(width / srcW, height / srcH);
+          const dstW = Math.max(1, Math.round(srcW * scale));
+          const dstH = Math.max(1, Math.round(srcH * scale));
+          const dx = Math.round((width - dstW) / 2);
+          const dy = Math.round((height - dstH) / 2);
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("无法创建画布上下文。"));
+            return;
+          }
+          // 先填充背景色，避免透明 PNG 转 JPEG 时透明区域变成黑色。
+          ctx.fillStyle = "#1a1a2e";
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, dx, dy, dstW, dstH);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        } catch (e) {
+          reject(e instanceof Error ? e : new Error("图片处理失败。"));
+        }
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+export function resizeImageFileToLandscape(
+  file: File,
+  width: number = LANDSCAPE_WIDTH,
+  height: number = LANDSCAPE_HEIGHT,
+  quality: number = AVATAR_QUALITY,
+): Promise<string> {
+  if (!file.type || !file.type.startsWith("image/")) {
+    return Promise.reject(new Error("请选择图片文件。"));
+  }
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("图片读取失败。"));
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      if (typeof dataUrl !== "string") { reject(new Error("图片读取失败。")); return; }
+      const img = new Image();
+      img.onerror = () => reject(new Error("图片解码失败，请换一张试试。"));
+      img.onload = () => {
+        try {
+          const srcW = img.naturalWidth || img.width;
+          const srcH = img.naturalHeight || img.height;
+          if (srcW <= 0 || srcH <= 0) { reject(new Error("图片尺寸无效。")); return; }
+          const scale = Math.min(width / srcW, height / srcH);
+          const dstW = Math.max(1, Math.round(srcW * scale));
+          const dstH = Math.max(1, Math.round(srcH * scale));
+          const dx = Math.round((width - dstW) / 2);
+          const dy = Math.round((height - dstH) / 2);
+          const canvas = document.createElement("canvas");
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) { reject(new Error("无法创建画布上下文。")); return; }
+          ctx.fillStyle = "#1a1a2e";
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, dx, dy, dstW, dstH);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        } catch (e) { reject(e instanceof Error ? e : new Error("图片处理失败。")); }
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
+}

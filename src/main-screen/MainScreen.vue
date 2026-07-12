@@ -113,11 +113,9 @@ function startTestBattle() {
       favorability: 0,
       isDead: false,
       powerTier: "小怪",
-      currentStageGoal: "",
-      longTermGoal: "",
-      hobby: "",
-      fear: "",
-      personality: "",
+      race: "修仙者",
+      appearance: "",
+      clothing: "",
       traits: [],
       xiuwei: 0,
     };
@@ -149,10 +147,10 @@ function startTestBattle() {
   <div
     class="main-screen"
     role="application"
-    aria-label="凡人修仙传主界面"
+    aria-label="无限仙途主界面"
   >
     <header class="main-screen__toolbar">
-      <h1 class="main-screen__title">凡人修仙传</h1>
+      <h1 class="main-screen__title">无限仙途</h1>
       <div class="main-screen__toolbar-actions">
         <button type="button" class="main-screen__btn" @click="onBack">返回标题</button>
       </div>

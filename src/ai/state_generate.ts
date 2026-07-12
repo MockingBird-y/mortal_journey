@@ -12,6 +12,7 @@ import {
   type GongfaSlotsState,
   type InventoryStackItem,
   type WorldLocation,
+  type NpcRace,
 } from "../role_core/types/playInfo";
 import { type WorldTime, type TimeDelta, formatWorldTimeZhDisplay } from "../role_core/worldTime";
 import { describeNextBreakthrough } from "../role_core/realmUtils";
@@ -80,11 +81,9 @@ export interface NpcNearbyEntry {
   identity: string;
   isDead: boolean;
   favorability: number;
-  currentStageGoal: string;
-  longTermGoal: string;
-  hobby: string;
-  fear: string;
-  personality: string;
+  race: NpcRace;
+  appearance: string;
+  clothing: string;
   gender: string;
   age: number;
   linggen: string[];
@@ -188,6 +187,13 @@ function safeJsonParse(text: string): unknown {
 const VALID_MAJOR_SET = new Set<string>(REALM_ORDER as readonly string[]);
 const VALID_MINOR_SET = new Set<string>(SUB_STAGES as readonly string[]);
 
+const VALID_RACE_SET = new Set<string>(["修仙者", "人形妖兽", "妖兽"]);
+
+function sanitizeRace(raw: unknown): NpcRace {
+  if (typeof raw === "string" && VALID_RACE_SET.has(raw)) return raw as NpcRace;
+  return "修仙者";
+}
+
 function sanitizeRealm(realm: unknown): { major: string; minor: string } {
   if (!realm || typeof realm !== "object") return { major: "练气", minor: "初期" };
   const r = realm as { major?: unknown; minor?: unknown };
@@ -250,11 +256,9 @@ function parseNearbyNpcs(raw: string): NpcNearbyEntry[] {
         identity: String(o.identity || ""),
         isDead: o.isDead === true,
         favorability: typeof o.favorability === "number" ? o.favorability : 0,
-        currentStageGoal: String(o.currentStageGoal || ""),
-        longTermGoal: String(o.longTermGoal || ""),
-        hobby: String(o.hobby || ""),
-        fear: String(o.fear || ""),
-        personality: String(o.personality || ""),
+        race: sanitizeRace(o.race),
+        appearance: String(o.appearance || ""),
+        clothing: String(o.clothing || ""),
         gender: String(o.gender || "男"),
         age: typeof o.age === "number" ? o.age : 0,
         linggen,

@@ -45,8 +45,9 @@ import {
 } from "../role_core/worldTime";
 import { getSpiritStoneCount } from "../role_core/CharacterInventory";
 import { getGongfaMasteryProgress } from "./protagonistPanelDisplay";
-import { resizeImageFileToAvatar } from "./avatarUpload";
 import { writeActiveSave } from "../save/gameSave";
+import { generateProtagonistPortrait, isImageApiConfigured } from "../image_generate";
+import PortraitHistoryModal from "./PortraitHistoryModal.vue";
 
 const props = defineProps<{
   protagonist: Protagonist | null;
@@ -96,30 +97,54 @@ const linggenTooltip = computed(() => {
 const detailOpen = ref(false);
 const detailPayload = ref<ProtagonistDetailPayload | null>(null);
 
-// ── 头像上传 ──────────────────────────────────────────────────────────────
-const avatarFileInput = ref<HTMLInputElement | null>(null);
-const avatarError = ref("");
+// ── 主角立绘生成 ──────────────────────────────────────────────────────────
+const generatingPortrait = ref(false);
+const portraitGenError = ref("");
+const imageApiReady = computed(() => isImageApiConfigured());
+const historyModalOpen = ref(false);
 
-function onAvatarClick() {
-  avatarError.value = "";
-  avatarFileInput.value?.click();
+async function onGeneratePortrait() {
+  const p = props.protagonist;
+  if (!p || generatingPortrait.value) return;
+  generatingPortrait.value = true;
+  portraitGenError.value = "";
+  try {
+    const dataUrl = await generateProtagonistPortrait(p);
+    p.addPortraitCandidate(dataUrl);
+    writeActiveSave();
+  } catch (err) {
+    portraitGenError.value = err instanceof Error ? err.message : "立绘生成失败。";
+  } finally {
+    generatingPortrait.value = false;
+  }
 }
 
-async function onAvatarFileChange(e: Event) {
-  const input = e.target as HTMLInputElement | null;
-  const file = input?.files?.[0];
-  if (file) {
-    try {
-      const dataUrl = await resizeImageFileToAvatar(file);
-      props.protagonist?.setAvatarUrl(dataUrl);
-      writeActiveSave();
-      avatarError.value = "";
-    } catch (err) {
-      avatarError.value = err instanceof Error ? err.message : "头像上传失败。";
-    }
-  }
-  // 重置 input，允许再次选择同一文件。
-  if (input) input.value = "";
+function onSelectCandidate(url: string) {
+  const p = props.protagonist;
+  if (!p) return;
+  p.selectPortrait(url);
+  writeActiveSave();
+}
+
+function onRemoveCandidate(url: string) {
+  const p = props.protagonist;
+  if (!p) return;
+  p.removePortraitCandidate(url);
+  writeActiveSave();
+}
+
+function openHistoryModal() {
+  historyModalOpen.value = true;
+}
+function closeHistoryModal() {
+  historyModalOpen.value = false;
+}
+
+function onHistoryUpload(dataUrl: string) {
+  const p = props.protagonist;
+  if (!p) return;
+  p.addPortraitCandidate(dataUrl);
+  writeActiveSave();
 }
 
 function closeDetail() {
@@ -291,19 +316,39 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
         <p class="main-panel__placeholder">完成命运抉择后将在此显示主角档案。</p>
       </template>
       <div v-else class="mj-player-body">
-        <div class="mj-player-avatar-wrap" role="button" tabindex="0" title="点击上传头像" @click="onAvatarClick" @keydown="onSlotKeydown($event, onAvatarClick)">
-          <img
-            v-if="protagonist.avatarUrl"
-            class="mj-player-avatar"
-            :src="protagonist.avatarUrl"
-            :alt="protagonist.displayName"
-          />
-          <div v-else class="mj-player-avatar mj-player-avatar--placeholder" aria-hidden="true">头像</div>
-          <span class="mj-player-avatar-edit" aria-hidden="true">✎</span>
+        <div class="mj-player-avatar-wrap">
+          <div class="mj-player-avatar-row">
+
+
+            <div class="mj-player-avatar-area">
+              <img
+                v-if="protagonist.avatarUrl"
+                class="mj-player-avatar"
+                :src="protagonist.avatarUrl"
+                :alt="protagonist.displayName"
+              />
+              <div v-else class="mj-player-avatar mj-player-avatar--placeholder" aria-hidden="true">头像</div>
+            </div>
+            <div class="mj-player-portrait-actions">
+              <button
+                type="button"
+                class="mj-player-gen-btn"
+                :disabled="!imageApiReady || generatingPortrait"
+                :title="imageApiReady ? '生成修仙立绘' : '未配置文生图'"
+                @click.stop="onGeneratePortrait"
+              >{{ generatingPortrait ? '…' : '✨' }}</button>
+              <button
+                type="button"
+                class="mj-player-history-btn"
+                title="管理历史立绘"
+                @click.stop="openHistoryModal"
+              >📜</button>
+            </div>
+          </div>
           <div class="mj-player-name-vertical">{{ protagonist.displayName }}</div>
-          <input ref="avatarFileInput" type="file" accept="image/*" class="mj-player-avatar-input" @change="onAvatarFileChange" />
+          <p v-if="!imageApiReady && !portraitGenError" class="mj-player-gen-hint">未配置文生图</p>
+          <p v-if="portraitGenError" class="mj-player-gen-error">{{ portraitGenError }}</p>
         </div>
-        <p v-if="avatarError" class="mj-player-avatar-error">{{ avatarError }}</p>
 
         <p class="mj-realm-line">{{ Protagonist.formatRealm(protagonist.realm) }}<template v-if="protagonist.realmComplete">·圆满</template></p>
 
@@ -491,4 +536,15 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
       </div>
     </div>
   </section>
+
+  <PortraitHistoryModal
+    :open="historyModalOpen && !!protagonist"
+    :display-name="protagonist?.displayName ?? ''"
+    :candidates="protagonist?.avatarCandidates ?? []"
+    :avatar-url="protagonist?.avatarUrl ?? ''"
+    @close="closeHistoryModal"
+    @select="onSelectCandidate"
+    @remove="onRemoveCandidate"
+    @upload="onHistoryUpload"
+  />
 </template>

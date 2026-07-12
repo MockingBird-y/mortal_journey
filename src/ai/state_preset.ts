@@ -249,8 +249,14 @@ export const STATE_SYSTEM_PRESET = `
   7.5 功法不含 grade（品阶由系统根据境界自动分配）。
 8. NPC储物袋中的丹药须含 effectType，不含 grade。
 9. NPC生成需要包含的信息：
-  9.1 基本信息：displayName（名字2-4字）、identity、gender、age、personality、hobby、fear、favorability（-99~99）。
-  9.2 目标信息：currentStageGoal（当前阶段目标）、longTermGoal（长远目标）。
+  9.1 基本信息：displayName（名字2-4字）、identity、gender、age、favorability（-99~99）。
+  9.2 种族与外貌（用于文生图角色立绘，须具体可视，禁止空泛）：
+    - race：种族，三选一："修仙者" / "人形妖兽" / "妖兽"。
+    - appearance：外貌特征，按种族填写必含要素：
+      · 修仙者：发型、发色、脸型、身材、肤色、瞳色、显著特征（疤痕/胎记/灵纹等）。
+      · 人形妖兽：整体人形体态 + 妖兽头部特征（兽耳/兽角/兽瞳/毛色/鳞片）、尾部、显著特征。
+      · 妖兽（兽形）：体型、毛色/鳞色、头角/翅膀/尾巴、眼瞳、显著特征。
+    - clothing：服装特征（服装类型如道袍/劲装/儒衫、主色调、纹样、配饰）。修仙者与人形妖兽必填；兽形"妖兽"留空字符串即可。
   9.3 修炼信息：realm（境界，含 major 和 minor）、linggen（灵根，从金木水火土中选择1-4个）。
   9.4 装备槽 equippedSlots：最多4个法宝，其中至少1个为攻击性法宝如剑、刀等。
   9.5 功法槽 gongfaSlots：长度8，须含攻击类功法，每个功法含 bonus、system、role。
@@ -260,7 +266,7 @@ export const STATE_SYSTEM_PRESET = `
 11. NPC补充约束：
   11.1 输出时数组须列出本回合仍应在面板中可见者的完整名单。
   11.2 若本回合触发战斗，所有参战者（含新出现的敌人、妖兽）也必须在此数组中输出完整角色卡——这是战斗系统的硬性前置条件，不可省略。
-  11.3 【核心字段冻结·重要】已存在 NPC 的核心字段（realm 境界、equippedSlots 法宝、gongfaSlots 功法、inventorySlots 储物袋）默认冻结，禁止在 nearbyNpcs 里直接修改或重写。只有以下 dynamic 字段可自由更新：identity、favorability、isDead、currentStageGoal、longTermGoal、hobby、fear、personality、hpPercent、mpPercent。核心字段变化必须通过 <MJ_NPC_CORE_CHANGE_TAG> 显式声明（见「NPC核心变更规则」）。
+  11.3 【核心字段冻结·重要】已存在 NPC 的核心字段（realm 境界、equippedSlots 法宝、gongfaSlots 功法、inventorySlots 储物袋、race 种族、appearance 外貌、clothing 服装）默认冻结，禁止在 nearbyNpcs 里直接修改或重写——文生图要求角色长相稳定。只有以下 dynamic 字段可自由更新：identity、favorability、isDead、hpPercent、mpPercent。核心字段变化必须通过 <MJ_NPC_CORE_CHANGE_TAG> 显式声明（见「NPC核心变更规则」）。
   11.4 新首次出现的 NPC 必须输出完整角色卡（含核心字段），并附带 npcId（首次出现时生成一个稳定的 UUID 字符串，后续所有回合对该 NPC 必须沿用同一 npcId）。
   11.4b 【currentLocation 必填·重要】每个 nearbyNpcs 条目必须携带 currentLocation 字段，表示该 NPC 当前所在地点。格式为四级地点对象 {"region":"...","country":"...","area":"...","detail":"..."}。
     - 在场者（与主角同行/同场）的 currentLocation 必须等于本回合 <mj_world_body> 的四级地点。
@@ -268,7 +274,7 @@ export const STATE_SYSTEM_PRESET = `
     - 严禁让不在场的 NPC 出现在 nearbyNpcs——nearbyNpcs 只列在场者，他们的 currentLocation 一律 = 主角当前地点。
   11.5 isDead:true 的 NPC 禁止改写复活。
   11.6 每个 NPC 必须满足：equippedSlots 至少有 1 个攻击性法宝（如剑、刀、枪等），gongfaSlots 至少有 1 门攻击类功法。
-  11.7 妖兽也使用同一 NPC 角色卡结构。
+  11.7 妖兽与人形妖兽也使用同一 NPC 角色卡结构，通过 race 字段区分："妖兽"为兽形，"人形妖兽"为整体人形但保留兽类头部/特征。两者的 appearance/clothing 须按 9.2 要素清单填写（兽形"妖兽"的 clothing 留空）。
   11.8 【地点变更·NPC更替·重要】当本轮 worldLocation 相比"主角当前所在地点（出发点）"发生变化（主角移动到新地点）时，nearbyNpcs 必须只反映新地点的在场者：
     - 快照中"当前"为新地点的 NPC（dormant 被唤醒），或本回合新出现的 NPC，可出现在 nearbyNpcs，其 currentLocation 设为新地点。
     - 快照中"当前"为旧地点（出发点）的 NPC，若剧情正文明确描写其跟随主角一同抵达新地点，可出现在 nearbyNpcs，其 currentLocation 设为新地点（视为随主角迁移）。
@@ -281,11 +287,9 @@ export const STATE_SYSTEM_PRESET = `
     "npcId": "f3a2c1d8-7e9b-4a01-8c2d-1e5f6a7b8c9d",
     "displayName": "李清容",
     "identity": "七玄门外门弟子",
-    "currentStageGoal": "突破至练气中期",
-    "longTermGoal": "自立道统",
-    "hobby": "夜里练剑",
-    "fear": "同伴因自己失误而亡",
-    "personality": "说话克制，对熟人护短",
+    "race": "修仙者",
+    "appearance": "及腰黑发以青丝带束起，鹅蛋脸，眉目清秀，肤色微白，双眸黑亮，右颊有一枚浅淡的酒窝",
+    "clothing": "月白色窄袖劲装，领口与袖口绣有银色云纹，腰系青玉带，脚踏素色软底靴",
     "favorability": 12,
     "gender": "女",
     "age": 16,

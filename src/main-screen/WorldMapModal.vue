@@ -2,11 +2,16 @@
 import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from "vue";
 import { worldMapStore } from "../role_core/worldMapStore";
 import { npcStore } from "../role_core/npcStore";
+import { locationImageStore } from "../role_core/locationImageStore";
 import type { WorldLocation } from "../role_core/types/worldLocation";
-import { isWorldLocationEqual } from "../role_core/types/worldLocation";
+import { isWorldLocationEqual, formatWorldLocation } from "../role_core/types/worldLocation";
 import type { Npc } from "../role_core/Npc";
+import { npcColorTheme } from "../role_core/npcTheme";
 import { useScrollLock } from "../composables/useScrollLock";
 import NpcDetailModal from "./NpcDetailModal.vue";
+import PortraitHistoryModal from "./PortraitHistoryModal.vue";
+import { generateLocationBackground, isImageApiConfigured } from "../image_generate";
+import { writeActiveSave } from "../save/gameSave";
 
 const props = defineProps<{
   open: boolean;
@@ -26,6 +31,55 @@ const selectedDetail = ref("");
 
 const detailOpen = ref(false);
 const detailNpc = shallowRef<Npc | null>(null);
+
+// ── 地点背景生成 ──────────────────────────────────────────────────────────
+const generatingBg = ref(false);
+const bgGenError = ref("");
+const imageApiReady = computed(() => isImageApiConfigured());
+const locationHistoryOpen = ref(false);
+
+const locationImageData = computed(() => {
+  const loc = selectedFullLocation.value;
+  if (!loc) return null;
+  return locationImageStore.get(loc) ?? null;
+});
+
+async function onGenerateLocationBg() {
+  const loc = selectedFullLocation.value;
+  if (!loc || generatingBg.value) return;
+  generatingBg.value = true;
+  bgGenError.value = "";
+  try {
+    const dataUrl = await generateLocationBackground(loc);
+    locationImageStore.addCandidate(loc, dataUrl);
+    writeActiveSave();
+  } catch (err) {
+    bgGenError.value = err instanceof Error ? err.message : "背景生成失败。";
+  } finally {
+    generatingBg.value = false;
+  }
+}
+
+function onLocationUpload(dataUrl: string) {
+  const loc = selectedFullLocation.value;
+  if (!loc) return;
+  locationImageStore.addCandidate(loc, dataUrl);
+  writeActiveSave();
+}
+
+function onLocationSelect(url: string) {
+  const loc = selectedFullLocation.value;
+  if (!loc) return;
+  locationImageStore.selectCandidate(loc, url);
+  writeActiveSave();
+}
+
+function onLocationRemove(url: string) {
+  const loc = selectedFullLocation.value;
+  if (!loc) return;
+  locationImageStore.removeCandidate(loc, url);
+  writeActiveSave();
+}
 
 const regions = computed(() => worldMapStore.getRegions());
 
@@ -258,6 +312,34 @@ onUnmounted(() => {
               </div>
               <div class="map-panel__npcs">
                 <div class="map-cascader__label">场景NPC</div>
+                <div v-if="selectedFullLocation" class="map-location-bg">
+                  <div class="map-location-bg-preview">
+                    <img
+                      v-if="locationImageData?.avatarUrl"
+                      :src="locationImageData.avatarUrl"
+                      class="map-location-bg-img"
+                      alt="地点背景"
+                    />
+                    <div v-else class="map-location-bg-placeholder">暂无背景</div>
+                  </div>
+                  <div class="map-location-bg-actions">
+                    <button
+                      type="button"
+                      class="main-screen__btn map-location-gen-btn"
+                      :disabled="!imageApiReady || generatingBg"
+                      :title="imageApiReady ? '生成地点背景' : '未配置文生图'"
+                      @click="onGenerateLocationBg"
+                    >{{ generatingBg ? '生成中…' : '✨ 生成背景' }}</button>
+                    <button
+                      type="button"
+                      class="main-screen__btn map-location-hist-btn"
+                      title="管理历史背景"
+                      @click="locationHistoryOpen = true"
+                    >📜 历史<span v-if="locationImageData?.avatarCandidates.length" class="map-location-hist-count">{{ locationImageData.avatarCandidates.length }}</span></button>
+                  </div>
+                  <p v-if="!imageApiReady" class="map-location-bg-hint">未配置文生图</p>
+                  <p v-if="bgGenError" class="map-location-bg-error">{{ bgGenError }}</p>
+                </div>
                 <template v-if="!selectedFullLocation">
                   <div class="map-panel__empty">请选择完整地点查看NPC</div>
                 </template>
@@ -270,6 +352,7 @@ onUnmounted(() => {
                     :key="entry.name"
                     class="map-npc-card"
                     :class="{ 'map-npc-card--dead': entry.npc?.isDead }"
+                    :data-npc-theme="entry.npc ? npcColorTheme(entry.npc.gender, entry.npc.race) : 'default'"
                     @click="entry.npc && openNpcDetail(entry.npc)"
                   >
                     <div class="map-npc-avatar">
@@ -293,24 +376,24 @@ onUnmounted(() => {
                       <div class="map-npc-identity">
                         {{ entry.npc?.identity ?? "未知" }}
                       </div>
-                    </div>
-                    <div v-if="entry.npc" class="map-npc-bars">
-                      <div class="map-npc-bar-row">
-                        <span class="map-npc-bar-label">HP</span>
-                        <div class="map-npc-bar">
-                          <div
-                            class="map-npc-bar-fill map-npc-bar-fill--hp"
-                            :style="{ width: (entry.npc.maxHp > 0 ? Math.round(entry.npc.currentHp / entry.npc.maxHp * 100) : 0) + '%' }"
-                          />
+                      <div v-if="entry.npc" class="map-npc-bars">
+                        <div class="map-npc-bar-row">
+                          <span class="map-npc-bar-label">HP</span>
+                          <div class="map-npc-bar">
+                            <div
+                              class="map-npc-bar-fill map-npc-bar-fill--hp"
+                              :style="{ width: (entry.npc.maxHp > 0 ? Math.round(entry.npc.currentHp / entry.npc.maxHp * 100) : 0) + '%' }"
+                            />
+                          </div>
                         </div>
-                      </div>
-                      <div class="map-npc-bar-row">
-                        <span class="map-npc-bar-label">MP</span>
-                        <div class="map-npc-bar">
-                          <div
-                            class="map-npc-bar-fill map-npc-bar-fill--mp"
-                            :style="{ width: (entry.npc.maxMp > 0 ? Math.round(entry.npc.currentMp / entry.npc.maxMp * 100) : 0) + '%' }"
-                          />
+                        <div class="map-npc-bar-row">
+                          <span class="map-npc-bar-label">MP</span>
+                          <div class="map-npc-bar">
+                            <div
+                              class="map-npc-bar-fill map-npc-bar-fill--mp"
+                              :style="{ width: (entry.npc.maxMp > 0 ? Math.round(entry.npc.currentMp / entry.npc.maxMp * 100) : 0) + '%' }"
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -326,6 +409,17 @@ onUnmounted(() => {
       :open="detailOpen"
       :npc="detailNpc"
       @close="closeNpcDetail"
+    />
+    <PortraitHistoryModal
+      :open="locationHistoryOpen && !!selectedFullLocation"
+      :display-name="selectedFullLocation ? formatWorldLocation(selectedFullLocation) : ''"
+      :candidates="locationImageData?.avatarCandidates ?? []"
+      :avatar-url="locationImageData?.avatarUrl ?? ''"
+      aspect-ratio="4/3"
+      @close="locationHistoryOpen = false"
+      @select="onLocationSelect"
+      @remove="onLocationRemove"
+      @upload="onLocationUpload"
     />
   </Teleport>
 </template>

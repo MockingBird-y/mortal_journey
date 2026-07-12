@@ -103,8 +103,14 @@ export const INIT_STATE_SYSTEM_PRESET = `
   4.4 功法不含 grade（品阶由系统根据境界自动分配）。
   4.5 NPC储物袋中的丹药须含 effectType，不含 grade。
 5. NPC生成需要包含的信息：
-  5.1 基本信息：displayName（2-4字）、identity、gender、age、personality、hobby、fear、favorability。
-  5.2 目标信息：currentStageGoal（当前阶段目标）、longTermGoal（长远目标）。
+  5.1 基本信息：displayName（2-4字）、identity、gender、age、favorability。
+  5.2 种族与外貌（用于文生图角色立绘，须具体可视，禁止空泛）：
+    - race：种族，三选一："修仙者" / "人形妖兽" / "妖兽"。
+    - appearance：外貌特征，按种族填写必含要素：
+      · 修仙者：发型、发色、脸型、身材、肤色、瞳色、显著特征（疤痕/胎记/灵纹等）。
+      · 人形妖兽：整体人形体态 + 妖兽头部特征（兽耳/兽角/兽瞳/毛色/鳞片）、尾部、显著特征。
+      · 妖兽（兽形）：体型、毛色/鳞色、头角/翅膀/尾巴、眼瞳、显著特征。
+    - clothing：服装特征（服装类型如道袍/劲装/儒衫、主色调、纹样、配饰）。修仙者与人形妖兽必填；兽形"妖兽"留空字符串即可。
   5.3 修炼信息：realm（境界）、linggen（灵根）。
   5.4 装备槽 equippedSlots：最多4个法宝，其中至少1个为攻击性法宝如剑、刀等。
   5.5 功法槽 gongfaSlots：长度8，须含攻击类功法，每个含 bonus 和 system。
@@ -116,11 +122,9 @@ export const INIT_STATE_SYSTEM_PRESET = `
   {
     "displayName": "李清容",
     "identity": "七玄门外门弟子",
-    "currentStageGoal": "突破至练气中期",
-    "longTermGoal": "自立道统",
-    "hobby": "夜里练剑",
-    "fear": "同伴因自己失误而亡",
-    "personality": "说话克制，对熟人护短",
+    "race": "修仙者",
+    "appearance": "及腰黑发以青丝带束起，鹅蛋脸，眉目清秀，肤色微白，双眸黑亮，右颊有一枚浅淡的酒窝",
+    "clothing": "月白色窄袖劲装，领口与袖口绣有银色云纹，腰系青玉带，脚踏素色软底靴",
     "favorability": 12,
     "gender": "女",
     "age": 16,

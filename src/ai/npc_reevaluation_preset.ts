@@ -6,7 +6,7 @@
  * 修炼、历练、突破」。这是 P3 时间驱动重评估的核心 AI 任务。
  *
  * 设计要点：
- * - 只更新核心战斗数据（境界/法宝/功法/储物袋），保留身份/性格/目标等。
+ * - 只更新核心战斗数据（境界/法宝/功法/储物袋）与文生图数据（种族/外貌/服装），保留身份/好感等。
  * - 突破速度参照主角境界与流逝年数，符合修仙世界观（突破需机缘，非每年必升）。
  * - 一个地点的长期未见 NPC 一次性批量处理，节省 token。
  */
@@ -30,7 +30,7 @@ export const NPC_REEVALUATION_SYSTEM_PRESET = `
 - 经过年数。
 - 当前世界时间。
 - 主角当前境界（作为参照）。
-- 一批 NPC 的旧状态快照（含 npcId、displayName、identity、realm、linggen、age、powerTier、旧装备/功法/储物袋）。
+- 一批 NPC 的旧状态快照（含 npcId、displayName、identity、race、realm、linggen、age、powerTier、旧外貌/服装/装备/功法/储物袋）。
 
 [输出契约]
 将每个 NPC 演进后的核心数据放入 <mj_npc_reevaluation> 标签，内为 JSON 数组。每个元素必须包含：
@@ -38,6 +38,9 @@ export const NPC_REEVALUATION_SYSTEM_PRESET = `
 - displayName：与输入一致。
 - realm：新境界 { major, minor }。多数情况下与旧境界相同或仅小境界提升。
 - realmChanged：布尔，是否发生境界变化。
+- race：种族（修仙者/人形妖兽/妖兽）。通常与旧种族一致；仅当剧情/境界合理（如高阶妖兽化形为人形妖兽）才变更。
+- appearance：演进后的外貌特征（完整描述，不要省略要素；长岁月可体现衰老/气质变化/化形）。
+- clothing：演进后的服装特征（完整描述；妖兽兽形可留空）。
 - equippedSlots：演进后的法宝列表（结构同 nearbyNpcs 的物品格式，每项含 type/name/intro）。至少 1 个攻击性法宝。
 - gongfaSlots：演进后的功法列表（每项含 type/name/intro/bonus/system/role）。至少 1 门攻击类功法。
 - inventorySlots：演进后的储物袋（可含灵石、丹药等）。
@@ -57,6 +60,9 @@ export const NPC_REEVALUATION_SYSTEM_PRESET = `
     "displayName": "李清容",
     "realm": { "major": "练气", "minor": "中期" },
     "realmChanged": true,
+    "race": "修仙者",
+    "appearance": "及腰黑发以青丝带束起，鹅蛋脸，眉目清秀，肤色微白，双眸黑亮，右颊有一枚浅淡的酒窝",
+    "clothing": "月白色窄袖劲装，领口与袖口绣有银色云纹，腰系青玉带，脚踏素色软底靴",
     "equippedSlots": [
       {"type":"法宝","name":"碧水剑","intro":"以寒潭碧水髓淬炼的灵剑，剑身隐隐有水光流转"}
     ],
@@ -71,5 +77,5 @@ export const NPC_REEVALUATION_SYSTEM_PRESET = `
   }
 ]</mj_npc_reevaluation>
 
-禁止用 Markdown 代码围栏包裹标签。若某些 NPC 没有变化，仍需输出其条目（realmChanged=false，装备功法可沿用旧值）。
+禁止用 Markdown 代码围栏包裹标签。若某些 NPC 没有变化，仍需输出其条目（realmChanged=false，装备功法可沿用旧值；race/appearance/clothing 沿用旧值即可，不必凭空改动外貌）。
 `;

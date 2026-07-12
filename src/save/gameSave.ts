@@ -21,6 +21,7 @@ import { formatWorldLocation } from "../role_core/types/worldLocation";
 import { Protagonist, protagonist } from "../role_core/Protagonist";
 import { npcStore } from "../role_core/npcStore";
 import { worldMapStore } from "../role_core/worldMapStore";
+import { locationImageStore, type LocationImagesSerialData } from "../role_core/locationImageStore";
 import { storyStore, type StorySerialData } from "../role_core/storyStore";
 import { gameLog } from "../log/gameLog";
 
@@ -121,6 +122,7 @@ export interface MjSavePayload {
   protagonist?: ProtagonistPlayInfo;
   npcs?: NpcPlayInfo[];
   worldMap?: WorldMapSerialData;
+  locationImages?: LocationImagesSerialData;
   story?: StorySerialData;
 }
 
@@ -231,6 +233,7 @@ export function serializeAll(now = Date.now()): MjSavePayload | null {
     protagonist: p.toData(),
     npcs: npcStore.serializeNpcs(),
     worldMap: worldMapStore.serializeWorldMap(),
+    locationImages: locationImageStore.serialize(),
     story: storyStore.serializeStory(),
   };
 }
@@ -386,6 +389,7 @@ export function restoreSave(payload: MjSavePayload): void {
   }
   npcStore.restoreNpcs(payload.npcs ?? []);
   worldMapStore.restoreWorldMap(payload.worldMap ?? null);
+  locationImageStore.restore(payload.locationImages ?? null);
   storyStore.restoreStory(payload.story ?? null);
   activeFateChoice = payload.fateChoice;
 }
@@ -398,6 +402,7 @@ export function resetAllGameState(): void {
   Protagonist.clear();
   npcStore.clearNpcs();
   worldMapStore.clearWorldMap();
+  locationImageStore.clearAll();
   storyStore.clearStory();
   activeSaveId = null;
   activeCreatedAt = 0;
