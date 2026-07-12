@@ -905,7 +905,7 @@ watch(
       <div
         class="main-panel__chat-messages"
         :class="{ 'main-panel__chat-messages--has-bg': chatBgUrl }"
-        :style="chatBgUrl ? { backgroundImage: `url(${chatBgUrl})` } : {}"
+        :style="chatBgUrl ? { backgroundImage: `linear-gradient(rgba(10, 16, 12, 0.82), rgba(10, 16, 12, 0.82)), url(${chatBgUrl})` } : {}"
         aria-label="剧情正文区域"
         aria-live="polite"
       >

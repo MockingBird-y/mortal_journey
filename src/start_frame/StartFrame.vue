@@ -112,7 +112,7 @@ function onImportFilePicked(e: Event) {
 
       <div id="splash-header">
         <h1 id="splash-title">无限仙途</h1>
-        <p id="splash-info">作者 KAI · Version 2.0.0</p>
+        <p id="splash-info">作者: KAI · Version: 2.1.0</p>
       </div>
 
       <button
