@@ -8,6 +8,7 @@ import { Protagonist } from "../role_core/Protagonist";
 import { PRIMARY_STAT_KEY_TO_ZH, PRIMARY_STAT_KEYS, PRIMARY_STAT_KEY_DESC, formatLinggenBonusText, type EquipSlotKey, type PrimaryStatKey } from "../role_core/types/playInfo";
 import type { GongfaItemDefinition } from "../role_core/types/itemInfo";
 import { computeLinggenCombatBonuses } from "../role_core/types/gameConstants";
+import { computePanelCombatStats } from "../battle_engine/panelStats";
 import type { DerivedStatValues } from "./protagonistDetailPayload";
 import {
   buildGongfaDetailPayload,
@@ -73,6 +74,24 @@ const panelAgeForDisplay = computed(() => {
 
 const cultivationUi = computed(() => getCultivationUiState(props.protagonist));
 const primaryStats = computed(() => props.protagonist?.getPrimaryStats() ?? null);
+
+/** 战斗属性区块：基础值 + 灵根 + 法宝词条 + 被动功法修正的静态汇总（与战斗初始化同源）。 */
+const combatStatRows = computed(() => {
+  const p = props.protagonist;
+  if (!p) return [];
+  const c = computePanelCombatStats(p);
+  const fmt = (v: number) => `${Math.round(v * 10) / 10}%`;
+  return [
+    { k: "暴击率", v: fmt(c.critRate), tip: "攻击造成暴击的概率，来自法宝词条与被动功法" },
+    { k: "暴击伤害", v: fmt(c.critDmg), tip: "暴击时造成的伤害倍率（基础150%，金灵根提升）" },
+    { k: "闪避率", v: fmt(c.dodgeRate), tip: "完全闪避一次攻击的概率" },
+    { k: "吸血", v: fmt(c.lifesteal), tip: "造成伤害后按比例回复血量" },
+    { k: "增伤", v: fmt(c.damageDealt), tip: "造成的最终伤害提升" },
+    { k: "减伤", v: fmt(c.damageReduction), tip: "受到的最终伤害降低" },
+    { k: "回血", v: fmt(c.hpRecoverPerTurn), tip: "战斗中每回合自动恢复最大血量的百分比（火灵根增强）" },
+    { k: "回蓝", v: fmt(c.mpRecoverPerTurn), tip: "战斗中每回合自动恢复最大法力的百分比" },
+  ];
+});
 const hpMp = computed(() => getHpMpBarState(props.protagonist, props.protagonist ? { hp: props.protagonist.maxHp, mp: props.protagonist.maxMp } : null));
 const equipSlots = computed(() => getEquipSlotRows(props.protagonist));
 const traitSlots = computed(() => getTraitSlots(props.protagonist));
@@ -436,6 +455,20 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
                <div v-if="PRIMARY_STAT_KEYS[(row - 1) * 2 + col]" class="mj-stat-cell" :class="col === 1 ? 'mj-stat-cell--right' : ''">
                  <span class="mj-stat-k mj-stat-k--tip" :data-tip="PRIMARY_STAT_KEY_DESC[PRIMARY_STAT_KEYS[(row - 1) * 2 + col]]">{{ PRIMARY_STAT_KEY_TO_ZH[PRIMARY_STAT_KEYS[(row - 1) * 2 + col]] }}</span>
                 <span class="mj-stat-v">{{ primaryStats ? (primaryStats[PRIMARY_STAT_KEYS[(row - 1) * 2 + col]] ?? 0) : 0 }}</span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div class="mj-combat-stats">
+          <div class="mj-attr-section-header">
+            <h3 class="mj-attr-section-title">战斗属性</h3>
+          </div>
+          <div v-for="row in Math.ceil(combatStatRows.length / 2)" :key="row" class="mj-stat-pair-row">
+            <template v-for="col in [0, 1]" :key="col">
+              <div v-if="combatStatRows[(row - 1) * 2 + col]" class="mj-stat-cell" :class="col === 1 ? 'mj-stat-cell--right' : ''">
+                <span class="mj-stat-k mj-stat-k--tip" :data-tip="combatStatRows[(row - 1) * 2 + col].tip">{{ combatStatRows[(row - 1) * 2 + col].k }}</span>
+                <span class="mj-stat-v">{{ combatStatRows[(row - 1) * 2 + col].v }}</span>
               </div>
             </template>
           </div>
