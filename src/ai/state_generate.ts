@@ -68,6 +68,8 @@ export interface ItemAddEntry {
   role?: unknown;
   function?: unknown;
   bonus?: unknown;
+  /** 材料分类（药材/毒物/食材/器材）。仅 type==="材料" 时由状态 AI 输出。 */
+  category?: unknown;
 }
 
 export interface ItemRemoveEntry {
@@ -513,6 +515,7 @@ export function parseStateAiResponse(raw: string): StateParsed {
         ...(o.role != null ? { role: o.role } : {}),
         ...(o.function != null ? { function: o.function } : {}),
         ...(o.bonus != null ? { bonus: o.bonus } : {}),
+        ...(o.category != null ? { category: o.category } : {}),
       } as ItemAddEntry;
     })
     .filter((e): e is ItemAddEntry => e !== null);

@@ -9,6 +9,9 @@ import { PRIMARY_STAT_KEY_TO_ZH, PRIMARY_STAT_KEYS, PRIMARY_STAT_KEY_DESC, forma
 import type { GongfaItemDefinition } from "../role_core/types/itemInfo";
 import { computeLinggenCombatBonuses } from "../role_core/types/gameConstants";
 import { computePanelCombatStats } from "../battle_engine/panelStats";
+import { CRAFT_SKILL_KEYS, CRAFT_SKILL_TO_ZH, CRAFT_SKILL_DESC, craftUpgradeChance } from "../role_core/craft";
+import { timedBuffDaysLeft } from "../role_core/timedBuff";
+import { PRIMARY_STAT_KEY_TO_ZH as STAT_ZH } from "../role_core/types/playInfo";
 import type { DerivedStatValues } from "./protagonistDetailPayload";
 import {
   buildGongfaDetailPayload,
@@ -111,6 +114,41 @@ const linggenTooltip = computed(() => {
     })
     .filter(Boolean)
     .join("\n");
+});
+
+/** 技艺区块：四门技艺的熟练度与当前品阶跃迁概率。 */
+const craftSkillRows = computed(() => {
+  const p = props.protagonist;
+  if (!p) return [];
+  return CRAFT_SKILL_KEYS.map((k) => {
+    const prof = p.craftSkills[k] ?? 0;
+    return {
+      k,
+      label: CRAFT_SKILL_TO_ZH[k],
+      value: prof,
+      tip: `${CRAFT_SKILL_DESC[k]}
+当前熟练度 ${prof}，品阶跃迁概率 ${(Math.round(craftUpgradeChance(prof) * 10) / 10)}%`,
+    };
+  });
+});
+
+/** 生效中的限时增益（餐食等），含剩余天数与效果文案。 */
+const activeBuffRows = computed(() => {
+  const p = props.protagonist;
+  if (!p) return [];
+  return p.getActiveTimedBuffs().map((b) => {
+    const parts = Object.entries(b.statPercents)
+      .filter(([, v]) => typeof v === "number" && v !== 0)
+      .map(([k, v]) => `${STAT_ZH[k as PrimaryStatKey]} ${(v as number) > 0 ? "+" : ""}${v}%`);
+    return {
+      id: b.id,
+      name: b.name,
+      effectText: parts.join("　"),
+      daysLeft: timedBuffDaysLeft(b, props.worldTime),
+      tip: `${b.desc}
+${parts.join("，")}`,
+    };
+  });
 });
 
 const detailOpen = ref(false);
@@ -474,6 +512,31 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
           </div>
         </div>
 
+        <div class="mj-combat-stats">
+          <div class="mj-attr-section-header">
+            <h3 class="mj-attr-section-title">技艺</h3>
+          </div>
+          <div v-for="row in Math.ceil(craftSkillRows.length / 2)" :key="'craft-' + row" class="mj-stat-pair-row">
+            <template v-for="col in [0, 1]" :key="col">
+              <div v-if="craftSkillRows[(row - 1) * 2 + col]" class="mj-stat-cell" :class="col === 1 ? 'mj-stat-cell--right' : ''">
+                <span class="mj-stat-k mj-stat-k--tip" :data-tip="craftSkillRows[(row - 1) * 2 + col].tip">{{ craftSkillRows[(row - 1) * 2 + col].label }}</span>
+                <span class="mj-stat-v">{{ craftSkillRows[(row - 1) * 2 + col].value }}</span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div v-if="activeBuffRows.length > 0" class="mj-combat-stats">
+          <div class="mj-attr-section-header">
+            <h3 class="mj-attr-section-title">增益</h3>
+          </div>
+          <div v-for="b in activeBuffRows" :key="b.id" class="mj-stat-cell mj-buff-row" :title="b.tip">
+            <span class="mj-stat-k">{{ b.name }}</span>
+            <span class="mj-stat-v mj-buff-effect">{{ b.effectText }}</span>
+            <span class="mj-buff-days">余{{ b.daysLeft }}天</span>
+          </div>
+        </div>
+
         <div class="mj-talent-block">
           <h3 class="mj-attr-section-title">天赋</h3>
           <div class="mj-talent-row" role="list">
@@ -581,3 +644,24 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
     @upload="onHistoryUpload"
   />
 </template>
+
+<style scoped>
+.mj-buff-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+}
+
+.mj-buff-effect {
+  flex: 1;
+  font-size: 12px;
+}
+
+.mj-buff-days {
+  font-size: 12px;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+</style>
+

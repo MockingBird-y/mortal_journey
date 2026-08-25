@@ -7,6 +7,7 @@ import {
 } from "./openAiChatBridge";
 import type { ProtagonistPlayInfo } from "../role_core/types/playInfo";
 import type { StoryChatEntry } from "./story_generate";
+import { matchWorldLore } from "./worldLore";
 import { formatWorldLocationDash } from "../role_core/types/worldLocation";
 
 export interface FinaleStoryInput {
@@ -117,6 +118,13 @@ export function buildFinaleStoryRequestPayload(input: FinaleStoryInput): JsonCha
   if (storyParts.length > 0) {
     systemParts.push("【主角的一生轨迹】\n" + storyParts.join("\n\n---\n\n"));
   }
+  // 世界设定按关键词命中注入；本轮焦点取死亡原因与死亡场景。
+  const lore = matchWorldLore({
+    chatHistory: input.chatHistory,
+    playerInput: [input.deathReason, input.sceneContext].filter(Boolean).join("\n"),
+    npcSnapshot: input.npcSnapshot,
+  });
+  if (lore) systemParts.push(lore);
   messages.push({ role: "system", content: systemParts.join("\n\n") });
 
   messages.push({

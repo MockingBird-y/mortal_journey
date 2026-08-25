@@ -1,0 +1,41 @@
+/* Ice Blue Glass theme counterpart of src/design-tokens.css.
+ * Layout, sizing, spacing, positioning, and typography are preserved.
+ */
+:root {
+  --mj-gold: #9be7ff;
+  --mj-gold-dim: #62c7ed;
+  --mj-gold-glow: rgba(116, 215, 255, 0.42);
+
+  --mj-fg: #effbff;
+  --mj-text: #d9f3fc;
+  --mj-muted: #86adbd;
+
+  --mj-bg-deep: #04131f;
+  --mj-bg: #071b2a;
+  --mj-surface: rgba(13, 43, 62, 0.7);
+  --mj-panel-bg: rgba(18, 57, 79, 0.68);
+  --mj-chat-bg: rgba(7, 31, 48, 0.54);
+
+  --mj-border: rgba(143, 222, 255, 0.42);
+  --mj-border-subtle: rgba(143, 222, 255, 0.2);
+
+  --mj-form-bg: rgba(5, 28, 44, 0.68);
+  --mj-form-border: rgba(125, 202, 232, 0.46);
+  --mj-form-text: #c8e9f5;
+
+  --mj-rarity-mundane: #829eaa;
+  --mj-rarity-common: #67d5ba;
+  --mj-rarity-rare: #65d9ff;
+  --mj-rarity-epic: #aaa8ff;
+  --mj-rarity-legendary: #9be7ff;
+  --mj-rarity-mythic: #ff8da3;
+
+  --mj-font-body: "Noto Sans SC", "Source Han Sans SC", sans-serif;
+  --mj-font-title: "Ma Shan Zheng", "Long Cang", serif;
+  --mj-font-story: "LXGW WenKai", "Noto Sans SC", serif;
+
+  --mj-radius-sm: 4px;
+  --mj-radius-md: 6px;
+  --mj-radius-lg: 8px;
+  --mj-radius-xl: 12px;
+}

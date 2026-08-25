@@ -15,6 +15,8 @@ import type {
 } from "./itemInfo";
 import type { WorldLocation } from "./worldLocation";
 import type { WorldTime } from "../worldTime";
+import type { CraftSkillState } from "../craft";
+import type { TimedBuff } from "../timedBuff";
 
 import {
   REALM_PRIMARY_STATS_TABLE,
@@ -215,6 +217,10 @@ export interface ProtagonistPlayInfo extends CharacterPlayInfoCommon {
   breakthroughStatus: BreakthroughStatus;
   /** 立绘候选池（dataURL）。旧存档缺省为空。 */
   avatarCandidates?: string[];
+  /** 四门技艺（医术/毒术/烹饪/锻造）的累计熟练度。 */
+  craftSkills?: CraftSkillState;
+  /** 限时增益（餐食等）。 */
+  timedBuffs?: TimedBuff[];
 }
 
 export type PowerTier = "小怪" | "精英怪" | "小boss" | "大boss" | "普通NPC";
@@ -270,6 +276,7 @@ export type ProtagonistDetailAction =
   | { id: "equipWearFromBag"; inventoryIndex: number }
   | { id: "equipGongfaFromBag"; inventoryIndex: number }
   | { id: "consumeElixir"; inventoryIndex: number }
+  | { id: "consumeFood"; inventoryIndex: number }
   | { id: "cultivateGongfa"; gongfaIndex: number }
   | { id: "sellFromBag"; inventoryIndex: number; count: number };
 

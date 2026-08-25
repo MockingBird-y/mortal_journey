@@ -52,7 +52,33 @@ import {
 import type { ElixirItemDefinition } from "./types/elixir";
 import { elixirEffectToStatKey, applyLinggenElixirBoost } from "./types/elixir";
 import { craftElixirDef } from "./alchemy";
-import type { MaterialItemDefinition } from "./types/itemInfo";
+import { craftTreasureDef } from "./forging";
+import { craftFoodDef, type FoodItemDefinition } from "./cooking";
+import { craftPoisonDef, buildCoatingEffect, type PoisonItemDefinition } from "./poison";
+import {
+  boostModifiers,
+  addRandomModifier,
+  removeModifierAt,
+  rollRefineSuccess,
+} from "./refine";
+import {
+  createTimedBuff,
+  activeTimedBuffs,
+  applyTimedBuffsToStats,
+  normalizeTimedBuffs,
+  purgeExpiredTimedBuffs,
+  type TimedBuff,
+} from "./timedBuff";
+import { storyStore } from "./storyStore";
+import {
+  normalizeCraftSkills,
+  craftProficiencyGain,
+  parseMaterialCategory,
+  type CraftSkillKey,
+  type CraftSkillState,
+  type MaterialCategory,
+} from "./craft";
+import type { MaterialItemDefinition, ItemGrade } from "./types/itemInfo";
 import type { InitStateParsed } from "../ai/init_state_generate";
 import type { StateParsed } from "../ai/state_generate";
 import {
@@ -80,8 +106,23 @@ import {
 import { getCultivationRequired, addGongfaMasteryExp } from "./realmUtils";
 
 const VALID_ITEM_TYPES: ReadonlySet<string> = new Set([
-  "法宝", "功法", "丹药", "材料", "杂物",
+  "法宝", "功法", "丹药", "餐食", "毒药", "材料", "杂物",
 ]);
+
+/** 精炼目标位置：已装备的法宝槽，或储物袋中的一格。 */
+export interface RefineTarget {
+  where: "equipped" | "inventory";
+  index: number;
+}
+
+/** 精炼操作：提升数值 / 增添词条 / 剔除词条。 */
+export type RefineOp = "boost" | "add" | "remove";
+
+/** 精炼结果。`success` 为 false 时材料已消耗但法宝未变。 */
+export interface RefineResult {
+  success: boolean;
+  treasure: TreasureItemDefinition;
+}
 
 /** 主角玩家类：继承 Character，增加修为、叙事人称、出身、天赋等主角特有状态。 */
 export class Protagonist extends Character {
@@ -126,6 +167,10 @@ export class Protagonist extends Character {
   breakthroughStatus: BreakthroughStatus;
   /** 立绘候选池（dataURL）：所有生成/上传过的立绘，玩家可在弹窗中切换/删除。 */
   avatarCandidates: string[];
+  /** 四门技艺（医术/毒术/烹饪/锻造）的累计熟练度，随制作产物增长。 */
+  craftSkills: CraftSkillState;
+  /** 限时增益（餐食等）：按世界时间到期的主属性百分比增减。 */
+  timedBuffs: TimedBuff[];
 
   /**
    * 从 `ProtagonistPlayInfo` 数据对象构造实例。
@@ -148,6 +193,8 @@ export class Protagonist extends Character {
     if (this.avatarUrl && this.avatarCandidates.length === 0) {
       this.avatarCandidates = [this.avatarUrl];
     }
+    this.craftSkills = normalizeCraftSkills(data.craftSkills);
+    this.timedBuffs = normalizeTimedBuffs(data.timedBuffs);
   }
 
   // ── 立绘候选池管理 ─────────────────────────────────────────────────────
@@ -379,6 +426,8 @@ export class Protagonist extends Character {
     let result: boolean;
     if (a.id === "consumeElixir") {
       result = this.consumeElixir(a.inventoryIndex);
+    } else if (a.id === "consumeFood") {
+      result = this.consumeFood(a.inventoryIndex);
     } else if (a.id === "sellFromBag") {
       result = this.sellFromBag(a.inventoryIndex, a.count) > 0;
     } else {
@@ -390,7 +439,7 @@ export class Protagonist extends Character {
     // 这里是 UI 穿脱/服丹的真实入口，必须在此对影响主属性的动作统一重算 HP/MP。
     if (a.id === "equipGongfaFromBag" || a.id === "unequipGongfa"
         || a.id === "equipWearFromBag" || a.id === "unequipWear"
-        || a.id === "consumeElixir") {
+        || a.id === "consumeElixir" || a.id === "consumeFood") {
       this.recomputeMaxHpMpAndClamp();
     }
     Protagonist.notifyChanged();
@@ -468,16 +517,262 @@ export class Protagonist extends Character {
    * 规则：
    *   - 必须提供 3 个材料格下标（允许同一格重复，即从同一堆取多份）。
    *   - 每份材料 count - 1；按被使用次数扣减，不足则整体失败。
-   *   - 100% 出丹，无失败。产出丹药品阶按材料品阶加权随机，效果类型按权重随机。
+   *   - 材料必须均为「药材」类，否则整体失败。
+   *   - 100% 出丹，无失败。产出丹药品阶按材料品阶加权随机，并按【医术】熟练度掷品阶跃迁。
    *   - 木灵根契合会在产出时烘焙（与剧情/AI 给丹一致）。
+   *   - 产出后按最终品阶回馈【医术】熟练度。
    *
    * @param slotIndices 三个材料格下标（可重复）。
    * @returns 产出的丹药定义；参数非法（数量不对/越界/非材料/不足）时返回 null。
    */
-  craftElixirFromMaterials(slotIndices: number[]): ElixirItemDefinition | null {
-    if (!Array.isArray(slotIndices) || slotIndices.length !== 3) return null;
+  /**
+   * 用三份「食材」烹饪餐食并写入储物袋。
+   *
+   * 规则同锻造，但膳食类型按权重随机（「点心」纯增益无代价，故权重更低）。
+   * 产出后按最终品阶回馈【烹饪】熟练度。
+   *
+   * @param slotIndices 三个食材格下标（可重复）。
+   * @returns 产出的餐食定义；参数非法或命名表为空时返回 null。
+   */
+  craftFoodFromMaterials(slotIndices: number[]): FoodItemDefinition | null {
+    const collected = this.collectCraftMaterials(slotIndices, "食材");
+    if (!collected) return null;
+    const { picks, usage } = collected;
 
-    // 统计每个下标被使用的次数，并校验均为材料格
+    const food = craftFoodDef(picks.map((m) => ({ grade: m.grade })), this.craftSkills.cooking);
+    if (!food) return null;
+    this.gainCraftProficiency("cooking", food.grade);
+
+    this.consumeCraftMaterials(usage);
+    this.addToInventory(food as InventoryStackItem);
+    Protagonist.notifyChanged();
+    return food;
+  }
+
+  /**
+   * 用三份「毒物」制毒并写入储物袋。
+   *
+   * 产出后按最终品阶回馈【毒术】熟练度。
+   *
+   * @param slotIndices 三个毒物格下标（可重复）。
+   * @returns 产出的毒药定义；参数非法或命名表为空时返回 null。
+   */
+  craftPoisonFromMaterials(slotIndices: number[]): PoisonItemDefinition | null {
+    const collected = this.collectCraftMaterials(slotIndices, "毒物");
+    if (!collected) return null;
+    const { picks, usage } = collected;
+
+    const poison = craftPoisonDef(picks.map((m) => ({ grade: m.grade })), this.craftSkills.poison);
+    if (!poison) return null;
+    this.gainCraftProficiency("poison", poison.grade);
+
+    this.consumeCraftMaterials(usage);
+    this.addToInventory(poison as InventoryStackItem);
+    Protagonist.notifyChanged();
+    return poison;
+  }
+
+  /**
+   * 淬毒：消耗 3 份「毒物」为指定法宝附加毒性涂层，命中时对目标叠加 DoT。
+   *
+   * 涂层强度取毒物加权品阶经【毒术】熟练度跃迁后的结果；
+   * 重复淬毒会覆盖旧涂层（不叠加），毒性名取自制毒命名表的「持续伤害」一系。
+   *
+   * @param target 目标法宝位置（装备槽或储物袋格）。
+   * @param materialSlots 三个毒物格下标（可重复）。
+   * @returns 附毒后的法宝；参数非法或该法宝无词条组时返回 null。
+   */
+  coatTreasureWithPoison(
+    target: RefineTarget,
+    materialSlots: number[],
+  ): TreasureItemDefinition | null {
+    const tr = this.resolveRefineTarget(target);
+    if (!tr || !tr.function) return null;
+
+    const collected = this.collectCraftMaterials(materialSlots, "毒物");
+    if (!collected) return null;
+    const { picks, usage } = collected;
+
+    const sample = craftPoisonDef(picks.map((m) => ({ grade: m.grade })), this.craftSkills.poison);
+    if (!sample) return null;
+    // 涂层固定走 DoT 口径并按命中叠层，故用远低于毒药的单层数值。
+    const coat = buildCoatingEffect(sample.grade);
+
+    this.consumeCraftMaterials(usage);
+    tr.function = {
+      ...tr.function,
+      coating: { name: `${sample.grade}毒`, tickPercent: coat.tickPercent, duration: coat.duration },
+    };
+    this.gainCraftProficiency("poison", sample.grade);
+    Protagonist.notifyChanged();
+    return tr;
+  }
+
+  // ===================================================================
+  // 精炼
+  // ===================================================================
+
+  /**
+   * 定位一件可精炼的法宝：`target` 为装备槽下标或储物袋格下标。
+   *
+   * @param target 精炼目标位置。
+   * @returns 法宝定义；位置无法宝时返回 null。
+   */
+  private resolveRefineTarget(target: RefineTarget): TreasureItemDefinition | null {
+    const cell = target.where === "equipped"
+      ? this.equippedSlots[target.index]
+      : this.inventorySlots[target.index];
+    if (!cell || !("itemType" in cell) || cell.itemType !== "法宝") return null;
+    return cell as TreasureItemDefinition;
+  }
+
+  /**
+   * 精炼一件法宝。
+   *
+   * 消耗规则：提升/增添吃 3 份「器材」，剔除只吃 1 份。
+   * 成败规则：提升/增添按现有词条数掷失败率，失败时材料照扣、法宝不变；
+   * 剔除必定成功。
+   *
+   * @param target 目标法宝位置（装备槽或储物袋格）。
+   * @param op 精炼操作。
+   * @param materialSlots 器材格下标（可重复），数量须与操作要求一致。
+   * @param modifierIndex 仅 `op === "remove"` 时使用：要剔除的词条下标。
+   * @returns 精炼结果；参数非法时返回 null。
+   */
+  refineTreasure(
+    target: RefineTarget,
+    op: RefineOp,
+    materialSlots: number[],
+    modifierIndex?: number,
+  ): RefineResult | null {
+    const tr = this.resolveRefineTarget(target);
+    if (!tr) return null;
+
+    const needed = op === "remove" ? 1 : 3;
+    if (!Array.isArray(materialSlots) || materialSlots.length !== needed) return null;
+    const collected = this.collectCraftMaterials(materialSlots, "器材", needed);
+    if (!collected) return null;
+
+    // 先算出「若成功」的结果，无效操作（已满词条/已达上限/下标越界）直接拒绝，不消耗材料。
+    let nextFunction;
+    if (op === "boost") {
+      nextFunction = boostModifiers(tr);
+    } else if (op === "add") {
+      nextFunction = addRandomModifier(tr);
+    } else {
+      nextFunction = removeModifierAt(tr, modifierIndex ?? -1);
+    }
+    if (!nextFunction) return null;
+
+    this.consumeCraftMaterials(collected.usage);
+
+    // 剔除必定成功；提升/增添按现有词条数掷失败率。
+    const modifierCount = tr.function?.modifiers.length ?? 0;
+    const success = op === "remove" || rollRefineSuccess(modifierCount, this.craftSkills.forging);
+    if (success) {
+      tr.function = nextFunction;
+      this.recomputeMaxHpMpAndClamp();
+    }
+
+    Protagonist.notifyChanged();
+    return { success, treasure: tr };
+  }
+
+  /**
+   * 食用餐食：转为一条限时增益，并从储物袋扣除一份。
+   *
+   * 同名餐食可叠加（各自独立计时），百分比在结算时求和。
+   *
+   * @param cellIndex 储物袋格下标。
+   * @returns 是否成功食用。
+   */
+  consumeFood(cellIndex: number): boolean {
+    const cell = this.inventorySlots[cellIndex];
+    if (!cell || !("itemType" in cell) || cell.itemType !== "餐食") return false;
+    const food = cell as FoodItemDefinition;
+    if (food.count < 1) return false;
+
+    this.addTimedBuff(createTimedBuff(
+      food.name,
+      food.desc,
+      food.statPercents,
+      storyStore.worldTime.value,
+      food.durationDays,
+    ));
+
+    food.count -= 1;
+    if (food.count <= 0) this.inventorySlots[cellIndex] = null;
+    return true;
+  }
+
+  // ===================================================================
+  // 限时增益
+  // ===================================================================
+
+  /**
+   * 当前生效中的限时增益（按世界时间惰性过滤）。
+   *
+   * 世界时间取自 `storyStore.worldTime`——它是全局唯一的世界时钟，
+   * 读取它使属性计算随时间推进自动失效重算，无需在每处推进点手动通知。
+   */
+  getActiveTimedBuffs(): TimedBuff[] {
+    return activeTimedBuffs(this.timedBuffs, storyStore.worldTime.value);
+  }
+
+  /**
+   * 追加一条限时增益。
+   *
+   * @param buff 由 `createTimedBuff` 构造的增益。
+   */
+  addTimedBuff(buff: TimedBuff): void {
+    this.timedBuffs = [...this.timedBuffs, buff];
+    Protagonist.notifyChanged();
+  }
+
+  /** 清除已到期的限时增益（时间推进后调用，避免存档中堆积失效项）。 */
+  purgeExpiredBuffs(): void {
+    const next = purgeExpiredTimedBuffs(this.timedBuffs, storyStore.worldTime.value);
+    if (next.length === this.timedBuffs.length) return;
+    this.timedBuffs = next;
+    Protagonist.notifyChanged();
+  }
+
+  /**
+   * 在基类聚合结果之上叠加生效中的限时增益（百分比）。
+   *
+   * 施加顺序位于法宝转换之后，因此增益作用于「最终主属性」，语义直观。
+   */
+  protected override collectPrimaryBonuses(): Record<string, number> {
+    const stats = super.collectPrimaryBonuses();
+    applyTimedBuffsToStats(stats, this.getActiveTimedBuffs());
+    return stats;
+  }
+
+  /**
+   * 按产出品阶回馈技艺熟练度（下品→神品依次 +1/2/4/8/16/32）。
+   *
+   * @param skill 技艺键。
+   * @param grade 本次产物的最终品阶。
+   */
+  gainCraftProficiency(skill: CraftSkillKey, grade: ItemGrade): void {
+    this.craftSkills[skill] += craftProficiencyGain(grade);
+  }
+
+  /**
+   * 校验并收集制作材料。
+   *
+   * @param slotIndices 材料格下标（允许重复，即从同一堆取多份）。
+   * @param category 该技艺要求的材料分类。
+   * @param requiredCount 需要的份数，默认 3（精炼的剔除操作只需 1 份）。
+   * @returns 校验通过时返回材料列表与各格使用次数；任一条件不满足返回 null。
+   */
+  private collectCraftMaterials(
+    slotIndices: number[],
+    category: MaterialCategory,
+    requiredCount = 3,
+  ): { picks: MaterialItemDefinition[]; usage: Map<number, number> } | null {
+    if (!Array.isArray(slotIndices) || slotIndices.length !== requiredCount) return null;
+
     const usage = new Map<number, number>();
     const picks: MaterialItemDefinition[] = [];
     for (const raw of slotIndices) {
@@ -487,30 +782,69 @@ export class Protagonist extends Character {
       const cell = this.inventorySlots[i];
       if (!cell || !("itemType" in cell) || cell.itemType !== "材料") return null;
       const mat = cell as MaterialItemDefinition;
+      if (mat.category !== category) return null;
       if (typeof mat.count !== "number" || mat.count < 1) return null;
       usage.set(i, (usage.get(i) ?? 0) + 1);
       picks.push(mat);
     }
-    // 校验每格存量足够
+    // 校验每格存量足够（同一格被取多份时）
     for (const [i, n] of usage) {
       const mat = this.inventorySlots[i] as MaterialItemDefinition | null;
       if (!mat || mat.count < n) return null;
     }
+    return { picks, usage };
+  }
 
-    const elixir = craftElixirDef(picks.map((m) => ({ grade: m.grade })));
-    applyLinggenElixirBoost(elixir as InventoryStackItem, this.linggen, this.realm.major);
-
-    // 扣除材料：按使用次数扣减，归零置 null
+  /** 按使用次数扣减材料，归零的格子置空。 */
+  private consumeCraftMaterials(usage: Map<number, number>): void {
     for (const [i, n] of usage) {
       const mat = this.inventorySlots[i] as MaterialItemDefinition | null;
       if (!mat) continue;
       mat.count -= n;
       if (mat.count <= 0) this.inventorySlots[i] = null;
     }
+  }
 
+  craftElixirFromMaterials(slotIndices: number[]): ElixirItemDefinition | null {
+    const collected = this.collectCraftMaterials(slotIndices, "药材");
+    if (!collected) return null;
+    const { picks, usage } = collected;
+
+    const elixir = craftElixirDef(picks.map((m) => ({ grade: m.grade })), this.craftSkills.medicine);
+    applyLinggenElixirBoost(elixir as InventoryStackItem, this.linggen, this.realm.major);
+    this.gainCraftProficiency("medicine", elixir.grade);
+
+    this.consumeCraftMaterials(usage);
     this.addToInventory(elixir as InventoryStackItem);
     Protagonist.notifyChanged();
     return elixir;
+  }
+
+  /**
+   * 用三份「器材」锻造法宝并写入储物袋。
+   *
+   * 规则：
+   *   - 材料必须均为「器材」类，否则整体失败。
+   *   - 100% 出器，无失败。品阶按材料加权随机，并按【锻造】熟练度掷品阶跃迁。
+   *   - 器物类型均匀随机，只决定名称；词条由品阶随机（与 AI 掉落的法宝同源）。
+   *   - 产出后按最终品阶回馈【锻造】熟练度。
+   *
+   * @param slotIndices 三个器材格下标（可重复）。
+   * @returns 产出的法宝定义；参数非法或命名表为空时返回 null。
+   */
+  craftTreasureFromMaterials(slotIndices: number[]): TreasureItemDefinition | null {
+    const collected = this.collectCraftMaterials(slotIndices, "器材");
+    if (!collected) return null;
+    const { picks, usage } = collected;
+
+    const treasure = craftTreasureDef(picks.map((m) => ({ grade: m.grade })), this.craftSkills.forging);
+    if (!treasure) return null;
+    this.gainCraftProficiency("forging", treasure.grade);
+
+    this.consumeCraftMaterials(usage);
+    this.addToInventory(treasure as InventoryStackItem);
+    Protagonist.notifyChanged();
+    return treasure;
   }
 
   // ===================================================================
@@ -742,6 +1076,8 @@ export class Protagonist extends Character {
           grade,
           count: item.count,
           itemType,
+          // 材料必须带分类，否则四门技艺都取不到对应原料（非法值回退「药材」）。
+          ...(itemType === "材料" ? { category: parseMaterialCategory(item.category) } : {}),
           ...(fn ? { function: fn } : {}),
           ...(se ? { specialEffect: se } : {}),
         } as InventoryStackItem);
@@ -789,6 +1125,8 @@ export class Protagonist extends Character {
       realmComplete: this.realmComplete,
       breakthroughStatus: this.breakthroughStatus,
       avatarCandidates: [...this.avatarCandidates],
+      craftSkills: { ...this.craftSkills },
+      timedBuffs: this.timedBuffs.map((b) => ({ ...b, statPercents: { ...b.statPercents } })),
     };
   }
 

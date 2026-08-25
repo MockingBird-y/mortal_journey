@@ -165,12 +165,15 @@ export function resolveTraitEffect(effect: TraitEffect): ResolvedTraitEffect {
     case "materials": {
       const count = Math.max(1, Math.floor(effect.count));
       const entry = pickRandom(MATERIAL_NAME_TABLE[effect.grade] ?? MATERIAL_NAME_TABLE.下品);
+      // MATERIAL_NAME_TABLE 现有词条描述均为炼丹用途（灵芝/灵草/炼丹辅材），故统一归「药材」。
+      // 后续若为该表补充毒物/食材/器材词条，应改为按词条自带分类。
       const item: MaterialItemDefinition = {
         itemType: "材料",
         name: entry.name,
         desc: entry.desc,
         grade: effect.grade,
         count,
+        category: "药材",
       };
       return { ...empty, items: [item] };
     }

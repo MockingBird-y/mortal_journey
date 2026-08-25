@@ -1,7 +1,7 @@
-import type { BattleCombatant, BattleSkill, BattleElixir, BattleEffect, SkillEffect, DamageType, ModifierType, CcType, StatusType, SummonTrigger, CombatantStats } from "./types";
+import type { BattleCombatant, BattleSkill, BattleElixir, BattlePoison, BattleCoating, BattleEffect, SkillEffect, DamageType, ModifierType, CcType, StatusType, SummonTrigger, CombatantStats } from "./types";
 import type { BattleTriggerEntry } from "../ai/state_generate";
 import type { GongfaSlotsState, EquippedSlotsState } from "../role_core/types/playInfo";
-import type { InventoryStackItem, ElixirItemDefinition } from "../role_core/types/itemInfo";
+import type { InventoryStackItem, ElixirItemDefinition, PoisonItemDefinition } from "../role_core/types/itemInfo";
 import type { GongfaBattleEffect, LayerValue } from "../role_core/types/gongfa";
 import type { PrimaryStatKey } from "../role_core/types/playInfo";
 import { atLayer, atLayerFloat, resolveGongfaBattleEffectDesc } from "../role_core/types/gongfa";
@@ -328,6 +328,37 @@ function extractRecoveryElixirs(inventorySlots: Array<InventoryStackItem | null>
   return result;
 }
 
+/** 从储物袋提取可在战斗中使用的毒药。 */
+function extractBattlePoisons(inventorySlots: Array<InventoryStackItem | null>): BattlePoison[] {
+  const result: BattlePoison[] = [];
+  for (const slot of inventorySlots) {
+    if (!slot) continue;
+    if ("itemType" in slot && slot.itemType === "毒药") {
+      const p = slot as PoisonItemDefinition;
+      result.push({
+        name: p.name,
+        desc: p.desc,
+        kind: p.kind,
+        value: p.value,
+        modifierType: p.modifierType,
+        duration: p.duration,
+        count: p.count,
+      });
+    }
+  }
+  return result;
+}
+
+/** 汇总已装备法宝的淬毒涂层。 */
+function extractCoatings(equippedSlots: EquippedSlotsState): BattleCoating[] {
+  const out: BattleCoating[] = [];
+  for (const tr of equippedSlots) {
+    const c = tr?.function && "coating" in tr.function ? tr.function.coating : undefined;
+    if (c) out.push({ name: c.name, tickPercent: c.tickPercent, duration: c.duration });
+  }
+  return out;
+}
+
 function createProtagonistCombatant(): BattleCombatant | null {
   const p = protagonist.value;
   if (!p) return null;
@@ -361,6 +392,8 @@ function createProtagonistCombatant(): BattleCombatant | null {
     skills,
     cooldowns: new Array(Math.max(GONGFA_SLOT_COUNT, skills.length)).fill(0),
     elixirs,
+    poisons: extractBattlePoisons(p.inventorySlots),
+    coatings: extractCoatings(p.equippedSlots),
 
     effects: passiveEffects,
     linggenHealMult: linggenBonus.healMult,
@@ -421,6 +454,9 @@ function createNpcCombatant(
     skills,
     cooldowns: new Array(Math.max(GONGFA_SLOT_COUNT, skills.length)).fill(0),
     elixirs,
+    // NPC 不使用毒药（制毒是主角技艺）。
+    poisons: [],
+    coatings: extractCoatings(npc.equippedSlots),
 
     effects: passiveEffects,
     linggenHealMult: linggenBonus.healMult,

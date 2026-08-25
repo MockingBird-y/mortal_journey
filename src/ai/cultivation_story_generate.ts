@@ -7,6 +7,7 @@ import {
 } from "./openAiChatBridge";
 import type { ProtagonistPlayInfo, EquippedSlotsState, GongfaSlotsState, InventoryStackItem } from "../role_core/types/playInfo";
 import type { StoryChatEntry } from "./story_generate";
+import { matchWorldLore } from "./worldLore";
 import { formatWorldLocationDash } from "../role_core/types/worldLocation";
 import type { WorldLocation } from "../role_core/types/worldLocation";
 
@@ -162,6 +163,14 @@ export function buildCultivationStoryRequestPayload(input: CultivationStoryInput
   if (storyParts.length > 0) {
     systemParts.push("【之前的剧情】\n" + storyParts.join("\n\n---\n\n"));
   }
+  // 世界设定按关键词命中注入；本轮焦点取所修功法名（可命中该功法/体系的设定）。
+  const lore = matchWorldLore({
+    chatHistory: input.chatHistory,
+    playerInput: input.gongfaName,
+    worldLocation: input.currentWorldLocation ? formatWorldLocationDash(input.currentWorldLocation) : undefined,
+    npcSnapshot: input.npcSnapshot,
+  });
+  if (lore) systemParts.push(lore);
   messages.push({ role: "system", content: systemParts.join("\n\n") });
 
   messages.push({

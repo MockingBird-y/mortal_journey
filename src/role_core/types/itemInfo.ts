@@ -8,6 +8,9 @@ import type { ZhStatBonusMap } from "./playInfo";
 import type { TreasureItemDefinition } from "./treasure";
 import type { GongfaItemDefinition } from "./gongfa";
 import type { ElixirItemDefinition, ElixirEffectType, ElixirEffects } from "./elixir";
+import type { MaterialCategory } from "../craft";
+import type { FoodItemDefinition } from "../cooking";
+import type { PoisonItemDefinition } from "../poison";
 
 // re-export per-type item definitions（保持旧 import 路径兼容）
 export type { TreasureItemDefinition } from "./treasure";
@@ -15,6 +18,8 @@ export type { TreasureSpecialEffect, TreasureConversionMode, TreasureConversion,
 export type { GongfaItemDefinition } from "./gongfa";
 export type { GongfaSpecialEffect, GongfaSystem, GongfaRole } from "./gongfa";
 export type { ElixirItemDefinition, ElixirEffectType, ElixirEffects } from "./elixir";
+export type { FoodItemDefinition } from "../cooking";
+export type { PoisonItemDefinition } from "../poison";
 
 // ---------------------------------------------------------------------------
 // 共用枚举与基底
@@ -36,6 +41,8 @@ export interface MaterialItemDefinition {
   desc: string;
   grade: ItemGrade;
   count: number;
+  /** 材料分类：决定可用于哪门技艺（药材/毒物/食材/器材）。 */
+  category: MaterialCategory;
 }
 
 export interface MiscItemDefinition {
@@ -54,6 +61,8 @@ export type CategorizedItemDefinition =
   | TreasureItemDefinition
   | GongfaItemDefinition
   | ElixirItemDefinition
+  | FoodItemDefinition
+  | PoisonItemDefinition
   | MaterialItemDefinition
   | MiscItemDefinition;
 
@@ -66,6 +75,8 @@ export type { SpiritStoneInventoryStack };
 export type TreasureBagStack = TreasureItemDefinition;
 export type GongfaBagStack = GongfaItemDefinition;
 export type ElixirBagStack = ElixirItemDefinition;
+export type FoodBagStack = FoodItemDefinition;
+export type PoisonBagStack = PoisonItemDefinition;
 export type MaterialBagStack = MaterialItemDefinition;
 export type MiscBagStack = MiscItemDefinition;
 
