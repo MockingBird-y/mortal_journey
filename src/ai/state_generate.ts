@@ -81,6 +81,8 @@ export interface NpcNearbyEntry {
   npcId?: string;
   displayName: string;
   identity: string;
+  /** 与主角的关系（自由文本，如「同门」「师尊」「道侣」「仇敌」）。 */
+  relation?: string;
   isDead: boolean;
   favorability: number;
   race: NpcRace;
@@ -256,6 +258,7 @@ function parseNearbyNpcs(raw: string): NpcNearbyEntry[] {
         npcId: npcIdRaw || undefined,
         displayName,
         identity: String(o.identity || ""),
+        relation: typeof o.relation === "string" ? o.relation.trim() : undefined,
         isDead: o.isDead === true,
         favorability: typeof o.favorability === "number" ? o.favorability : 0,
         race: sanitizeRace(o.race),

@@ -209,6 +209,10 @@ export interface CharacterPlayInfoCommon {
 export interface ProtagonistPlayInfo extends CharacterPlayInfoCommon {
   role: "protagonist";
   narrationPerson: NarrationPerson;
+  /** 种族（命运抉择所选；旧存档缺省为空串）。 */
+  race?: string;
+  /** 阵营（命运抉择所选；旧存档缺省为空串）。 */
+  faction?: string;
   birthPlace: WorldLocation;
   originStory: string;
   traits: TraitEntry[];
@@ -246,6 +250,11 @@ export interface NpcPlayInfo extends CharacterPlayInfoCommon {
   role: "npc";
   identity: string;
   favorability: number;
+  /**
+   * 与主角的关系（自由文本，如「同门」「师尊」「道侣」「仇敌」）。
+   * 由状态 AI 在剧情明确确立/改变关系时维护；空串表示尚无明确关系。
+   */
+  relation?: string;
   isDead: boolean;
   powerTier: PowerTier;
   /** 种族：决定外貌/服装的文生图要素清单。旧存档缺省视为"修仙者"。 */

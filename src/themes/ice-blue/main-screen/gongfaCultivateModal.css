@@ -18,9 +18,9 @@
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-  border: 1px solid rgba(236, 246, 251, 0.2);
-  background: rgba(6, 15, 22, 0.35);
-  color: var(--mj-text, #c4e4ee);
+  border: 1px solid rgba(215, 234, 234, 0.2);
+  background: rgba(28, 34, 48, 0.35);
+  color: var(--mj-text, #d7eaea);
   font-size: 1rem;
   cursor: pointer;
   user-select: none;
@@ -28,8 +28,8 @@
 }
 
 .mj-cultivate-stepper:hover:not(:disabled) {
-  border-color: rgba(236, 246, 251, 0.4);
-  background: rgba(236, 246, 251, 0.08);
+  border-color: rgba(215, 234, 234, 0.4);
+  background: rgba(215, 234, 234, 0.08);
 }
 
 .mj-cultivate-stepper:disabled {
@@ -42,9 +42,9 @@
   height: 32px;
   text-align: center;
   border-radius: 6px;
-  border: 1px solid rgba(236, 246, 251, 0.2);
-  background: rgba(6, 15, 22, 0.35);
-  color: var(--mj-text, #c4e4ee);
+  border: 1px solid rgba(215, 234, 234, 0.2);
+  background: rgba(28, 34, 48, 0.35);
+  color: var(--mj-text, #d7eaea);
   font-size: 0.9rem;
   outline: none;
   -moz-appearance: textfield;
@@ -57,16 +57,16 @@
 }
 
 .mj-cultivate-input:focus {
-  border-color: rgba(123, 201, 180, 0.6);
+  border-color: rgba(128, 189, 177, 0.6);
 }
 
 .mj-cultivate-max-btn {
   height: 32px;
   padding: 0 10px;
   border-radius: 6px;
-  border: 1px solid rgba(236, 246, 251, 0.2);
-  background: rgba(6, 15, 22, 0.35);
-  color: var(--mj-muted, #6a9aaf);
+  border: 1px solid rgba(215, 234, 234, 0.2);
+  background: rgba(28, 34, 48, 0.35);
+  color: var(--mj-muted, #9692af);
   font-size: 0.78rem;
   cursor: pointer;
   user-select: none;
@@ -74,15 +74,15 @@
 }
 
 .mj-cultivate-max-btn:hover {
-  border-color: rgba(236, 246, 251, 0.4);
-  background: rgba(236, 246, 251, 0.08);
-  color: var(--mj-text, #c4e4ee);
+  border-color: rgba(215, 234, 234, 0.4);
+  background: rgba(215, 234, 234, 0.08);
+  color: var(--mj-text, #d7eaea);
 }
 
 .mj-cultivate-hint {
   margin-top: 6px;
   font-size: 0.75rem;
-  color: var(--mj-muted, #6a9aaf);
+  color: var(--mj-muted, #9692af);
 }
 
 .mj-cultivate-preview {
@@ -94,6 +94,6 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  color: rgba(123, 201, 180, 0.85);
+  color: rgba(128, 189, 177, 0.85);
   font-size: 0.8rem;
 }

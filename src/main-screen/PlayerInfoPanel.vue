@@ -26,7 +26,6 @@ import {
   getEquipSlotRows,
   getHpMpBarState,
   getInventoryBagDisplaySlots,
-  getTraitSlots,
   gongfaCellName,
   displayStatInt,
   gradeToTraitRarity,
@@ -97,7 +96,8 @@ const combatStatRows = computed(() => {
 });
 const hpMp = computed(() => getHpMpBarState(props.protagonist, props.protagonist ? { hp: props.protagonist.maxHp, mp: props.protagonist.maxMp } : null));
 const equipSlots = computed(() => getEquipSlotRows(props.protagonist));
-const traitSlots = computed(() => getTraitSlots(props.protagonist));
+/** 天赋平铺列表：条数不再固定为 5，直接铺开主角实际持有的全部天赋。 */
+const traitRows = computed(() => props.protagonist?.traits ?? []);
 const inventoryBagDisplaySlots = computed(() =>
   props.protagonist ? getInventoryBagDisplaySlots(props.protagonist.inventorySlots) : [],
 );
@@ -539,20 +539,22 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
 
         <div class="mj-talent-block">
           <h3 class="mj-attr-section-title">天赋</h3>
-          <div class="mj-talent-row" role="list">
+          <div class="mj-talent-row" role="list" style="flex-direction: column; gap: 2px">
             <div
-              v-for="(t, ti) in traitSlots"
+              v-for="(t, ti) in traitRows"
               :key="ti"
-              class="mj-trait-slot"
-              :class="t ? 'mj-trait-slot--filled' : 'mj-trait-slot--empty'"
-              :data-rarity="traitSlotRarity(t)"
-              :title="traitSlotTitle(t) + (t ? '\n（点击查看详情）' : '')"
+              class="mj-stat-cell"
+              :title="traitSlotTitle(t) + '\n（点击查看详情）'"
               role="listitem"
-              :tabindex="t ? 0 : -1"
-              @click="t && onTraitSlotClick(ti)"
-              @keydown="t && onSlotKeydown($event, () => onTraitSlotClick(ti))"
+              tabindex="0"
+              @click="onTraitSlotClick(ti)"
+              @keydown="onSlotKeydown($event, () => onTraitSlotClick(ti))"
             >
-              <span class="mj-trait-slot-inner">{{ traitSlotInnerText(t) }}</span>
+              <span class="mj-stat-k">{{ traitSlotInnerText(t) }}</span>
+              <span class="mj-stat-v">{{ traitSlotRarity(t) ?? "" }}</span>
+            </div>
+            <div v-if="!traitRows.length" class="mj-stat-cell">
+              <span class="mj-stat-k">暂无天赋</span>
             </div>
           </div>
         </div>

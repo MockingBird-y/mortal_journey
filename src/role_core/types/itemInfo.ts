@@ -27,7 +27,11 @@ export type { PoisonItemDefinition } from "../poison";
 
 /** worldbook：品阶仅能为以下之一 */
 export type ItemGrade = "下品" | "中品" | "上品" | "极品" | "仙品" | "神品";
-
+/**
+ * 材料分类的别名。真正的定义在 `../craft` 的 {@link MaterialCategory}——
+ * 这里只做转发，避免同一套分类在两处各写一份、日后改一处忘另一处。
+ */
+export type ItemCategory = MaterialCategory;
 /** 配置表或 AI 条目上的中文加成；允许表外键 */
 export type ItemBonusMap = ZhStatBonusMap | Record<string, number>;
 

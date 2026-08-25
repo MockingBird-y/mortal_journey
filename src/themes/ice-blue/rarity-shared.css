@@ -24,6 +24,6 @@
   border-color: var(--mj-rarity-active);
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--mj-rarity-active) 40%, transparent),
-    0 16px 48px rgba(6, 15, 22, 0.55),
+    0 16px 48px rgba(28, 34, 48, 0.55),
     0 0 36px color-mix(in srgb, var(--mj-rarity-active) 20%, transparent);
 }

@@ -6,7 +6,8 @@
  */
 
 import { ref, triggerRef, type Ref } from "vue";import type { FateChoiceResult } from "../fate_choice/types";
-import { resolveTraitEffect } from "../fate_choice/traitEffect";
+import { resolveTraitEffect, type TraitEffect } from "../fate_choice/traitEffect";
+import { CREATION_FACTIONS, CREATION_RACES } from "../fate_choice/types";
 import type {
   CategorizedItemDefinition,
   GongfaItemDefinition,
@@ -153,6 +154,10 @@ export class Protagonist extends Character {
   readonly role = "protagonist" as const;
   /** 叙事人称（第一/第二/第三人称）。 */
   narrationPerson: NarrationPerson;
+  /** 种族（命运抉择所选，`CREATION_RACES` 的键）。 */
+  race: string;
+  /** 阵营（命运抉择所选，`CREATION_FACTIONS` 的键）。 */
+  faction: string;
   /** 出生地点。 */
   birthPlace: WorldLocation;
   /** 出身故事。 */
@@ -180,6 +185,8 @@ export class Protagonist extends Character {
   constructor(data: ProtagonistPlayInfo) {
     super(data);
     this.narrationPerson = data.narrationPerson;
+    this.race = data.race ?? "";
+    this.faction = data.faction ?? "";
     this.birthPlace = data.birthPlace;
     this.originStory = data.originStory;
     this.traits = data.traits;
@@ -909,7 +916,10 @@ export class Protagonist extends Character {
     this.currentHp = Math.max(0, Math.min(capH, Math.round(capH * parsed.hpPercent / 100)));
     this.currentMp = Math.max(0, Math.min(capM, Math.round(capM * parsed.mpPercent / 100)));
 
-    if (typeof parsed.protagonistAge === "number" && parsed.protagonistAge > 0) {
+    // 玩家已在命运抉择中自填年龄（ageConfirmed 已为 true）时不被开局管线覆盖。
+    if (this.ageConfirmed) {
+      // 保持玩家填写的年龄。
+    } else if (typeof parsed.protagonistAge === "number" && parsed.protagonistAge > 0) {
       const minAge = getMinNarrativeAgeForMajor(this.realm.major);
       const maxAge = Math.min(this.shouyuan - 1, getMaxNarrativeAgeForMajor(this.realm.major));
       const clampedAge = Math.max(minAge, Math.min(maxAge, parsed.protagonistAge));
@@ -925,7 +935,7 @@ export class Protagonist extends Character {
   }
 
   /**
-   * 结算天赋具体效果：在开局状态（AI 生成的装备/功法/储物袋）应用之后统一调用。
+   * 结算天赋/种族/阵营的具体效果：在开局状态（AI 生成的装备/功法/储物袋）应用之后统一调用。
    *
    * 将命运抉择的天赋效果一次性结算到主角：
    *   - 法宝/功法/丹药/材料进储物袋（丹药做木灵根烘焙）；
@@ -940,24 +950,33 @@ export class Protagonist extends Character {
   applyTraitEffects(): void {
     for (const t of this.traits) {
       if (typeof t === "string") continue;
-      const effect = t.effect;
-      if (!effect) continue;
-      const r = resolveTraitEffect(effect);
-      for (const item of r.items) {
-        if ("itemType" in item && item.itemType === "丹药") {
-          applyLinggenElixirBoost(item, this.linggen, this.realm.major);
-        }
-        this.addToInventory(item);
-      }
-      if (r.spiritStones > 0) this.addSpiritStone("灵石", r.spiritStones);
-      for (const [k, v] of Object.entries(r.statBonus)) {
-        if (typeof v === "number" && Number.isFinite(v) && v !== 0) {
-          this.elixirBonuses[k] = (this.elixirBonuses[k] ?? 0) + v;
-        }
-      }
+      if (t.effect) this.settleOriginEffect(t.effect);
     }
+    // 种族/阵营与天赋共用同一套效果结构，同批一次性结算（条目未写 effect 时跳过）。
+    const raceEffect = CREATION_RACES[this.race]?.effect;
+    if (raceEffect) this.settleOriginEffect(raceEffect);
+    const factionEffect = CREATION_FACTIONS[this.faction]?.effect;
+    if (factionEffect) this.settleOriginEffect(factionEffect);
+
     this.recomputeMaxHpMpAndClamp();
     Protagonist.notifyChanged();
+  }
+
+  /** 结算单条开局效果（天赋/种族/阵营通用）：物品进袋、灵石入格、主属性加成入 `elixirBonuses`。 */
+  private settleOriginEffect(effect: TraitEffect): void {
+    const r = resolveTraitEffect(effect);
+    for (const item of r.items) {
+      if ("itemType" in item && item.itemType === "丹药") {
+        applyLinggenElixirBoost(item, this.linggen, this.realm.major);
+      }
+      this.addToInventory(item);
+    }
+    if (r.spiritStones > 0) this.addSpiritStone("灵石", r.spiritStones);
+    for (const [k, v] of Object.entries(r.statBonus)) {
+      if (typeof v === "number" && Number.isFinite(v) && v !== 0) {
+        this.elixirBonuses[k] = (this.elixirBonuses[k] ?? 0) + v;
+      }
+    }
   }
 
   /**
@@ -1118,6 +1137,8 @@ export class Protagonist extends Character {
       ...base,
       role: "protagonist",
       narrationPerson: this.narrationPerson,
+      race: this.race,
+      faction: this.faction,
       birthPlace: this.birthPlace,
       originStory: this.originStory,
       traits: this.traits,
@@ -1242,6 +1263,8 @@ export class Protagonist extends Character {
       id: typeof o.id === "string" && o.id.trim() !== "" ? o.id.trim() : "protagonist",
       displayName: typeof o.displayName === "string" ? o.displayName : "未命名",
       narrationPerson,
+      race: typeof o.race === "string" ? o.race : "",
+      faction: typeof o.faction === "string" ? o.faction : "",
       birthPlace: typeof o.birthPlace === "string"
         ? (parseWorldLocationFromDash(o.birthPlace) ?? { region: "", country: "", area: "", detail: o.birthPlace })
         : (o.birthPlace && typeof o.birthPlace === "object" ? o.birthPlace as WorldLocation : { region: "", country: "", area: "", detail: "" }),
@@ -1286,6 +1309,16 @@ export class Protagonist extends Character {
     const pb = getRealmPrimaryStats(major, minor) ?? getRealmPrimaryStats("练气", "初期") ?? Character.emptyPrimaryStats();
     const sy = getShouyuanForRealm(major, minor) ?? getShouyuanForRealm("练气", "初期") ?? 100;
 
+    // 命运抉择中用点数购买的主属性。走 `elixirBonuses` 与天赋的 statBonus 同一条通道：
+    // `collectPrimaryBonuses` 的基准值恒取自境界表，写 `primaryStats` 不会生效。
+    const purchasedStats: Record<string, number> = {};
+    for (const key of PRIMARY_STAT_KEYS) {
+      const bought = basics.statPurchase?.[key];
+      if (typeof bought === "number" && Number.isFinite(bought) && bought > 0) {
+        purchasedStats[key] = Math.floor(bought);
+      }
+    }
+
     const realmRow = (() => {
       for (const row of TABLE) {
         if (row.realm === major && row.stage === minor) return row;
@@ -1295,11 +1328,18 @@ export class Protagonist extends Character {
     const maxHp = Math.max(1, Math.round((realmRow.hp + pb.physique * 10) * (1 + pb.physique / 1000)));
     const maxMp = Math.max(1, Math.round((realmRow.mp + pb.spirit * 10) * (1 + pb.spirit / 1000)));
 
-    const age = getProtagonistNarrativeAge(
-      { realm: { major }, age: undefined },
-      { realm: { major } },
-      { defaultAge: 16 },
-    );
+    // 玩家在命运抉择里自填了年龄就以其为准（并锁定，开局管线不再覆盖）；否则按境界推导。
+    const chosenAge =
+      typeof basics.age === "number" && Number.isFinite(basics.age) && basics.age > 0
+        ? Math.floor(basics.age)
+        : null;
+    const age =
+      chosenAge ??
+      getProtagonistNarrativeAge(
+        { realm: { major }, age: undefined },
+        { realm: { major } },
+        { defaultAge: 16 },
+      );
 
     const traits = fc.traits.map((t) => ({
       name: t.name,
@@ -1313,6 +1353,8 @@ export class Protagonist extends Character {
       id: "protagonist",
       displayName: basics.playerName.trim() || "未命名",
       narrationPerson: basics.narrationPerson,
+      race: basics.race,
+      faction: basics.faction,
       birthPlace: basics.birthPlace,
       originStory: basics.originStory.trim(),
       realm: { major, minor },
@@ -1325,7 +1367,7 @@ export class Protagonist extends Character {
       gender: basics.gender,
       linggen: basics.linggen.slice(),
       age,
-      ageConfirmed: false,
+      ageConfirmed: chosenAge != null,
       shouyuan: sy,
       inventorySlots: Array.from({ length: DEFAULT_INVENTORY_SLOT_COUNT }, () => null),
       gongfaSlots: [null, null, null, null, null, null, null, null],
@@ -1338,6 +1380,10 @@ export class Protagonist extends Character {
 
     // 天赋效果（物品/灵石/属性）不在此处结算——推迟到 applyInitState 之后由
     // applyTraitEffects() 统一生成，避免异步开局状态生成期间玩家操作天赋物品后被覆盖。
+    // 购点属性不涉及物品，无此顾虑，直接落盘。
+    for (const [k, v] of Object.entries(purchasedStats)) {
+      p.elixirBonuses[k] = (p.elixirBonuses[k] ?? 0) + v;
+    }
 
     const { maxHp: capH, maxMp: capM } = p.computeMaxHpMp();
     p.maxHp = capH;

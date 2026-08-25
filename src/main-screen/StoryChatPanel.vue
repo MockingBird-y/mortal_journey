@@ -761,13 +761,15 @@ function formatNpcFullLine(npc: Npc): string {
   const dead = npc.isDead ? " [已故]" : "";
   const cur = npc.currentLocation ? formatWorldLocationDash(npc.currentLocation) : "未知";
   const race = npc.race && npc.race !== "修仙者" ? `，${npc.race}` : "";
-  return `${npc.displayName}（npcId:${npc.id}，${npc.identity}${race}，${Character.formatRealm(npc.realm)}，当前:${cur}，好感${favor}，HP ${hp}，MP ${mp}）${dead}`;
+  const rel = npc.relation ? `，关系:${npc.relation}` : "";
+  return `${npc.displayName}（npcId:${npc.id}，${npc.identity}${race}${rel}，${Character.formatRealm(npc.realm)}，当前:${cur}，好感${favor}，HP ${hp}，MP ${mp}）${dead}`;
 }
 
 function formatNpcBriefLine(npc: Npc): string {
   const lastSeen = npc.lastSeenWorldTime ? formatWorldTimeZhDisplay(npc.lastSeenWorldTime) : "未知";
   const cur = npc.currentLocation ? formatWorldLocationDash(npc.currentLocation) : "未知";
-  return `${npc.displayName}（npcId:${npc.id}，${npc.identity}，${Character.formatRealm(npc.realm)}，当前:${cur}，好感${npc.favorability}，上次见面:${lastSeen}）`;
+  const rel = npc.relation ? `，关系:${npc.relation}` : "";
+  return `${npc.displayName}（npcId:${npc.id}，${npc.identity}${rel}，${Character.formatRealm(npc.realm)}，当前:${cur}，好感${npc.favorability}，上次见面:${lastSeen}）`;
 }
 
 function buildNpcSnapshot(): string {

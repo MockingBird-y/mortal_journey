@@ -43,9 +43,9 @@
   letter-spacing: 0.08em;
   font-size: 1rem;
   font-weight: 600;
-  color: rgba(89, 196, 229, 0.92);
+  color: rgba(172, 219, 223, 0.92);
   line-height: 1.2;
-  text-shadow: 0 1px 2px rgba(6, 15, 22, 0.35);
+  text-shadow: 0 1px 2px rgba(28, 34, 48, 0.35);
 }
 
 /* 主角立绘操作按钮（生成 / 历史）——垂直排列在头像右侧 */
@@ -63,9 +63,9 @@
   font-size: 0.72rem;
   line-height: 1;
   border-radius: 4px;
-  border: 1px solid rgba(56, 166, 199, 0.4);
-  background: rgba(6, 15, 22, 0.35);
-  color: var(--mj-gold-dim, #47b3d4);
+  border: 1px solid rgba(150, 146, 175, 0.4);
+  background: rgba(28, 34, 48, 0.35);
+  color: var(--mj-gold-dim, #9692af);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -74,9 +74,9 @@
 
 .main-panel--player .mj-player-gen-btn:hover:not(:disabled),
 .main-panel--player .mj-player-history-btn:hover:not(:disabled) {
-  border-color: var(--mj-gold, #59c4e5);
-  color: var(--mj-gold, #59c4e5);
-  background: rgba(89, 196, 229, 0.1);
+  border-color: var(--mj-gold, #acdbdf);
+  color: var(--mj-gold, #acdbdf);
+  background: rgba(172, 219, 223, 0.1);
 }
 
 .main-panel--player .mj-player-gen-btn:disabled,
@@ -88,14 +88,14 @@
 .main-panel--player .mj-player-gen-hint {
   margin: 2px 0 0;
   font-size: 0.64rem;
-  color: var(--mj-muted, #6a9aaf);
+  color: var(--mj-muted, #9692af);
   text-align: center;
 }
 
 .main-panel--player .mj-player-gen-error {
   margin: 2px 0 0;
   font-size: 0.68rem;
-  color: #e697a5;
+  color: #b77083;
   text-align: center;
 }
 
@@ -112,7 +112,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(6, 15, 22, 0.35);
+  background: rgba(28, 34, 48, 0.35);
   color: var(--mj-muted);
   font-size: 0.78rem;
   user-select: none;
@@ -128,7 +128,7 @@
 .main-panel--player .mj-player-identity {
   margin: 12px 0 14px;
   padding-top: 8px;
-  border-top: 1px solid rgba(56, 166, 199, 0.25);
+  border-top: 1px solid rgba(150, 146, 175, 0.25);
 }
 
 .main-panel--player .mj-combat-stats {
@@ -168,15 +168,15 @@
   padding: 4px 10px;
   font-size: 0.78rem;
   border-radius: 6px;
-  border: 1px solid rgba(69, 185, 221, 0.55);
-  background: rgba(6, 15, 22, 0.4);
+  border: 1px solid rgba(150, 146, 175, 0.55);
+  background: rgba(28, 34, 48, 0.4);
   color: var(--mj-gold);
   cursor: pointer;
 }
 
 .main-panel--player .mj-major-breakthrough-btn:hover {
-  border-color: rgba(133, 216, 241, 0.85);
-  background: rgba(69, 185, 221, 0.12);
+  border-color: rgba(172, 219, 223, 0.85);
+  background: rgba(150, 146, 175, 0.12);
 }
 
 .main-panel--player .mj-resource-nums {
@@ -187,10 +187,10 @@
 
 .main-panel--player .mj-bar {
   height: 10px;
-  background: rgba(6, 15, 22, 0.45);
+  background: rgba(28, 34, 48, 0.45);
   border-radius: 5px;
   overflow: hidden;
-  border: 1px solid rgba(236, 246, 251, 0.08);
+  border: 1px solid rgba(215, 234, 234, 0.08);
 }
 
 .main-panel--player .mj-bar-fill {
@@ -200,15 +200,15 @@
 }
 
 .main-panel--player .mj-bar-fill--cultivation {
-  background: linear-gradient(90deg, rgba(43, 128, 154, 0.8), var(--mj-gold));
+  background: linear-gradient(90deg, rgba(150, 146, 175, 0.8), var(--mj-gold));
 }
 
 .main-panel--player .mj-bar-fill--hp {
-  background: linear-gradient(90deg, rgba(160, 46, 65, 0.8), rgba(207, 48, 75, 0.8));
+  background: linear-gradient(90deg, rgba(183, 112, 131, 0.8), rgba(183, 112, 131, 0.8));
 }
 
 .main-panel--player .mj-bar-fill--mp {
-  background: linear-gradient(90deg, rgba(25, 147, 199, 0.8), #50c1f2);
+  background: linear-gradient(90deg, rgba(150, 146, 175, 0.8), #acdbdf);
 }
 
 .main-panel--player .mj-attr-section-title {
@@ -249,7 +249,7 @@
   gap: 6px 12px;
   padding: 7px 0;
   font-size: var(--mj-player-content-font);
-  border-bottom: 1px solid rgba(236, 246, 251, 0.05);
+  border-bottom: 1px solid rgba(215, 234, 234, 0.05);
   align-items: start;
 }
 
@@ -282,9 +282,9 @@
   padding: 5px 10px;
   font-size: 0.75rem;
   line-height: 1.4;
-  color: var(--mj-text, #aedcea);
-  background: var(--mj-panel-bg, rgba(16, 39, 58, 0.72));
-  border: 1px solid rgba(89, 196, 229, 0.3);
+  color: var(--mj-text, #acdbdf);
+  background: var(--mj-panel-bg, rgba(34, 40, 57, 0.72));
+  border: 1px solid rgba(172, 219, 223, 0.3);
   border-radius: 4px;
   white-space: nowrap;
   pointer-events: none;
@@ -346,8 +346,8 @@
   justify-content: center;
   padding: 4px 3px;
   border-radius: 6px;
-  border: 1px solid rgba(56, 166, 199, 0.45);
-  background: rgba(6, 15, 22, 0.28);
+  border: 1px solid rgba(150, 146, 175, 0.45);
+  background: rgba(28, 34, 48, 0.28);
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -426,7 +426,7 @@
 .main-panel--player .mj-player-bag-stack {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid rgba(56, 166, 199, 0.22);
+  border-top: 1px solid rgba(150, 146, 175, 0.22);
 }
 
 .main-panel--player .mj-bag-grid-scroll {
@@ -457,9 +457,9 @@
 .main-panel--player .mj-inventory-slot {
   aspect-ratio: 1;
   min-height: 36px;
-  border: 1px dashed rgba(56, 166, 199, 0.4);
+  border: 1px dashed rgba(150, 146, 175, 0.4);
   border-radius: 6px;
-  background: rgba(6, 15, 22, 0.22);
+  background: rgba(28, 34, 48, 0.22);
 }
 
 .main-panel--player #mj-inventory-grid .mj-inventory-slot {
@@ -497,14 +497,14 @@
   color: var(--mj-gold-dim);
   line-height: 1;
   letter-spacing: 0.02em;
-  text-shadow: 0 1px 2px rgba(6, 15, 22, 0.9);
+  text-shadow: 0 1px 2px rgba(28, 34, 48, 0.9);
   pointer-events: none;
 }
 
 .main-panel--player #mj-inventory-grid .mj-inventory-slot--lingshi {
   border-style: solid;
-  border-color: rgba(81, 181, 211, 0.45);
-  background: rgba(89, 196, 229, 0.06);
+  border-color: rgba(150, 146, 175, 0.45);
+  background: rgba(172, 219, 223, 0.06);
 }
 
 .main-panel--player #mj-inventory-grid .mj-inventory-slot--lingshi .mj-inventory-slot-label {
@@ -569,11 +569,11 @@
 }
 
 .main-panel--player .mj-gongfa-grid .mj-gongfa-slot-type--support {
-  color: #7bc9b4;
+  color: #80bdb1;
 }
 
 .main-panel--player .mj-gongfa-grid .mj-gongfa-slot-type--attack {
-  color: #e1798b;
+  color: #b77083;
 }
 
 .main-panel--player .mj-gongfa-grid .mj-gongfa-slot-type--other {
@@ -601,7 +601,7 @@
 .main-panel--player .mj-treasure-grid .mj-inventory-slot.mj-treasure-slot--filled:focus-visible,
 .main-panel--player .mj-inventory-slot.mj-gongfa-slot--filled:focus-visible,
 .main-panel--player .mj-inventory-grid:not(.mj-gongfa-grid) .mj-inventory-slot--filled:focus-visible {
-  outline: 2px solid var(--mj-gold, #59c4e5);
+  outline: 2px solid var(--mj-gold, #acdbdf);
   outline-offset: 1px;
 }
 
@@ -611,18 +611,18 @@
   bottom: 2px;
   right: 2px;
   font-size: 0.65rem;
-  color: var(--mj-gold-dim, #36acd0);
+  color: var(--mj-gold-dim, #9692af);
   opacity: 0.85;
 }
 
 /* 寿元警告 */
 .main-panel--player .mj-stat-v--danger {
-  color: #df4e66;
+  color: #b77083;
   font-weight: bold;
 }
 
 .main-panel--player .mj-stat-v--warning {
-  color: #38bde5;
+  color: #9692af;
 }
 
 /* 修炼速度小字 */

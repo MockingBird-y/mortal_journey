@@ -19,7 +19,7 @@
 .mj-protagonist-detail-root .mj-trait-modal-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(6, 15, 22, 0.55);
+  background: rgba(28, 34, 48, 0.55);
   cursor: pointer;
 }
 
@@ -32,10 +32,10 @@
   overflow: auto;
   padding: 18px 20px 16px;
   border-radius: 12px;
-  border: 1px solid var(--mj-border, rgba(56, 166, 199, 0.45));
-  background: linear-gradient(180deg, rgba(15, 38, 56, 0.8), rgba(11, 28, 42, 0.8));
-  box-shadow: 0 16px 48px rgba(6, 15, 22, 0.5);
-  color: var(--mj-text, #c4e4ee);
+  border: 1px solid var(--mj-border, rgba(150, 146, 175, 0.45));
+  background: linear-gradient(180deg, rgba(34, 40, 56, 0.8), rgba(31, 37, 53, 0.8));
+  box-shadow: 0 16px 48px rgba(28, 34, 48, 0.5);
+  color: var(--mj-text, #d7eaea);
 }
 
 .mj-protagonist-detail-root .mj-trait-modal-close {
@@ -46,36 +46,36 @@
   height: 32px;
   border: none;
   border-radius: 8px;
-  background: rgba(236, 246, 251, 0.06);
-  color: var(--mj-muted, #6a9aaf);
+  background: rgba(215, 234, 234, 0.06);
+  color: var(--mj-muted, #9692af);
   font-size: 1.35rem;
   line-height: 1;
   cursor: pointer;
 }
 
 .mj-protagonist-detail-root .mj-trait-modal-close:hover {
-  color: var(--mj-text, #c4e4ee);
-  background: rgba(236, 246, 251, 0.1);
+  color: var(--mj-text, #d7eaea);
+  background: rgba(215, 234, 234, 0.1);
 }
 
 .mj-protagonist-detail-root .mj-trait-modal-title {
   margin: 0 36px 6px 0;
   font-size: 1.05rem;
   font-weight: 600;
-  color: var(--mj-gold, #59c4e5);
+  color: var(--mj-gold, #acdbdf);
   line-height: 1.35;
 }
 
 .mj-protagonist-detail-root .mj-trait-modal-rarity {
   font-size: 0.78rem;
-  color: var(--mj-gold-dim, #47b3d4);
+  color: var(--mj-gold-dim, #9692af);
   margin-bottom: 12px;
 }
 
 .mj-protagonist-detail-root .mj-trait-modal-body {
   font-size: 0.84rem;
   line-height: 1.55;
-  color: var(--mj-text, #c4e4ee);
+  color: var(--mj-text, #d7eaea);
 }
 
 .mj-protagonist-detail-root .mj-trait-modal-body--grid {
@@ -103,7 +103,7 @@
 .mj-protagonist-detail-root .mj-trait-modal-k {
   display: block;
   font-size: 0.72rem;
-  color: var(--mj-muted, #6a9aaf);
+  color: var(--mj-muted, #9692af);
   letter-spacing: 0.06em;
   margin-bottom: 4px;
 }
@@ -117,7 +117,7 @@
   border-color: var(--mj-rarity-active);
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--mj-rarity-active) 40%, transparent),
-    0 16px 48px rgba(6, 15, 22, 0.55),
+    0 16px 48px rgba(28, 34, 48, 0.55),
     0 0 36px color-mix(in srgb, var(--mj-rarity-active) 20%, transparent);
 }
 .mj-protagonist-detail-root .mj-trait-modal[data-rarity] .mj-trait-modal-title {
@@ -131,7 +131,7 @@
   gap: 8px;
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px solid rgba(236, 246, 251, 0.08);
+  border-top: 1px solid rgba(215, 234, 234, 0.08);
 }
 
 .mj-protagonist-detail-root .mj-item-detail-action-btn {
@@ -140,25 +140,25 @@
   padding: 8px 12px;
   font-size: 0.85rem;
   border-radius: 6px;
-  border: 1px solid rgba(236, 246, 251, 0.2);
-  background: rgba(6, 15, 22, 0.35);
-  color: var(--mj-text, #c4e4ee);
+  border: 1px solid rgba(215, 234, 234, 0.2);
+  background: rgba(28, 34, 48, 0.35);
+  color: var(--mj-text, #d7eaea);
   cursor: pointer;
 }
 
 .mj-protagonist-detail-root .mj-item-detail-action-btn:hover {
-  border-color: rgba(236, 246, 251, 0.35);
-  background: rgba(236, 246, 251, 0.06);
+  border-color: rgba(215, 234, 234, 0.35);
+  background: rgba(215, 234, 234, 0.06);
 }
 
 .mj-protagonist-detail-root .mj-item-detail-action-btn--primary {
-  border-color: rgba(123, 201, 180, 0.55);
-  background: rgba(123, 201, 180, 0.12);
+  border-color: rgba(128, 189, 177, 0.55);
+  background: rgba(128, 189, 177, 0.12);
 }
 
 .mj-protagonist-detail-root .mj-item-detail-action-btn--primary:hover {
-  border-color: rgba(123, 201, 180, 0.85);
-  background: rgba(123, 201, 180, 0.2);
+  border-color: rgba(128, 189, 177, 0.85);
+  background: rgba(128, 189, 177, 0.2);
 }
 
 /* 灵石修炼：与 mortal_journey `main.css` `.mj-item-detail-cultivate-*` 一致 */
@@ -169,7 +169,7 @@
   gap: 10px;
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px solid rgba(236, 246, 251, 0.08);
+  border-top: 1px solid rgba(215, 234, 234, 0.08);
 }
 
 .mj-protagonist-detail-root .mj-item-detail-cultivate-field {
@@ -182,7 +182,7 @@
 
 .mj-protagonist-detail-root .mj-item-detail-cultivate-label {
   font-size: 0.78rem;
-  color: var(--mj-muted, #6a9aaf);
+  color: var(--mj-muted, #9692af);
   white-space: nowrap;
 }
 
@@ -193,14 +193,14 @@
   padding: 6px 8px;
   font-size: 0.85rem;
   border-radius: 6px;
-  border: 1px solid rgba(236, 246, 251, 0.2);
-  background: rgba(6, 15, 22, 0.35);
-  color: var(--mj-text, #c4e4ee);
+  border: 1px solid rgba(215, 234, 234, 0.2);
+  background: rgba(28, 34, 48, 0.35);
+  color: var(--mj-text, #d7eaea);
 }
 
 .mj-protagonist-detail-root .mj-item-detail-cultivate-input:focus {
   outline: none;
-  border-color: rgba(123, 201, 180, 0.55);
+  border-color: rgba(128, 189, 177, 0.55);
 }
 
 .mj-protagonist-detail-root .mj-item-detail-actions--stack {
@@ -208,7 +208,7 @@
   align-items: stretch;
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid rgba(236, 246, 251, 0.08);
+  border-top: 1px solid rgba(215, 234, 234, 0.08);
 }
 
 .mj-protagonist-detail-root .mj-item-detail-actions--stack .mj-item-detail-action-btn {
@@ -219,7 +219,7 @@
 .mj-protagonist-detail-root .mj-item-detail-use-elixir {
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px solid rgba(236, 246, 251, 0.08);
+  border-top: 1px solid rgba(215, 234, 234, 0.08);
 }
 
 .mj-protagonist-detail-root .mj-item-detail-actions + .mj-item-detail-use-elixir {
@@ -250,7 +250,7 @@
   justify-content: center;
   padding: 16px;
   box-sizing: border-box;
-  background: rgba(6, 15, 22, 0.5);
+  background: rgba(28, 34, 48, 0.5);
   cursor: pointer;
 }
 
@@ -261,10 +261,10 @@
   max-width: 320px;
   padding: 16px 18px 14px;
   border-radius: 12px;
-  border: 1px solid var(--mj-border, rgba(56, 166, 199, 0.45));
-  background: linear-gradient(180deg, rgba(15, 38, 56, 0.8), rgba(11, 28, 42, 0.8));
-  box-shadow: 0 16px 48px rgba(6, 15, 22, 0.55);
-  color: var(--mj-text, #c4e4ee);
+  border: 1px solid var(--mj-border, rgba(150, 146, 175, 0.45));
+  background: linear-gradient(180deg, rgba(34, 40, 56, 0.8), rgba(31, 37, 53, 0.8));
+  box-shadow: 0 16px 48px rgba(28, 34, 48, 0.55);
+  color: var(--mj-text, #d7eaea);
   cursor: default;
 }
 
@@ -272,7 +272,7 @@
   margin: 0 0 12px;
   font-size: 0.95rem;
   font-weight: 600;
-  color: var(--mj-gold, #59c4e5);
+  color: var(--mj-gold, #acdbdf);
 }
 
 .mj-sell-confirm-field {
@@ -284,7 +284,7 @@
 
 .mj-sell-confirm-label {
   font-size: 0.78rem;
-  color: var(--mj-muted, #6a9aaf);
+  color: var(--mj-muted, #9692af);
   white-space: nowrap;
 }
 
@@ -294,24 +294,24 @@
   padding: 8px 10px;
   font-size: 0.85rem;
   border-radius: 6px;
-  border: 1px solid rgba(236, 246, 251, 0.2);
-  background: rgba(6, 15, 22, 0.35);
-  color: var(--mj-text, #c4e4ee);
+  border: 1px solid rgba(215, 234, 234, 0.2);
+  background: rgba(28, 34, 48, 0.35);
+  color: var(--mj-text, #d7eaea);
 }
 
 .mj-sell-confirm-input:focus {
   outline: none;
-  border-color: rgba(123, 201, 180, 0.55);
+  border-color: rgba(128, 189, 177, 0.55);
 }
 
 .mj-sell-confirm-price {
   margin-bottom: 14px;
   font-size: 0.82rem;
-  color: var(--mj-muted, #6a9aaf);
+  color: var(--mj-muted, #9692af);
 }
 
 .mj-sell-confirm-price strong {
-  color: var(--mj-gold, #59c4e5);
+  color: var(--mj-gold, #acdbdf);
   font-weight: 600;
 }
 
@@ -330,14 +330,14 @@
 /* 大境界突破弹窗（与 mortal_journey `main.css` `.mj-major-break-*` 对齐，根节点同详情弹窗 Teleport） */
 .mj-protagonist-detail-root .mj-major-break-modal .mj-major-break-subtitle {
   font-size: 0.88rem;
-  color: var(--mj-muted, #6a9aaf);
+  color: var(--mj-muted, #9692af);
   margin-bottom: 10px;
   text-align: center;
 }
 
 .mj-protagonist-detail-root .mj-major-break-modal .mj-major-break-chance {
   font-size: 1rem;
-  color: var(--mj-gold, #59c4e5);
+  color: var(--mj-gold, #acdbdf);
   text-align: center;
   margin-bottom: 14px;
   font-variant-numeric: tabular-nums;
@@ -356,9 +356,9 @@
   min-height: 64px;
   padding: 6px 4px;
   border-radius: 6px;
-  border: 1px solid rgba(56, 166, 199, 0.45);
-  background: rgba(6, 15, 22, 0.35);
-  color: var(--mj-text, #c4e4ee);
+  border: 1px solid rgba(150, 146, 175, 0.45);
+  background: rgba(28, 34, 48, 0.35);
+  color: var(--mj-text, #d7eaea);
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -369,16 +369,16 @@
 }
 
 .mj-protagonist-detail-root .mj-major-break-slot:hover {
-  border-color: rgba(69, 185, 221, 0.55);
+  border-color: rgba(150, 146, 175, 0.55);
 }
 
 .mj-protagonist-detail-root .mj-major-break-slot--filled {
-  border-color: rgba(123, 201, 180, 0.45);
+  border-color: rgba(128, 189, 177, 0.45);
 }
 
 .mj-protagonist-detail-root .mj-major-break-slot-k {
   font-size: 0.65rem;
-  color: var(--mj-muted, #6a9aaf);
+  color: var(--mj-muted, #9692af);
 }
 
 .mj-protagonist-detail-root .mj-major-break-slot-name {
@@ -393,13 +393,13 @@
   margin-bottom: 12px;
   padding: 10px;
   border-radius: 6px;
-  border: 1px solid rgba(236, 246, 251, 0.1);
-  background: rgba(6, 15, 22, 0.25);
+  border: 1px solid rgba(215, 234, 234, 0.1);
+  background: rgba(28, 34, 48, 0.25);
 }
 
 .mj-protagonist-detail-root .mj-major-break-pick-hint {
   font-size: 0.78rem;
-  color: var(--mj-muted, #6a9aaf);
+  color: var(--mj-muted, #9692af);
   margin-bottom: 8px;
 }
 
@@ -411,19 +411,19 @@
   font-size: 0.8rem;
   text-align: left;
   border-radius: 4px;
-  border: 1px solid rgba(236, 246, 251, 0.15);
-  background: rgba(6, 15, 22, 0.35);
-  color: var(--mj-text, #c4e4ee);
+  border: 1px solid rgba(215, 234, 234, 0.15);
+  background: rgba(28, 34, 48, 0.35);
+  color: var(--mj-text, #d7eaea);
   cursor: pointer;
 }
 
 .mj-protagonist-detail-root .mj-major-break-pick-btn:hover {
-  border-color: rgba(69, 185, 221, 0.45);
+  border-color: rgba(150, 146, 175, 0.45);
 }
 
 .mj-protagonist-detail-root .mj-major-break-pick-empty {
   font-size: 0.8rem;
-  color: var(--mj-muted, #6a9aaf);
+  color: var(--mj-muted, #9692af);
 }
 
 .mj-protagonist-detail-root .mj-major-break-confirm {
@@ -443,7 +443,7 @@
 
 .mj-protagonist-detail-root .mj-mastery-exp {
   text-align: right;
-  color: rgba(236, 246, 251, 0.6);
+  color: rgba(215, 234, 234, 0.6);
 }
 
 .mj-protagonist-detail-root .mj-mastery-progress {
@@ -456,27 +456,27 @@
 .mj-protagonist-detail-root .mj-mastery-progress-bar {
   flex: 1;
   height: 8px;
-  background: rgba(236, 246, 251, 0.1);
+  background: rgba(215, 234, 234, 0.1);
   border-radius: 4px;
   overflow: hidden;
 }
 
 .mj-protagonist-detail-root .mj-mastery-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #4cc4f8, #5ea1f8);
+  background: linear-gradient(90deg, #acdbdf, #acdbdf);
   border-radius: 4px;
   transition: width 0.3s ease;
 }
 
 .mj-protagonist-detail-root .mj-mastery-progress-pct {
   font-size: 12px;
-  color: rgba(236, 246, 251, 0.6);
+  color: rgba(215, 234, 234, 0.6);
   min-width: 32px;
   text-align: right;
 }
 
 /* Ice glass surface enhancement: visual properties only. */
 .mj-protagonist-detail-root .mj-trait-modal {
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(114%);
+  -webkit-backdrop-filter: blur(20px) saturate(114%);
 }

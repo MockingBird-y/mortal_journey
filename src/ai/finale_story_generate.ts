@@ -9,6 +9,7 @@ import type { ProtagonistPlayInfo } from "../role_core/types/playInfo";
 import type { StoryChatEntry } from "./story_generate";
 import { matchWorldLore } from "./worldLore";
 import { formatWorldLocationDash } from "../role_core/types/worldLocation";
+import { originTagLines } from "../fate_choice/types";
 
 export interface FinaleStoryInput {
   apiUrl: string;
@@ -89,6 +90,7 @@ function buildFinaleUserContent(input: FinaleStoryInput): string {
     "【主角生平】",
     `姓名：${p.displayName}`,
     `性别：${p.gender || "—"}`,
+    ...originTagLines(p.race ?? "", p.faction ?? ""),
     `境界：${p.realm.major}${p.realm.minor}${p.realmComplete ? "·圆满" : ""}`,
     `灵根：${linggenText}`,
     `享年：${p.age}岁（寿元上限${p.shouyuan}岁）`,

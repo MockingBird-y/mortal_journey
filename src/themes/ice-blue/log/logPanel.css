@@ -14,11 +14,11 @@
   font-family: "Consolas", "Cascadia Mono", "Noto Sans SC", monospace;
   font-size: 12px;
   line-height: 1.45;
-  color: #c4e4ee;
-  background: rgba(10, 25, 37, 0.72);
-  border: 1px solid rgba(89, 188, 219, 0.45);
+  color: #d7eaea;
+  background: rgba(31, 36, 52, 0.72);
+  border: 1px solid rgba(172, 219, 223, 0.45);
   border-radius: 6px;
-  box-shadow: 0 8px 28px rgba(6, 15, 22, 0.55);
+  box-shadow: 0 8px 28px rgba(28, 34, 48, 0.55);
   overflow: hidden;
   pointer-events: auto;
 }
@@ -33,8 +33,8 @@
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  background: rgba(6, 15, 22, 0.35);
-  border-bottom: 1px solid rgba(89, 188, 219, 0.25);
+  background: rgba(28, 34, 48, 0.35);
+  border-bottom: 1px solid rgba(172, 219, 223, 0.25);
   cursor: pointer;
   user-select: none;
   flex-shrink: 0;
@@ -44,13 +44,13 @@
   flex: 1;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: #59c4e5;
+  color: #acdbdf;
 }
 
 #mj-log-toggle {
   border: none;
   background: transparent;
-  color: #59c4e5;
+  color: #acdbdf;
   font-size: 14px;
   cursor: pointer;
   padding: 2px 6px;
@@ -62,7 +62,7 @@
   flex-wrap: wrap;
   gap: 6px;
   padding: 6px 8px;
-  border-bottom: 1px solid rgba(236, 246, 251, 0.08);
+  border-bottom: 1px solid rgba(215, 234, 234, 0.08);
   flex-shrink: 0;
 }
 
@@ -70,22 +70,22 @@
   font-size: 11px;
   padding: 4px 8px;
   border-radius: 4px;
-  border: 1px solid rgba(89, 188, 219, 0.4);
-  background: rgba(6, 15, 22, 0.35);
-  color: #9ed9ec;
+  border: 1px solid rgba(172, 219, 223, 0.4);
+  background: rgba(28, 34, 48, 0.35);
+  color: #acdbdf;
   cursor: pointer;
 }
 
 #mj-log-toolbar button:hover {
-  border-color: rgba(154, 223, 244, 0.65);
-  color: #ceeffa;
+  border-color: rgba(172, 219, 223, 0.65);
+  color: #d7eaea;
 }
 
 #mj-log-toolbar label {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #94b6c5;
+  color: #acdbdf;
   font-size: 11px;
   cursor: pointer;
 }
@@ -106,7 +106,7 @@
 .mj-log-line {
   margin: 0 0 4px;
   padding: 2px 0;
-  border-bottom: 1px solid rgba(236, 246, 251, 0.04);
+  border-bottom: 1px solid rgba(215, 234, 234, 0.04);
 }
 
 .mj-log-line:last-child {
@@ -114,7 +114,7 @@
 }
 
 .mj-log-time {
-  color: #6dad9c;
+  color: #80bdb1;
   margin-right: 6px;
 }
 
@@ -127,23 +127,23 @@
 
 .mj-log-level--log,
 .mj-log-level--info {
-  color: #83c8e6;
+  color: #acdbdf;
 }
 
 .mj-log-level--debug {
-  color: #7fa8ba;
+  color: #acdbdf;
 }
 
 .mj-log-level--warn {
-  color: #67ceee;
+  color: #acdbdf;
 }
 
 .mj-log-level--error {
-  color: #eb9aa8;
+  color: #b77083;
 }
 
 .mj-log-msg {
-  color: #c4e4ee;
+  color: #d7eaea;
   white-space: pre-wrap;
 }
 
@@ -152,23 +152,23 @@
 }
 
 .mj-log-ai-toggle {
-  color: #83c8e6;
+  color: #acdbdf;
   font-weight: 600;
   user-select: none;
 }
 
 .mj-log-ai-toggle:hover {
-  color: #a7e2fb;
+  color: #d7eaea;
 }
 
 .mj-log-ai-content {
-  color: #a9c5d1;
+  color: #acdbdf;
   white-space: pre-wrap;
   margin-top: 4px;
   padding: 6px 8px;
-  background: rgba(6, 15, 22, 0.3);
+  background: rgba(28, 34, 48, 0.3);
   border-radius: 4px;
-  border: 1px solid rgba(236, 246, 251, 0.06);
+  border: 1px solid rgba(215, 234, 234, 0.06);
   font-size: 11px;
   line-height: 1.4;
   max-height: 300px;
@@ -177,7 +177,7 @@
 }
 
 .mj-log-line--ai-expanded {
-  border-bottom: 1px solid rgba(131, 200, 230, 0.15) !important;
+  border-bottom: 1px solid rgba(172, 219, 223, 0.15) !important;
 }
 
 @media (max-width: 480px) {
@@ -191,6 +191,6 @@
 
 /* Ice glass surface enhancement: visual properties only. */
 #mj-log-panel {
-  backdrop-filter: blur(18px) saturate(135%);
-  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  backdrop-filter: blur(18px) saturate(112%);
+  -webkit-backdrop-filter: blur(18px) saturate(112%);
 }

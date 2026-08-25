@@ -6,6 +6,7 @@ import { Protagonist } from "../role_core/Protagonist";
 import { describeNextBreakthrough } from "../role_core/realmUtils";
 import type { ProtagonistPlayInfo, NarrationPerson, EquippedSlotsState, GongfaSlotsState, InventoryStackItem } from "../role_core/types/playInfo";
 import { formatWorldLocationDash } from "../role_core/types/worldLocation";
+import { originTagLines } from "../fate_choice/types";
 
 export interface StoryChatEntry {
   role: "user" | "assistant";
@@ -137,6 +138,7 @@ function buildStoryUserContent(p: ProtagonistPlayInfo, sceneNpcSnapshot?: string
     "",
     `姓名：${p.displayName}`,
     `性别：${p.gender || "—"}`,
+    ...originTagLines(p.race ?? "", p.faction ?? ""),
     narrationPersonLine(p.narrationPerson),
     `境界：${Protagonist.formatRealm(p.realm)}${p.realmComplete ? "·圆满" : ""}`,
     `修为状态：${p.realmComplete ? describeNextBreakthrough(p.realm.major, p.realm.minor) : "修为未圆满"}`,

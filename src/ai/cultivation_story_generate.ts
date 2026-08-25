@@ -10,6 +10,7 @@ import type { StoryChatEntry } from "./story_generate";
 import { matchWorldLore } from "./worldLore";
 import { formatWorldLocationDash } from "../role_core/types/worldLocation";
 import type { WorldLocation } from "../role_core/types/worldLocation";
+import { originTagLines } from "../fate_choice/types";
 
 export interface CultivationStoryInput {
   apiUrl: string;
@@ -127,6 +128,7 @@ function buildCultivationUserContent(input: CultivationStoryInput): string {
     "【主角状态】",
     `姓名：${p.displayName}`,
     `性别：${p.gender || "—"}`,
+    ...originTagLines(p.race ?? "", p.faction ?? ""),
     `境界：${p.realm.major}${p.realm.minor}${p.realmComplete ? "·圆满" : ""}`,
     `修为状态：${p.realmComplete ? "修为已圆满" : "修为未圆满"}`,
     `灵根：${(p as { linggen?: string[] }).linggen?.join("") || "无"}`,

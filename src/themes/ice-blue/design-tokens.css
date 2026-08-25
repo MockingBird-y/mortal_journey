@@ -2,33 +2,33 @@
  * Layout, sizing, spacing, positioning, and typography are preserved.
  */
 :root {
-  --mj-gold: #9be7ff;
-  --mj-gold-dim: #62c7ed;
-  --mj-gold-glow: rgba(116, 215, 255, 0.42);
+  --mj-gold: #ACDBDF;
+  --mj-gold-dim: #9692AF;
+  --mj-gold-glow: rgba(172, 219, 223, 0.28);
 
-  --mj-fg: #effbff;
-  --mj-text: #d9f3fc;
-  --mj-muted: #86adbd;
+  --mj-fg: #EFF4F4;
+  --mj-text: #D7EAEA;
+  --mj-muted: #A9A7B8;
 
-  --mj-bg-deep: #04131f;
-  --mj-bg: #071b2a;
-  --mj-surface: rgba(13, 43, 62, 0.7);
-  --mj-panel-bg: rgba(18, 57, 79, 0.68);
-  --mj-chat-bg: rgba(7, 31, 48, 0.54);
+  --mj-bg-deep: #23293A;
+  --mj-bg: #2B3348;
+  --mj-surface: rgba(105, 119, 155, 0.44);
+  --mj-panel-bg: rgba(105, 119, 155, 0.54);
+  --mj-chat-bg: rgba(43, 51, 72, 0.6);
 
-  --mj-border: rgba(143, 222, 255, 0.42);
-  --mj-border-subtle: rgba(143, 222, 255, 0.2);
+  --mj-border: rgba(172, 219, 223, 0.34);
+  --mj-border-subtle: rgba(215, 234, 234, 0.16);
 
-  --mj-form-bg: rgba(5, 28, 44, 0.68);
-  --mj-form-border: rgba(125, 202, 232, 0.46);
-  --mj-form-text: #c8e9f5;
+  --mj-form-bg: rgba(47, 55, 76, 0.72);
+  --mj-form-border: rgba(150, 146, 175, 0.48);
+  --mj-form-text: #D7EAEA;
 
-  --mj-rarity-mundane: #829eaa;
-  --mj-rarity-common: #67d5ba;
-  --mj-rarity-rare: #65d9ff;
-  --mj-rarity-epic: #aaa8ff;
-  --mj-rarity-legendary: #9be7ff;
-  --mj-rarity-mythic: #ff8da3;
+  --mj-rarity-mundane: #9692AF;
+  --mj-rarity-common: #8EB9AA;
+  --mj-rarity-rare: #ACDBDF;
+  --mj-rarity-epic: #B1A9C5;
+  --mj-rarity-legendary: #D7EAEA;
+  --mj-rarity-mythic: #C78391;
 
   --mj-font-body: "Noto Sans SC", "Source Han Sans SC", sans-serif;
   --mj-font-title: "Ma Shan Zheng", "Long Cang", serif;
