@@ -439,6 +439,8 @@ export interface BattleResult {
   protagonistMpPercent: number;
   elixirsUsed: { name: string; count: number }[];
   enemiesKilled: string[];
+  /** 非致命模式下被打倒但未击杀的敌人；与 `enemiesKilled` 互斥（同一场战斗只会有一边非空）。 */
+  enemiesSpared: string[];
   triggerReason: string;
   allyNames: string[];
   enemyNames: string[];

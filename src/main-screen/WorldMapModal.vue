@@ -110,11 +110,12 @@ const selectedFullLocation = computed<WorldLocation | null>(() => {
 });
 
 // 直接查 npcStore 按 currentLocation 过滤——单一数据源，避免与 locationNpcMap 不同步。
+// 已死亡的 NPC 不再列入场景——尸体不算"在场者"。
 const npcEntries = computed(() => {
   const loc = selectedFullLocation.value;
   if (!loc) return [];
   return npcStore.allNpcs()
-    .filter(n => n.currentLocation && isWorldLocationEqual(n.currentLocation, loc))
+    .filter(n => !n.isDead && n.currentLocation && isWorldLocationEqual(n.currentLocation, loc))
     .map(npc => ({ npc, name: npc.displayName }));
 });
 

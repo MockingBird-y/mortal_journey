@@ -157,7 +157,9 @@ function buildChatHistory(): StoryChatEntry[] {
 }
 
 /** 滚动大总结：待总结区达阈值时，把旧快照压缩进约 1000 字总纲。 */
+/** 触发间隔：待总结区攒够这么多条 story 就压缩一次（即每 N 轮触发一次）。 */
 const GRAND_SUMMARY_THRESHOLD = 30;
+/** 压缩后保留的近期 story 条数——这些仍以全文进入 AI 上下文，不受阈值影响。 */
 const GRAND_SUMMARY_KEEP_RECENT = 30;
 
 async function maybeGenerateGrandSummary(
@@ -172,7 +174,9 @@ async function maybeGenerateGrandSummary(
     if (msgs[i].type === "story") storyIndices.push(i);
   }
   // story 总数不足「保留窗口 + 触发阈值」时无需总结。
-  if (storyIndices.length <= GRAND_SUMMARY_KEEP_RECENT + GRAND_SUMMARY_THRESHOLD) return;
+  // 用 < 而非 <=，与下方 `toSummarize.length < THRESHOLD` 口径一致——
+  // 否则实际间隔会比阈值多一轮。
+  if (storyIndices.length < GRAND_SUMMARY_KEEP_RECENT + GRAND_SUMMARY_THRESHOLD) return;
 
   const upTo = grandSummaryUpTo.value;
   // 最近 KEEP_RECENT 条 story 的起始索引：其之前、尚未被总结的 story 构成待总结区。
@@ -828,6 +832,10 @@ function formatBattleResultMessage(r: BattleResult): string {
 
   if (r.enemiesKilled.length > 0) {
     parts.push(`${r.enemiesKilled.join("、")}已被击杀。`);
+  }
+
+  if (r.enemiesSpared.length > 0) {
+    parts.push(`${r.enemiesSpared.join("、")}已被击败，但未被击杀。`);
   }
 
   if (r.protagonistDied) {

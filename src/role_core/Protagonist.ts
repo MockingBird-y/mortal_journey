@@ -5,8 +5,9 @@
  * 继承自 `Character` 基类，主角特有字段：修为/叙事人称/出身/天赋。
  */
 
-import { ref, triggerRef, type Ref } from "vue";import type { FateChoiceResult } from "../fate_choice/types";
-import { resolveTraitEffect, type TraitEffect } from "../fate_choice/traitEffect";
+import { ref, triggerRef, type Ref } from "vue";
+import type { FateChoiceResult } from "../fate_choice/types";
+import { resolveTraitEffect, toTraitEffectList, type TraitEffect, type TraitEffectSpec } from "../fate_choice/traitEffect";
 import { CREATION_FACTIONS, CREATION_RACES } from "../fate_choice/types";
 import type {
   CategorizedItemDefinition,
@@ -70,6 +71,15 @@ import {
   purgeExpiredTimedBuffs,
   type TimedBuff,
 } from "./timedBuff";
+import {
+  CHARM_MAX,
+  CHARM_MIN,
+  FAME_MAX,
+  FAME_MIN,
+  clampRoleplayStat,
+  normalizeRoleplayDesc,
+  type RoleplayStatChange,
+} from "./roleplayStats";
 import { storyStore } from "./storyStore";
 import {
   normalizeCraftSkills,
@@ -176,6 +186,14 @@ export class Protagonist extends Character {
   craftSkills: CraftSkillState;
   /** 限时增益（餐食等）：按世界时间到期的主属性百分比增减。 */
   timedBuffs: TimedBuff[];
+  /** 魅力：扮演向软属性，不参与任何战斗结算。档位名由 `charmTierLabel` 查表得出。 */
+  charm: number;
+  /** 魅力的具体描述，由 AI 逐轮改写。 */
+  charmDesc: string;
+  /** 名声：扮演向软属性，不参与任何战斗结算；负值为恶名。 */
+  fame: number;
+  /** 名声的具体描述，由 AI 逐轮改写。 */
+  fameDesc: string;
 
   /**
    * 从 `ProtagonistPlayInfo` 数据对象构造实例。
@@ -202,6 +220,29 @@ export class Protagonist extends Character {
     }
     this.craftSkills = normalizeCraftSkills(data.craftSkills);
     this.timedBuffs = normalizeTimedBuffs(data.timedBuffs);
+    this.charm = clampRoleplayStat(data.charm ?? 0, CHARM_MIN, CHARM_MAX);
+    this.charmDesc = normalizeRoleplayDesc(data.charmDesc);
+    this.fame = clampRoleplayStat(data.fame ?? 0, FAME_MIN, FAME_MAX);
+    this.fameDesc = normalizeRoleplayDesc(data.fameDesc);
+  }
+
+  /**
+   * 应用 AI 给出的魅力/名声增量与描述改写。
+   * 数值走增量（防止 AI 直接写绝对值导致通胀），描述给了就整句替换。
+   *
+   * @param change 已解析的扮演属性变更；字段均为可选。
+   */
+  applyRoleplayStatChanges(change: RoleplayStatChange): void {
+    if (typeof change.charmChange === "number" && change.charmChange !== 0) {
+      this.charm = clampRoleplayStat(this.charm + change.charmChange, CHARM_MIN, CHARM_MAX);
+    }
+    if (typeof change.fameChange === "number" && change.fameChange !== 0) {
+      this.fame = clampRoleplayStat(this.fame + change.fameChange, FAME_MIN, FAME_MAX);
+    }
+    const cd = normalizeRoleplayDesc(change.charmDesc);
+    if (cd) this.charmDesc = cd;
+    const fd = normalizeRoleplayDesc(change.fameDesc);
+    if (fd) this.fameDesc = fd;
   }
 
   // ── 立绘候选池管理 ─────────────────────────────────────────────────────
@@ -872,6 +913,22 @@ export class Protagonist extends Character {
     return this.shouyuan <= 0;
   }
 
+  /**
+   * 给所有已装备功法（含被动）统一增加熟练度经验。
+   *
+   * 按槽位逐个发放，同名功法装在两个槽位时两份都涨；用于战斗结算等
+   * "不区分具体用了哪门功法"的场景。
+   */
+  addMasteryExpToAllGongfa(expIncrease: number): void {
+    if (expIncrease <= 0) return;
+    for (const slot of this.gongfaSlots) {
+      if (slot) addGongfaMasteryExp(slot, expIncrease);
+    }
+    // 熟练度提升会改变功法 bonus × 熟练度倍率，进而影响主属性与 HP/MP 上限，需重算。
+    this.recomputeMaxHpMpAndClamp();
+    Protagonist.notifyChanged();
+  }
+
   applyGongfaMasteryExpChanges(changes: Array<{ gongfaName: string; masteryExpIncrease: number }>): void {
     for (const change of changes) {
       for (const slot of this.gongfaSlots) {
@@ -950,13 +1007,11 @@ export class Protagonist extends Character {
   applyTraitEffects(): void {
     for (const t of this.traits) {
       if (typeof t === "string") continue;
-      if (t.effect) this.settleOriginEffect(t.effect);
+      for (const e of toTraitEffectList(t.effect)) this.settleOriginEffect(e);
     }
     // 种族/阵营与天赋共用同一套效果结构，同批一次性结算（条目未写 effect 时跳过）。
-    const raceEffect = CREATION_RACES[this.race]?.effect;
-    if (raceEffect) this.settleOriginEffect(raceEffect);
-    const factionEffect = CREATION_FACTIONS[this.faction]?.effect;
-    if (factionEffect) this.settleOriginEffect(factionEffect);
+    for (const e of toTraitEffectList(CREATION_RACES[this.race]?.effect)) this.settleOriginEffect(e);
+    for (const e of toTraitEffectList(CREATION_FACTIONS[this.faction]?.effect)) this.settleOriginEffect(e);
 
     this.recomputeMaxHpMpAndClamp();
     Protagonist.notifyChanged();
@@ -976,6 +1031,13 @@ export class Protagonist extends Character {
       if (typeof v === "number" && Number.isFinite(v) && v !== 0) {
         this.elixirBonuses[k] = (this.elixirBonuses[k] ?? 0) + v;
       }
+    }
+    // 扮演属性走各自量表，不进 elixirBonuses——它们不是主属性，也不影响战斗。
+    if (r.roleplayBonus.charm !== 0) {
+      this.charm = clampRoleplayStat(this.charm + r.roleplayBonus.charm, CHARM_MIN, CHARM_MAX);
+    }
+    if (r.roleplayBonus.fame !== 0) {
+      this.fame = clampRoleplayStat(this.fame + r.roleplayBonus.fame, FAME_MIN, FAME_MAX);
     }
   }
 
@@ -1011,6 +1073,9 @@ export class Protagonist extends Character {
           const totalMasteryExp = state.userState.gongfaMasteryChanges
             .reduce((sum, c) => sum + c.masteryExpIncrease, 0);
           this.addXiuwei(totalMasteryExp);
+        }
+        if (state.userState.roleplayStats) {
+          this.applyRoleplayStatChanges(state.userState.roleplayStats);
         }
       }
     } catch (e) {
@@ -1148,6 +1213,10 @@ export class Protagonist extends Character {
       avatarCandidates: [...this.avatarCandidates],
       craftSkills: { ...this.craftSkills },
       timedBuffs: this.timedBuffs.map((b) => ({ ...b, statPercents: { ...b.statPercents } })),
+      charm: this.charm,
+      charmDesc: this.charmDesc,
+      fame: this.fame,
+      fameDesc: this.fameDesc,
     };
   }
 
@@ -1289,6 +1358,13 @@ export class Protagonist extends Character {
       realmComplete: o.realmComplete === true,
       breakthroughStatus: Protagonist.normalizeBreakthroughStatus(o.breakthroughStatus, o.realmComplete === true),
       elixirBonuses: normalizeElixirBonuses(o.elixirBonuses),
+      avatarCandidates: Array.isArray(o.avatarCandidates) ? (o.avatarCandidates as string[]) : undefined,
+      craftSkills: normalizeCraftSkills(o.craftSkills),
+      timedBuffs: normalizeTimedBuffs(o.timedBuffs),
+      charm: clampRoleplayStat(o.charm ?? 0, CHARM_MIN, CHARM_MAX),
+      charmDesc: normalizeRoleplayDesc(o.charmDesc),
+      fame: clampRoleplayStat(o.fame ?? 0, FAME_MIN, FAME_MAX),
+      fameDesc: normalizeRoleplayDesc(o.fameDesc),
     });
   }
 
@@ -1376,6 +1452,8 @@ export class Protagonist extends Character {
       xiuwei: 0,
       realmComplete: false,
       breakthroughStatus: "idle",
+      charm: basics.charm,
+      fame: basics.fame,
     });
 
     // 天赋效果（物品/灵石/属性）不在此处结算——推迟到 applyInitState 之后由

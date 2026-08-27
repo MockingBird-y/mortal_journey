@@ -19,6 +19,8 @@ export function useBattle() {
   const state: Ref<BattleState | null> = ref(null);
   const result: Ref<BattleResult | null> = ref(null);
   const resolving = ref(false);
+  /** 非致命攻击：战斗照常打，只是结算时不取敌人性命。战斗内可随时切换。 */
+  const nonLethal = ref(false);
 
   let rafId: number | null = null;
   let lastFrameTime = 0;
@@ -59,6 +61,7 @@ export function useBattle() {
     engine.value = e;
     state.value = e.state;
     result.value = null;
+    nonLethal.value = false;
 
     gameLog.info(`[useBattle] BattleEngine.init 完成: phase=${e.state.phase}, actionCount=${e.state.actionCount}`);
 
@@ -173,7 +176,7 @@ export function useBattle() {
       result.value = null;
     } else {
       const { protagonistCanDie, companionsCanDie } = difficultyBattleOpts();
-      result.value = settleBattle(s, { protagonistCanDie, companionsCanDie });
+      result.value = settleBattle(s, { protagonistCanDie, companionsCanDie, nonLethal: nonLethal.value });
     }
   }
 
@@ -289,6 +292,7 @@ export function useBattle() {
     state,
     result,
     resolving,
+    nonLethal,
     startBattle,
     selectAction,
     selectTarget,

@@ -4,8 +4,9 @@
  */
 
 import type { TraitRarity } from "./traits";
-import type { TraitEffect } from "./traitEffect";
+import type { TraitEffectSpec } from "./traitEffect";
 import type { PrimaryStatKey } from "../role_core/types/playInfo";
+import { CHARM_MAX, CHARM_MIN, FAME_MAX, FAME_MIN } from "../role_core/roleplayStats";
 import type { WorldLocation } from "../role_core/types/worldLocation";
 
 // ---------------------------------------------------------------------------
@@ -44,7 +45,7 @@ export interface BirthDefinition {
  */
 export interface OriginTagDefinition {
   desc: string;
-  effect?: TraitEffect;
+  effect?: TraitEffectSpec;
 }
 
 /** 轮盘上一格天赋（共五条）。 */
@@ -52,8 +53,8 @@ export interface FateChoiceTrait {
   name: string;
   rarity: string;
   desc: string;
-  /** 具体效果；开局时由 `Protagonist.fromFateChoice` 结算。 */
-  effect?: TraitEffect;
+  /** 具体效果（可为数组）；开局时由 `Protagonist.fromFateChoice` 结算。 */
+  effect?: TraitEffectSpec;
 }
 
 /**
@@ -111,6 +112,10 @@ export interface FateChoiceBasics {
    * 由 `Protagonist.fromFateChoice` 直接累加，不经天赋结算。
    */
   statPurchase: Partial<Record<PrimaryStatKey, number>>;
+  /** 购点得到的魅力初值（扮演向软属性，不参与战斗）。 */
+  charm: number;
+  /** 购点得到的名声初值；可为负——开局背恶名换点数。 */
+  fame: number;
 }
 
 /**
@@ -177,7 +182,7 @@ export const POINT_BUDGET_MAX = 9999;
 export const RANDOM_TRAIT_COUNT = 5;
 
 /** 购买主属性时每次点击的步长（点属性值）。 */
-export const STAT_PURCHASE_STEP = 5;
+export const STAT_PURCHASE_STEP = 1;
 
 /** 每 1 点主属性值消耗的点数（固定单价，占位）。 */
 export const STAT_POINT_COST: Readonly<Record<PrimaryStatKey, number>> = {
@@ -193,6 +198,30 @@ export const STAT_POINT_COST: Readonly<Record<PrimaryStatKey, number>> = {
 
 /** 单个主属性最多可购买的点数上限。 */
 export const STAT_PURCHASE_MAX = 100;
+
+/**
+ * 扮演向软属性（魅力/名声）的购点单价与步长。
+ * 这两项不参与战斗结算，只影响剧情演出，故单价可与主属性不同。
+ */
+export const ROLEPLAY_PURCHASE_STEP = 5;
+export const ROLEPLAY_POINT_COST: Readonly<Record<"charm" | "fame", number>> = {
+  charm: 1,
+  fame: 1,
+};
+
+/**
+ * 扮演属性在命运抉择里的可购买区间。两项默认值都是 0。
+ *
+ * 名声下界为负：把名声扣到负数等于开局背着恶名换取点数，
+ * 每扣 1 点名声退回 1 点数（`ROLEPLAY_POINT_COST.fame`）。
+ * 魅力下界为 0，不能靠自毁容貌换点数。
+ */
+export const ROLEPLAY_PURCHASE_RANGE: Readonly<
+  Record<"charm" | "fame", { min: number; max: number }>
+> = {
+  charm: { min: CHARM_MIN, max: CHARM_MAX },
+  fame: { min: FAME_MIN, max: FAME_MAX },
+};
 
 /**
  * 指定灵根的点数消耗：键为选中的五行元素个数。
@@ -250,9 +279,38 @@ export const CREATION_BIRTHS: Readonly<Record<string, BirthDefinition>> = {
 
  */
 export const CREATION_RACES: Readonly<Record<string, OriginTagDefinition>> = {
-  人族: { desc: "人族修士，对修炼体系更为熟悉",effect: { kind: "statBonus", stats: { insight: 10 } } },
-  妖族: { desc: "罕见的妖族修行者，力量惊人，悟性稍低",effect: { kind: "statBonus", stats: { strength: 20, insight: -10 } } } ,
-};
+  人族: { 
+    desc: "得天独厚乃万物灵长，百脉俱通最契天地大道。",
+    effect: { kind: "statBonus", stats: { insight: 10 } } 
+  },
+  狼妖: { 
+    desc: "骨子里刻着荒野凶性，见血则狂，攻势如疾风暴雨。",
+    effect: { kind: "statBonus", stats: { physique:30,strength: 30, insight: -10 } } 
+  } ,
+  鹿妖: { 
+    desc: "受山川草木灵机滋养，性情温良，能引生机自愈。",
+    effect: { 
+      kind: "combatModifier", modifiers:[
+        {type:"damageTaken",value:10},
+        {type:"hpRecover",value:5}
+      ]
+    }
+  } ,
+  魔族: { 
+    desc: "诞生于九幽浊气之中，以战意为养料。",
+    effect: [
+      { kind: "combatModifier", modifiers:[{type:"lifesteal",value:20},{type:"critRate",value:10}]},
+      { kind: "roleplayBonus",fame:-10} 
+    ]
+  } ,
+  羽族: {
+    desc: "身生灵翼体态轻盈，乘风而起可穿行于云霄之上。",
+    effect: [
+    {kind: "combatModifier",modifiers:[{type:"dodgeRate",value:30}] },
+    {kind:"statBonus",stats: { strength: -10, agility: 20 } }
+  ]} ,
+} 
+;
 
 /**
  * 可选阵营。键即卡片标题与存档中的 `faction` 值。

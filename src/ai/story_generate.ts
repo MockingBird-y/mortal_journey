@@ -4,6 +4,7 @@ import { completeChatWithMessagesJson, type JsonChatRequestPayload, type ChatMes
 import { matchWorldLore } from "./worldLore";
 import { Protagonist } from "../role_core/Protagonist";
 import { describeNextBreakthrough } from "../role_core/realmUtils";
+import { charmTierLabel, fameTierLabel } from "../role_core/roleplayStats";
 import type { ProtagonistPlayInfo, NarrationPerson, EquippedSlotsState, GongfaSlotsState, InventoryStackItem } from "../role_core/types/playInfo";
 import { formatWorldLocationDash } from "../role_core/types/worldLocation";
 import { originTagLines } from "../fate_choice/types";
@@ -147,6 +148,8 @@ function buildStoryUserContent(p: ProtagonistPlayInfo, sceneNpcSnapshot?: string
     `寿元：${p.shouyuan}`,
     `当前血量：${p.currentHp}/${p.maxHp}`,
     `当前法力：${p.currentMp}/${p.maxMp}`,
+    `魅力：${p.charm ?? 0}（${charmTierLabel(p.charm ?? 0)}）${p.charmDesc ? "　" + p.charmDesc : ""}`,
+    `名声：${p.fame ?? 0}（${fameTierLabel(p.fame ?? 0)}）${p.fameDesc ? "　" + p.fameDesc : ""}`,
     locationLine,
     "",
     "【出身背景】",

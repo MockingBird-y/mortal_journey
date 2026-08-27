@@ -14,9 +14,9 @@
 
 import type { ModifierType } from "./types";
 import { BASE_CRIT_DMG } from "./constants";
-import { extractPassiveEffects, extractTreasurePassiveEffects } from "./battleInit";
+import { extractPassiveEffects, extractTraitPassiveEffects, extractTreasurePassiveEffects } from "./battleInit";
 import { computeLinggenCombatBonuses } from "../role_core/types/gameConstants";
-import type { Character } from "../role_core/Character";
+import type { Protagonist } from "../role_core/Protagonist";
 
 /** 面板战斗属性。均为百分比数值；未注明者基础为 0，仅靠法宝/被动功法提供。 */
 export interface PanelCombatStats {
@@ -44,7 +44,7 @@ export interface PanelCombatStats {
  * 与 `createProtagonistCombatant` 走同一套 effect 组装管线，
  * 数值等价于开战瞬间（未受任何 buff/驱散影响）的修正总量。
  */
-export function computePanelCombatStats(ch: Character): PanelCombatStats {
+export function computePanelCombatStats(ch: Protagonist): PanelCombatStats {
   const primaryStats = ch.getPrimaryStats();
   const getStat = (key: string) => (primaryStats as Record<string, number>)[key] ?? 0;
   const linggenBonus = computeLinggenCombatBonuses(ch.linggen, ch.realm.major);
@@ -52,6 +52,7 @@ export function computePanelCombatStats(ch: Character): PanelCombatStats {
   const effects = [
     ...extractPassiveEffects(ch.gongfaSlots, getStat, "panel"),
     ...extractTreasurePassiveEffects(ch.equippedSlots, "panel"),
+    ...extractTraitPassiveEffects(ch.traits, ch.race, ch.faction, "panel"),
   ];
 
   const totals: Partial<Record<ModifierType, number>> = {};

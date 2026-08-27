@@ -262,6 +262,35 @@
   position: relative;
 }
 
+.main-panel--player .mj-roleplay-list {
+  font-size: var(--mj-player-content-font);
+  line-height: 1.25;
+}
+
+.main-panel--player .mj-roleplay-list .mj-stat-cell {
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(215, 234, 234, 0.05);
+}
+
+.main-panel--player .mj-roleplay-value {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.main-panel--player .mj-roleplay-tier {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 2px rgba(28, 34, 48, 0.45);
+}
+
+.main-panel--player .mj-roleplay-number {
+  color: var(--mj-muted);
+  font-weight: 500;
+  opacity: 0.95;
+}
+
 .main-panel--player .mj-stat-k {
   font-size: 1em;
   color: var(--mj-muted);
@@ -329,10 +358,51 @@
 
 .main-panel--player .mj-talent-row {
   display: flex;
-  flex-direction: row;
-  gap: 5px;
+  flex-direction: column;
+  gap: 0;
   width: 100%;
-  align-items: flex-start;
+  align-items: stretch;
+  font-size: var(--mj-player-content-font);
+  line-height: 1.25;
+}
+
+.main-panel--player .mj-talent-item {
+  min-height: 24px;
+  padding: 4px 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  font-size: inherit;
+  line-height: inherit;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.main-panel--player .mj-talent-item:hover {
+  background: color-mix(in srgb, var(--mj-text) 5%, transparent);
+}
+
+.main-panel--player .mj-talent-item:focus-visible {
+  outline: 1px solid var(--mj-gold);
+  outline-offset: 1px;
+}
+
+.main-panel--player .mj-talent-item .mj-stat-k,
+.main-panel--player .mj-talent-item .mj-stat-v {
+  font-size: 1em;
+  line-height: inherit;
+}
+
+.main-panel--player .mj-talent-item[data-rarity] .mj-stat-v {
+  color: var(--mj-rarity-active, var(--mj-text));
+}
+
+.main-panel--player .mj-talent-item--empty {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.main-panel--player .mj-talent-item--empty:hover {
+  background: transparent;
 }
 
 .main-panel--player .mj-trait-slot {
@@ -630,4 +700,165 @@
   font-size: 0.78em;
   opacity: 0.8;
 }
+/* 紧凑布局 + 可折叠区块（默认与主题版本保持一致） */
+.main-panel--player.mj-pane--player,
+.main-panel--player .mj-player-body {
+  --mj-player-content-font: 0.82rem;
+}
+
+.main-panel--player .main-panel__body {
+  padding: 8px;
+}
+
+.main-panel--player .mj-player-body {
+  padding-top: 6px;
+  line-height: 1.28;
+}
+
+.main-panel--player .mj-player-avatar-wrap {
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.main-panel--player .mj-player-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+}
+
+.main-panel--player .mj-player-name-vertical {
+  font-size: 0.9rem;
+  line-height: 1.15;
+}
+
+.main-panel--player .mj-realm-line {
+  margin-bottom: 6px;
+}
+
+.main-panel--player .mj-player-identity {
+  margin: 8px 0 9px;
+  padding-top: 5px;
+}
+
+.main-panel--player .mj-resource-row {
+  margin-bottom: 6px;
+}
+
+.main-panel--player .mj-cultivation-head,
+.main-panel--player .mj-resource-label {
+  margin-bottom: 3px;
+}
+
+.main-panel--player .mj-bar {
+  height: 8px;
+}
+
+.main-panel--player .mj-combat-stats {
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+.main-panel--player .mj-attr-section-title {
+  margin: 10px 0 6px;
+  padding-bottom: 4px;
+  font-size: 0.84rem;
+  line-height: 1.2;
+}
+
+.main-panel--player .mj-attr-section-header {
+  gap: 6px;
+  margin: 10px 0 6px;
+}
+
+.main-panel--player .mj-attr-section-header .mj-attr-section-title,
+.main-panel--player .mj-collapsible-section__trigger .mj-attr-section-title {
+  margin: 0;
+  padding-bottom: 4px;
+}
+
+.main-panel--player .mj-stat-pair-row {
+  gap: 4px 8px;
+  padding: 4px 0;
+  line-height: 1.25;
+}
+
+.main-panel--player .mj-stat-cell {
+  gap: 4px;
+  line-height: 1.25;
+}
+
+.main-panel--player .mj-stat-k--tip::after {
+  padding: 4px 8px;
+  font-size: 0.68rem;
+  line-height: 1.3;
+}
+
+.main-panel--player .mj-talent-block,
+.main-panel--player .mj-equip-block {
+  margin-top: 3px;
+}
+
+.main-panel--player .mj-player-bag-stack {
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+.main-panel--player .mj-inventory-grid {
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.main-panel--player .mj-inventory-slot {
+  min-height: 30px;
+  border-radius: 5px;
+}
+
+.main-panel--player .mj-trait-slot,
+.main-panel--player .mj-treasure-grid .mj-inventory-slot,
+.main-panel--player .mj-gongfa-grid .mj-inventory-slot {
+  padding: 3px;
+}
+
+.main-panel--player #mj-inventory-grid .mj-inventory-slot {
+  padding: 3px 4px 15px;
+}
+
+.main-panel--player .mj-gongfa-slot-mastery {
+  font-size: 0.58rem;
+}
+
+.main-panel--player .mj-collapsible-section__trigger {
+  width: 100%;
+  padding-left: 0;
+  padding-right: 0;
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+  appearance: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.main-panel--player .mj-collapsible-section__trigger:hover .mj-attr-section-title {
+  color: var(--mj-text);
+}
+
+.main-panel--player .mj-collapsible-section__trigger:focus-visible {
+  outline: 1px solid var(--mj-gold);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.main-panel--player .is-collapsed {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.main-panel--player .is-collapsed > .mj-collapsible-section__trigger {
+  margin-bottom: 0;
+}
+
 

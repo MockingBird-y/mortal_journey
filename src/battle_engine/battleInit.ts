@@ -10,6 +10,10 @@ import { Npc } from "../role_core/Npc";
 import { npcStore } from "../role_core/npcStore";
 import { gameLog } from "../log/gameLog";
 import { GONGFA_SLOT_COUNT, GONGFA_MASTERY_COMBAT_MULT, computeLinggenCombatBonuses } from "../role_core/types/gameConstants";
+import type { TraitEntry } from "../role_core/types/playInfo";
+import type { TraitEffectSpec } from "../fate_choice/traitEffect";
+import { toTraitEffectList } from "../fate_choice/traitEffect";
+import { CREATION_FACTIONS, CREATION_RACES } from "../fate_choice/types";
 import { generateId as generateEffectId } from "./formulas";
 import { BASE_CRIT_DMG } from "./constants";
 
@@ -253,6 +257,61 @@ export function extractPassiveEffects(
   return effects;
 }
 
+/**
+ * 把天赋（以及种族/阵营）携带的 `combatModifier` 效果转成隐藏 modifier effect。
+ *
+ * 与 {@link extractTreasurePassiveEffects} 同规格：`category: "modifier"`、`hidden: true`、
+ * 时长 99，`damageTaken` 取负（作者按「减伤」正数书写）。
+ *
+ * 天赋不像装备可以摘下，所以这一路是持续存在的：每次开战与每次刷新面板都重新读一遍
+ * `traits`，不写任何持久化字段——这也是 `resolveTraitEffect` 对该 kind 空操作的原因。
+ *
+ * @param traits 主角天赋列表（字符串简项会被跳过）。
+ * @param race 种族键，用于查 `CREATION_RACES` 上的同类效果。
+ * @param faction 阵营键，用于查 `CREATION_FACTIONS` 上的同类效果。
+ * @param combatantId 归属的战斗单位 id。
+ * @returns 隐藏 modifier effect 列表；无相关天赋时为空数组。
+ */
+export function extractTraitPassiveEffects(
+  traits: readonly TraitEntry[],
+  race: string,
+  faction: string,
+  combatantId: string,
+): BattleEffect[] {
+  const effects: BattleEffect[] = [];
+
+  const push = (sourceName: string, spec: TraitEffectSpec | undefined): void => {
+    for (const effect of toTraitEffectList(spec)) {
+      if (effect.kind !== "combatModifier") continue;
+      for (const mod of effect.modifiers) {
+        if (typeof mod.value !== "number" || !Number.isFinite(mod.value) || mod.value === 0) continue;
+        effects.push({
+          id: generateEffectId(),
+          name: sourceName,
+          sourceId: combatantId,
+          category: "modifier",
+          remainingDuration: 99,
+          stacks: 1,
+          maxStacks: 1,
+          modifierType: mod.type,
+          modifierValue: mod.type === "damageTaken" ? -mod.value : mod.value,
+          hidden: true,
+        });
+      }
+    }
+  };
+
+  for (const t of traits) {
+    if (!t || typeof t === "string") continue;
+    push(t.name, t.effect);
+  }
+  // 种族/阵营与天赋共用同一套 TraitEffect，同样支持写 combatModifier。
+  push(race, CREATION_RACES[race]?.effect);
+  push(faction, CREATION_FACTIONS[faction]?.effect);
+
+  return effects;
+}
+
 export function extractTreasurePassiveEffects(
   equippedSlots: EquippedSlotsState,
   combatantId: string,
@@ -371,6 +430,7 @@ function createProtagonistCombatant(): BattleCombatant | null {
   const passiveEffects: BattleEffect[] = [
     ...extractPassiveEffects(p.gongfaSlots, getStat, generateId("ally", 0)),
     ...extractTreasurePassiveEffects(p.equippedSlots, generateId("ally", 0)),
+    ...extractTraitPassiveEffects(p.traits, p.race, p.faction, generateId("ally", 0)),
   ];
 
   return {

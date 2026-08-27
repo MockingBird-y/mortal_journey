@@ -18,6 +18,11 @@ import { type WorldTime, type TimeDelta, formatWorldTimeZhDisplay } from "../rol
 import { describeNextBreakthrough } from "../role_core/realmUtils";
 import { formatWorldLocationDash, parseWorldLocationFromDash } from "../role_core/types/worldLocation";
 import type { NpcCoreChangeEvent } from "../role_core/npcCoreChange";
+import {
+  ROLEPLAY_CHANGE_MAX_PER_TURN,
+  normalizeRoleplayDesc,
+  type RoleplayStatChange,
+} from "../role_core/roleplayStats";
 
 export interface StateGenerateInput {
   apiUrl: string;
@@ -51,6 +56,7 @@ export interface UserStateChange {
     gongfaName: string;
     masteryExpIncrease: number;
   }>;
+  roleplayStats?: RoleplayStatChange;
 }
 
 export interface SpiritStoneChange {
@@ -470,11 +476,41 @@ function parseUserState(raw: string): UserStateChange | null {
       .filter((e): e is { gongfaName: string; masteryExpIncrease: number } => e !== null);
     if (parsed.length > 0) gongfaMasteryChanges = parsed;
   }
-  if (!xiuweiIncrease && !gongfaMasteryChanges) return null;
+  const roleplayStats = parseRoleplayStats(o);
+  if (!xiuweiIncrease && !gongfaMasteryChanges && !roleplayStats) return null;
   const result: UserStateChange = {};
   if (xiuweiIncrease) result.xiuweiIncrease = xiuweiIncrease;
   if (gongfaMasteryChanges) result.gongfaMasteryChanges = gongfaMasteryChanges;
+  if (roleplayStats) result.roleplayStats = roleplayStats;
   return result;
+}
+
+/**
+ * 从 USER_STATE_TAG 的 JSON 里取出魅力/名声的增量与描述。
+ * 增量按 {@link ROLEPLAY_CHANGE_MAX_PER_TURN} 夹住；四个键全缺时返回 null。
+ *
+ * @param o 已解析的 USER_STATE_TAG 对象。
+ * @returns 变更对象；无任何相关字段时为 `null`。
+ */
+function parseRoleplayStats(o: Record<string, unknown>): RoleplayStatChange | null {
+  const cap = ROLEPLAY_CHANGE_MAX_PER_TURN;
+  const readChange = (v: unknown): number | undefined => {
+    if (typeof v !== "number" || !Number.isFinite(v)) return undefined;
+    const n = Math.round(v);
+    if (n === 0) return undefined;
+    return Math.max(-cap, Math.min(cap, n));
+  };
+  const charmChange = readChange(o.charmChange);
+  const fameChange = readChange(o.fameChange);
+  const charmDesc = normalizeRoleplayDesc(o.charmDesc);
+  const fameDesc = normalizeRoleplayDesc(o.fameDesc);
+  if (charmChange === undefined && fameChange === undefined && !charmDesc && !fameDesc) return null;
+  const out: RoleplayStatChange = {};
+  if (charmChange !== undefined) out.charmChange = charmChange;
+  if (fameChange !== undefined) out.fameChange = fameChange;
+  if (charmDesc) out.charmDesc = charmDesc;
+  if (fameDesc) out.fameDesc = fameDesc;
+  return out;
 }
 
 export function parseStateAiResponse(raw: string): StateParsed {

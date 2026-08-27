@@ -27,6 +27,9 @@ import {
   POINT_BUDGET_MAX,
   POINT_BUDGET_MIN,
   RANDOM_TRAIT_COUNT,
+  ROLEPLAY_POINT_COST,
+  ROLEPLAY_PURCHASE_RANGE,
+  ROLEPLAY_PURCHASE_STEP,
   linggenTypeForElementCount,
   rollRandomLinggenName,
   START_REALM_MAJOR,
@@ -42,6 +45,9 @@ import "./fateChoice.css";
 // ---------------------------------------------------------------------------
 // 公共类型与工具函数
 // ---------------------------------------------------------------------------
+
+/** 扮演向软属性的键。 */
+export type RoleplayStatKey = "charm" | "fame";
 
 /** 性别卡中代表「自填」的哨兵键。 */
 export const CUSTOM_GENDER_KEY = "自定义";
@@ -378,6 +384,15 @@ export function useFateChoice() {
     return sum;
   });
 
+  // ── 7b. 扮演属性购点（魅力 / 名声） ──────────────────────────────────────
+  const roleplayPurchase = ref<Record<RoleplayStatKey, number>>({ charm: 0, fame: 0 });
+
+  const roleplayPointsSpent = computed(
+    () =>
+      roleplayPurchase.value.charm * (ROLEPLAY_POINT_COST.charm ?? 0) +
+      roleplayPurchase.value.fame * (ROLEPLAY_POINT_COST.fame ?? 0),
+  );
+
   // ── 8. 天赋词条 ──────────────────────────────────────────────────────────
   const selectedTraits = ref<TraitOption[]>([]);
 
@@ -391,7 +406,11 @@ export function useFateChoice() {
 
   // ── 9. 点数结算 ──────────────────────────────────────────────────────────
   const pointsSpent = computed(
-    () => traitPointsSpent.value + statPointsSpent.value + linggenPointsSpent.value,
+    () =>
+      traitPointsSpent.value +
+      statPointsSpent.value +
+      linggenPointsSpent.value +
+      roleplayPointsSpent.value,
   );
   const pointsLeft = computed(() => pointBudget.value - pointsSpent.value);
 
@@ -448,6 +467,25 @@ export function useFateChoice() {
     statPurchase.value = { ...statPurchase.value, [key]: Math.max(0, current - STAT_PURCHASE_STEP) };
   }
 
+  /** 购买一档扮演属性（魅力/名声），上限取各自量表的正向上界。 */
+  function buyRoleplayStat(key: RoleplayStatKey): void {
+    const current = roleplayPurchase.value[key];
+    if (current + ROLEPLAY_PURCHASE_STEP > ROLEPLAY_PURCHASE_RANGE[key].max) return;
+    if ((ROLEPLAY_POINT_COST[key] ?? 0) * ROLEPLAY_PURCHASE_STEP > pointsLeft.value) return;
+    roleplayPurchase.value = { ...roleplayPurchase.value, [key]: current + ROLEPLAY_PURCHASE_STEP };
+  }
+
+  /**
+   * 退还一档扮演属性。名声的下界是负数，一路扣到恶名可以反过来**换回**点数
+   * （每扣 1 点名声退 1 点数，由 `roleplayPointsSpent` 记成负消耗）；魅力下界为 0。
+   */
+  function sellRoleplayStat(key: RoleplayStatKey): void {
+    const current = roleplayPurchase.value[key];
+    const floor = ROLEPLAY_PURCHASE_RANGE[key].min;
+    if (current - ROLEPLAY_PURCHASE_STEP < floor) return;
+    roleplayPurchase.value = { ...roleplayPurchase.value, [key]: current - ROLEPLAY_PURCHASE_STEP };
+  }
+
   // ── 10. 状态与提交 ───────────────────────────────────────────────────────
   const statusMessage = ref("");
 
@@ -486,6 +524,8 @@ export function useFateChoice() {
         linggen: linggenElements.value.slice(),
         difficulty: selectedDifficulty.value,
         statPurchase: stats,
+        charm: roleplayPurchase.value.charm,
+        fame: roleplayPurchase.value.fame,
       },
       traits: selectedTraits.value.map((t) => ({
         name: t.name,
@@ -514,6 +554,7 @@ export function useFateChoice() {
     pointBudgetInput.value = String(DEFAULT_POINT_BUDGET);
     selectedTraits.value = [];
     statPurchase.value = {};
+    roleplayPurchase.value = { charm: 0, fame: 0 };
     linggenElements.value = [];
     linggenFree.value = true;
     statusMessage.value = "";
@@ -536,6 +577,9 @@ export function useFateChoice() {
     LINGGEN_ELEMENT_POOL,
     STAT_POINT_COST,
     STAT_PURCHASE_STEP,
+    ROLEPLAY_POINT_COST,
+    ROLEPLAY_PURCHASE_RANGE,
+    ROLEPLAY_PURCHASE_STEP,
     traitsByCategory,
     traitCost,
     linggenCost,
@@ -568,6 +612,9 @@ export function useFateChoice() {
     statPurchase,
     buyStat,
     sellStat,
+    roleplayPurchase,
+    buyRoleplayStat,
+    sellRoleplayStat,
     linggenElements,
     linggenType,
     linggenPointsSpent,

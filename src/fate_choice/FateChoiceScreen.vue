@@ -8,6 +8,7 @@ import { parseRealmFromCustomText } from "./useFateChoice";
 import { CUSTOM_REALM_MAJORS, CUSTOM_REALM_MINORS, LINGGEN_ELEMENT_EFFECTS } from "./types";
 import type { PrimaryStatKey } from "../role_core/types/playInfo";
 import { PRIMARY_STAT_KEYS, PRIMARY_STAT_KEY_TO_ZH } from "../role_core/types/playInfo";
+import { charmTierLabel, fameTierLabel } from "../role_core/roleplayStats";
 import { formatWorldLocationDash } from "../role_core/types/worldLocation";
 import TraitDetailModal from "./TraitDetailModal.vue";
 import LinggenDetailModal from "./LinggenDetailModal.vue";
@@ -56,6 +57,12 @@ const {
   statPurchase,
   buyStat,
   sellStat,
+  ROLEPLAY_POINT_COST,
+  ROLEPLAY_PURCHASE_RANGE,
+  ROLEPLAY_PURCHASE_STEP,
+  roleplayPurchase,
+  buyRoleplayStat,
+  sellRoleplayStat,
   linggenElements,
   linggenType,
   linggenPointsSpent,
@@ -70,6 +77,12 @@ const {
   applyCustomBirth,
   resolveBirthLocationDescFromDef,
 } = useFateChoice();
+
+/** 扮演属性购点行：标签 + 档位查表函数。 */
+const ROLEPLAY_ROWS = [
+  { key: "charm", label: "魅力", tier: charmTierLabel },
+  { key: "fame", label: "名声", tier: fameTierLabel },
+] as const;
 
 /** 当前页签：基础信息 / 天赋购点。 */
 const activeTab = ref<"basics" | "talent">("basics");
@@ -508,6 +521,48 @@ function customBirthSummary(): string {
                     class="major-action-button"
                     :disabled="STAT_POINT_COST[key] * STAT_PURCHASE_STEP > pointsLeft"
                     @click="buyStat(key)"
+                  >
+                    <i class="fas fa-plus"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="creation-section-title"><i class="fas fa-masks-theater"></i> 扮演属性</div>
+            <p class="fc-trait-hint">
+              魅力与名声不参与任何战斗结算，只影响剧情演出。两项默认都是 0；名声可以一路扣到负数——
+              开局就背着恶名，每扣 {{ ROLEPLAY_PURCHASE_STEP }} 点名声退回 {{ ROLEPLAY_POINT_COST.fame * ROLEPLAY_PURCHASE_STEP }} 点数。
+            </p>
+            <div class="creation-grid" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr))">
+              <div
+                v-for="row in ROLEPLAY_ROWS"
+                :key="row.key"
+                class="creation-card"
+                :class="{ selected: roleplayPurchase[row.key] !== 0 }"
+                style="cursor: default"
+              >
+                <h4>{{ row.label }} {{ roleplayPurchase[row.key] }}（{{ row.tier(roleplayPurchase[row.key]) }}）</h4>
+                <p>
+                  每 {{ ROLEPLAY_PURCHASE_STEP }} 点消耗 {{ ROLEPLAY_POINT_COST[row.key] * ROLEPLAY_PURCHASE_STEP }} 点数（可购区间
+                  {{ ROLEPLAY_PURCHASE_RANGE[row.key].min }} ~ {{ ROLEPLAY_PURCHASE_RANGE[row.key].max }}）
+                </p>
+                <div style="display: flex; gap: 8px">
+                  <button
+                    type="button"
+                    class="major-action-button"
+                    :disabled="roleplayPurchase[row.key] - ROLEPLAY_PURCHASE_STEP < ROLEPLAY_PURCHASE_RANGE[row.key].min"
+                    @click="sellRoleplayStat(row.key)"
+                  >
+                    <i class="fas fa-minus"></i>
+                  </button>
+                  <button
+                    type="button"
+                    class="major-action-button"
+                    :disabled="
+                      roleplayPurchase[row.key] + ROLEPLAY_PURCHASE_STEP > ROLEPLAY_PURCHASE_RANGE[row.key].max ||
+                      ROLEPLAY_POINT_COST[row.key] * ROLEPLAY_PURCHASE_STEP > pointsLeft
+                    "
+                    @click="buyRoleplayStat(row.key)"
                   >
                     <i class="fas fa-plus"></i>
                   </button>

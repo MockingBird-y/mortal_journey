@@ -68,13 +68,27 @@ export const STATE_SYSTEM_PRESET = `
   5.2 各境界灵石消耗（每年）：练气期约15~30，筑基期60~120，结丹期200~450，元婴期800~2000，化神期4000~12000。
   5.3 大量灵石灌注修炼时消耗翻倍。
   5.4 玩家说"用灵石修炼"才消耗灵石，"闭关修炼"不指定灵石则不消耗。
-6. 输出格式：<USER_STATE_TAG> … </USER_STATE_TAG>，内为 JSON 对象。可选键 xiuweiIncrease、gongfaMasteryChanges。无变化时输出空对象 {}。
-7. 示例：
-  7.1 <USER_STATE_TAG> {} </USER_STATE_TAG>
-  7.2 <USER_STATE_TAG> {"xiuweiIncrease":150} </USER_STATE_TAG>
-  7.3 <USER_STATE_TAG> {"xiuweiIncrease":648} </USER_STATE_TAG>
-  7.4 <USER_STATE_TAG> {"xiuweiIncrease":150,"gongfaMasteryChanges":[{"gongfaName":"紫阳混元功","masteryExpIncrease":150}]} </USER_STATE_TAG>
-  7.5 <USER_STATE_TAG> {"gongfaMasteryChanges":[{"gongfaName":"紫阳混元功","masteryExpIncrease":500}]} </USER_STATE_TAG>
+6. 魅力与名声（扮演向软属性，不影响任何战斗结算）：
+  6.1 魅力 charmChange：主角在他人眼中的仪态、气度与吸引力。范围 0~100。
+  6.2 名声 fameChange：主角在修真界的名望。范围 -100~100，**负值代表恶名**（恶名昭彰、人人喊打），正值代表威名。
+  6.3 两者都只输出**增量**（相对当前值的变化），不要输出绝对值。单次增量绝对值不得超过 10；日常小事 1~2，明显事件 3~5，震动一方的大事才用 6~10。
+  6.4 只在剧情确实产生影响时才输出，多数回合两个字段都应缺省。参考触发：
+    - 魅力上升：换上华服、气质蜕变、突破后气度不凡、被人当众称道容貌风姿。
+    - 魅力下降：重伤毁容、修炼副作用致形貌扭曲、狼狈失态。
+    - 名声上升：斩杀凶兽、救助一方、丹药济世、宗门大比夺魁、扬名之战。
+    - 名声下降：滥杀无辜、背信弃义、被人揭发劣迹、败于人前颜面扫地。名声下降即向负值移动，一路可跌入恶名。
+  6.5 charmDesc / fameDesc：一句不超过 20 字的具体描述，说明"具体是怎么个有魅力/有名"，例如"眉目清冷，见者忘俗"、"剑南道人人唤你小药王"。仅在该项数值发生变化、或剧情明确改写了主角形象/名望的性质时才输出；不输出则沿用旧描述。
+  6.6 不要输出档位名（如"名动一方"）——档位由数值自动查表得出，你只管数值与那一句具体描述。
+7. 输出格式：<USER_STATE_TAG> … </USER_STATE_TAG>，内为 JSON 对象。可选键 xiuweiIncrease、gongfaMasteryChanges、charmChange、charmDesc、fameChange、fameDesc。无变化时输出空对象 {}。
+8. 示例：
+  8.1 <USER_STATE_TAG> {} </USER_STATE_TAG>
+  8.2 <USER_STATE_TAG> {"xiuweiIncrease":150} </USER_STATE_TAG>
+  8.3 <USER_STATE_TAG> {"xiuweiIncrease":648} </USER_STATE_TAG>
+  8.4 <USER_STATE_TAG> {"xiuweiIncrease":150,"gongfaMasteryChanges":[{"gongfaName":"紫阳混元功","masteryExpIncrease":150}]} </USER_STATE_TAG>
+  8.5 <USER_STATE_TAG> {"gongfaMasteryChanges":[{"gongfaName":"紫阳混元功","masteryExpIncrease":500}]} </USER_STATE_TAG>
+  8.6 <USER_STATE_TAG> {"fameChange":4,"fameDesc":"黄枫谷外门皆知你斩了那头三阶妖狼"} </USER_STATE_TAG>
+  8.7 <USER_STATE_TAG> {"charmChange":-3,"charmDesc":"左颊留下一道未愈的焦痕"} </USER_STATE_TAG>
+  8.8 <USER_STATE_TAG> {"xiuweiIncrease":200,"fameChange":-6,"fameDesc":"越国散修间开始流传你灭门夺宝的说法"} </USER_STATE_TAG>
 
 [时间推进规则]
 1. 每次状态更新都必须输出 <MJ_TIME_TAG> 标签，表示世界时间的推进。timeAdvance 是一个 JSON 对象，包含以下字段：
@@ -376,12 +390,12 @@ export const STATE_SYSTEM_PRESET = `
    - moderate（中庸）：正常应对、对话交涉、按部就班、平稳推进、理性权衡。适合势均力敌或信息不全的场景。
    - cautious（谨慎）：观察试探、防御戒备、保留实力、谋定后动、迂回探查。适合敌情不明或风险较高的场景。
    - veryCautious（最谨慎）：撤退回避、藏拙隐忍、不轻举妄动、保命优先、暂避锋芒。适合实力悬殊或凶险莫测的场景。
-2. 每条建议须是具体的行动描述（15~30字，简体中文，以"我"或主角姓名为主语，描述具体做什么），紧扣本轮剧情结尾的处境，不得泛泛而谈（禁止"继续探索""谨慎行事"等空话）。
+2. 每条建议须是具体的行动描述（15~30字，简体中文，以"你"或主角姓名为主语，描述具体做什么），紧扣本轮剧情结尾的处境，不得泛泛而谈（禁止"继续探索""谨慎行事"等空话）。
 3. 四条建议须体现明显的倾向差异，不得雷同；且都应符合修仙世界的行事逻辑与主角当前境界/实力。
 4. 若本轮已触发战斗（输出了 <BATTLE_TRIGGER_TAG>），行动建议可围绕战斗中的即时抉择；若本轮是日常/赶路/交易等非战斗场景，建议应围绕当前场景的自然延展。
 5. 输出格式：<MJ_ACTION_OPTIONS_TAG> … </MJ_ACTION_OPTIONS_TAG>，内为 JSON 对象，含四个字符串字段 aggressive、moderate、cautious、veryCautious。
 6. 示例：
-   <MJ_ACTION_OPTIONS_TAG>{"aggressive":"我趁墨牙狼重伤之际，催动青锋剑直取其要害","moderate":"我稳住阵脚，以崩山诀牵制墨牙狼等待其力竭","cautious":"我后撤数丈拉开距离，先观察墨牙狼的扑击路数再应对","veryCautious":"我祭出灵丝道袍护身，寻机向洞口撤退暂避锋芒"}</MJ_ACTION_OPTIONS_TAG>
+   <MJ_ACTION_OPTIONS_TAG>{"aggressive":"你趁墨牙狼重伤之际，催动青锋剑直取其要害","moderate":"你稳住阵脚，以崩山诀牵制墨牙狼等待其力竭","cautious":"你后撤数丈拉开距离，先观察墨牙狼的扑击路数再应对","veryCautious":"你祭出灵丝道袍护身，寻机向洞口撤退暂避锋芒"}</MJ_ACTION_OPTIONS_TAG>
 
 [输出契约·必须遵守]
 你将收到一段剧情正文和主角当前状态。你需要根据剧情内容，按以下固定顺序输出十三段标签：

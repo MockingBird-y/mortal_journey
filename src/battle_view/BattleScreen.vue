@@ -14,7 +14,7 @@ const emit = defineEmits<{
   battleEnd: [result: BattleResult | null];
 }>();
 
-const { engine, state, result, resolving, startBattle, selectAction, selectTarget, getPlayerActionOptions, clearBattle, isBattleOver } = useBattle();
+const { engine, state, result, resolving, nonLethal, startBattle, selectAction, selectTarget, getPlayerActionOptions, clearBattle, isBattleOver } = useBattle();
 
 const scrollLock = useScrollLock();
 
@@ -306,6 +306,14 @@ function togglePoisonSubmenu() {
                     <span class="battle__action-label">🏃 逃跑</span>
                     <span class="battle__action-info">行动值:{{ actionOptions.fleeActionCost }}</span>
                   </button>
+                  <button
+                    class="battle__action-btn"
+                    :class="{ 'battle__action-btn--active': nonLethal }"
+                    @click="nonLethal = !nonLethal"
+                  >
+                    <span class="battle__action-label">{{ nonLethal ? '🕊 非致命：开' : '🗡 非致命：关' }}</span>
+                    <span class="battle__action-info">{{ nonLethal ? '手下留情，不取性命，不搜战利品' : '照常取敌性命' }}</span>
+                  </button>
                 </template>
                 <template v-else-if="!battleOver">
                   <p class="battle__action-wait">等待中…</p>
@@ -435,6 +443,7 @@ function togglePoisonSubmenu() {
                 <h2 v-else-if="state.phase === 'fled'">🏃 成功撤退</h2>
                 <p v-if="result">共 {{ result.actionCount }} 次行动 | 主角 HP: {{ result.protagonistHpPercent }}% | MP: {{ result.protagonistMpPercent }}%</p>
                 <p v-if="result && result.enemiesKilled.length > 0">击杀：{{ result.enemiesKilled.join("、") }}</p>
+                <p v-if="result && result.enemiesSpared.length > 0">击败（未杀）：{{ result.enemiesSpared.join("、") }}</p>
                 <div v-if="state.phase === 'victory' && result && result.loot.length > 0" class="battle__loot">
                   <p class="battle__loot-title">战利品：</p>
                   <p v-for="(loot, idx) in result.loot" :key="idx" class="battle__loot-item">

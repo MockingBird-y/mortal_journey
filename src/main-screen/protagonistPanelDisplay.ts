@@ -23,6 +23,9 @@ export const INVENTORY_BAG_GRID_COLUMNS = 4;
 /** 储物袋最少展示格数：不足时在末尾补空位；超过则全部展示并由外层滚动 */
 export const INVENTORY_BAG_MIN_VISIBLE_SLOTS = 12;
 
+/** 侧栏储物袋最多铺这么多格（= 4 列 × 3 行），超出部分走「更多」全览弹窗。 */
+export const INVENTORY_BAG_SIDEBAR_SLOTS = INVENTORY_BAG_MIN_VISIBLE_SLOTS;
+
 /**
  * 物品品级 → 天赋稀有度文案映射，与 `main.css` 中 `GRADE_TO_TRAIT_RARITY` 一致，供 `data-rarity` / 槽位描边使用。
  */

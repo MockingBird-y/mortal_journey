@@ -21,6 +21,7 @@ import type {
   MaterialItemDefinition,
 } from "../role_core/types/itemInfo";
 import type { MaterialCategory } from "../role_core/craft";
+import type { ModifierType } from "../battle_engine/types";
 import type { PrimaryStatKey } from "../role_core/types/playInfo";
 import { PRIMARY_STAT_KEY_TO_ZH } from "../role_core/types/playInfo";
 import type { ElixirEffectType } from "../role_core/types/elixir";
@@ -40,8 +41,44 @@ export type TraitEffect =
   | { kind: "materials"; category: ItemCategory; grade: ItemGrade; count: number }
   | { kind: "elixir"; grade: ItemGrade; count: number; effectType: ElixirEffectType }
   | { kind: "statBonus"; stats: Partial<Record<PrimaryStatKey, number>> }
+  /**
+   * 扮演向软属性加成（魅力/名声），可正可负。
+   * 与 `statBonus` 分开是刻意的：魅力/名声不是 `PrimaryStatKey`，
+   * 不进 `collectPrimaryBonuses`，因而永远不参与战斗结算。
+   */
+  | { kind: "roleplayBonus"; charm?: number; fame?: number }
+  /**
+   * 战斗属性修正（暴击率/暴伤/闪避/吸血/增伤/减伤/回血…）。
+   *
+   * 与其它 kind 不同，**这一类不是开局一次性结算的**：它没有持久化字段可写，
+   * 而是每次进战斗与刷新面板时由 `extractTraitPassiveEffects` 直接从 `traits` 读出来，
+   * 转成与法宝词条同规格的隐藏 modifier effect。所以 `resolveTraitEffect` 对它是空操作。
+   *
+   * `type` 取值见 `battle_engine/types.ts` 的 `ModifierType`。
+   * 符号沿用法宝词条的约定：**减伤写成正的 `damageTaken`**，引擎侧自动取负。
+   */
+  | { kind: "combatModifier"; modifiers: readonly { type: ModifierType; value: number }[] }
   | { kind: "treasure"; grade: ItemGrade }
   | { kind: "gongfa"; system: GongfaSystem; grade: ItemGrade };
+
+/**
+ * 一条天赋/种族/阵营挂载的效果：可以是单个，也可以是多个不同 kind 的组合。
+ *
+ * 写成数组时逐条独立结算，互不影响，允许同 kind 重复（例如两条 `statBonus` 会累加）。
+ * 用 {@link toTraitEffectList} 归一后再消费，不要直接判断是不是数组。
+ */
+export type TraitEffectSpec = TraitEffect | readonly TraitEffect[];
+
+/**
+ * 把单个效果或效果数组归一成数组。
+ *
+ * @param spec 单个效果、效果数组，或空值。
+ * @returns 只读效果数组；空值时为空数组。
+ */
+export function toTraitEffectList(spec: TraitEffectSpec | null | undefined): readonly TraitEffect[] {
+  if (!spec) return [];
+  return Array.isArray(spec) ? spec : [spec as TraitEffect];
+}
 
 /** 解析后的聚合结果：调用方据此写入主角。 */
 export interface ResolvedTraitEffect {
@@ -51,7 +88,26 @@ export interface ResolvedTraitEffect {
   statBonus: Partial<Record<PrimaryStatKey, number>>;
   /** 灵石数量。 */
   spiritStones: number;
+  /** 魅力/名声加成（可为负）；由调用方夹到各自量表范围内。 */
+  roleplayBonus: { charm: number; fame: number };
 }
+
+/**
+ * 战斗修正类型的中文名，仅用于 {@link describeTraitEffect} 的展示文案。
+ * 只列常用的几项；未列出的类型直接显示英文键名。
+ */
+const MODIFIER_TYPE_TO_ZH: Partial<Record<ModifierType, string>> = {
+  critRate: "暴击率",
+  critDmg: "暴击伤害",
+  dodgeRate: "闪避率",
+  lifesteal: "吸血",
+  damageDealt: "增伤",
+  damageTaken: "减伤",
+  hpRecover: "回血",
+  mpRecover: "回蓝",
+  speed: "行动速度",
+  defensePenetration: "破防",
+};
 
 // ---------------------------------------------------------------------------
 // 命名池
@@ -266,11 +322,29 @@ function pickGongfaBonusName(fn: GongfaSpecialEffect): string {
  * @returns 聚合结果（items / statBonus / spiritStones）。
  */
 export function resolveTraitEffect(effect: TraitEffect): ResolvedTraitEffect {
-  const empty: ResolvedTraitEffect = { items: [], statBonus: {}, spiritStones: 0 };
+  const empty: ResolvedTraitEffect = {
+    items: [],
+    statBonus: {},
+    spiritStones: 0,
+    roleplayBonus: { charm: 0, fame: 0 },
+  };
 
   switch (effect.kind) {
     case "spiritStones":
       return { ...empty, spiritStones: Math.max(0, Math.floor(effect.count)) };
+
+    // 战斗修正不在此处结算：它是持续读取的，见 `extractTraitPassiveEffects`。
+    case "combatModifier":
+      return empty;
+
+    case "roleplayBonus":
+      return {
+        ...empty,
+        roleplayBonus: {
+          charm: Math.round(effect.charm ?? 0),
+          fame: Math.round(effect.fame ?? 0),
+        },
+      };
 
     case "materials": {
       const count = Math.max(1, Math.floor(effect.count));
@@ -359,8 +433,15 @@ export function resolveTraitEffect(effect: TraitEffect): ResolvedTraitEffect {
  * @param effect 天赋效果；为空时返回空串。
  * @returns 展示文案。
  */
-export function describeTraitEffect(effect: TraitEffect | undefined | null): string {
-  if (!effect) return "";
+export function describeTraitEffect(spec: TraitEffectSpec | undefined | null): string {
+  return toTraitEffectList(spec)
+    .map(describeSingleTraitEffect)
+    .filter((t) => t)
+    .join("；");
+}
+
+/** 描述单条效果；多效果的拼接由 {@link describeTraitEffect} 负责。 */
+function describeSingleTraitEffect(effect: TraitEffect): string {
   switch (effect.kind) {
     case "spiritStones":
       return `开局获得 ${effect.count} 灵石`;
@@ -375,6 +456,19 @@ export function describeTraitEffect(effect: TraitEffect | undefined | null): str
         ([k, v]) => `${PRIMARY_STAT_KEY_TO_ZH[k as PrimaryStatKey] ?? k}+${v}`,
       );
       return `主属性加成：${parts.join("、")}`;
+    }
+    case "combatModifier": {
+      const parts = effect.modifiers.map(
+        (m) => `${MODIFIER_TYPE_TO_ZH[m.type] ?? m.type}${m.value > 0 ? "+" : ""}${m.value}%`,
+      );
+      return parts.length ? `战斗属性：${parts.join("、")}` : "战斗属性：无变化";
+    }
+    case "roleplayBonus": {
+      const sign = (v: number) => (v > 0 ? `+${v}` : String(v));
+      const parts: string[] = [];
+      if (effect.charm) parts.push(`魅力${sign(effect.charm)}`);
+      if (effect.fame) parts.push(`名声${sign(effect.fame)}`);
+      return parts.length ? `扮演属性：${parts.join("、")}` : "扮演属性：无变化";
     }
     case "treasure": {
       const named = effect.grade === "仙品" || effect.grade === "神品";

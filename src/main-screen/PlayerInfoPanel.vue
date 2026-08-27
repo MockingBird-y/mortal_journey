@@ -11,6 +11,8 @@ import { computeLinggenCombatBonuses } from "../role_core/types/gameConstants";
 import { computePanelCombatStats } from "../battle_engine/panelStats";
 import { CRAFT_SKILL_KEYS, CRAFT_SKILL_TO_ZH, CRAFT_SKILL_DESC, craftUpgradeChance } from "../role_core/craft";
 import { timedBuffDaysLeft } from "../role_core/timedBuff";
+import { charmTierLabel, fameTierLabel } from "../role_core/roleplayStats";
+import { CREATION_FACTIONS, CREATION_RACES } from "../fate_choice/types";
 import { PRIMARY_STAT_KEY_TO_ZH as STAT_ZH } from "../role_core/types/playInfo";
 import type { DerivedStatValues } from "./protagonistDetailPayload";
 import {
@@ -26,6 +28,7 @@ import {
   getEquipSlotRows,
   getHpMpBarState,
   getInventoryBagDisplaySlots,
+  INVENTORY_BAG_SIDEBAR_SLOTS,
   gongfaCellName,
   displayStatInt,
   gradeToTraitRarity,
@@ -51,6 +54,7 @@ import { getGongfaMasteryProgress } from "./protagonistPanelDisplay";
 import { writeActiveSave } from "../save/gameSave";
 import { generateProtagonistPortrait, isImageApiConfigured } from "../image_generate";
 import PortraitHistoryModal from "./PortraitHistoryModal.vue";
+import InventoryBagModal from "./InventoryBagModal.vue";
 
 const props = defineProps<{
   protagonist: Protagonist | null;
@@ -98,10 +102,29 @@ const hpMp = computed(() => getHpMpBarState(props.protagonist, props.protagonist
 const equipSlots = computed(() => getEquipSlotRows(props.protagonist));
 /** 天赋平铺列表：条数不再固定为 5，直接铺开主角实际持有的全部天赋。 */
 const traitRows = computed(() => props.protagonist?.traits ?? []);
+/** 侧栏只铺前 `INVENTORY_BAG_SIDEBAR_SLOTS` 格：储物袋无上限，铺全了会把侧栏撑得很长。 */
 const inventoryBagDisplaySlots = computed(() =>
-  props.protagonist ? getInventoryBagDisplaySlots(props.protagonist.inventorySlots) : [],
+  (props.protagonist ? getInventoryBagDisplaySlots(props.protagonist.inventorySlots) : []).slice(
+    0,
+    INVENTORY_BAG_SIDEBAR_SLOTS,
+  ),
 );
+/** 侧栏放不下的格数；> 0 时才显示「更多」。 */
+const inventoryBagOverflow = computed(() =>
+  Math.max(0, (props.protagonist?.inventorySlots.length ?? 0) - INVENTORY_BAG_SIDEBAR_SLOTS),
+);
+const bagModalOpen = ref(false);
 const shouyuanWarning = computed(() => getShouyuanWarningLevel(props.protagonist, props.worldTimeBaseline, props.worldTime));
+
+const raceTooltip = computed(() => {
+  const race = props.protagonist?.race;
+  return race ? CREATION_RACES[race]?.desc ?? "" : "";
+});
+
+const factionTooltip = computed(() => {
+  const faction = props.protagonist?.faction;
+  return faction ? CREATION_FACTIONS[faction]?.desc ?? "" : "";
+});
 
 const linggenTooltip = computed(() => {
   const p = props.protagonist;
@@ -132,6 +155,80 @@ const craftSkillRows = computed(() => {
   });
 });
 
+/**
+ * 魅力色阶：低档以中性灰蓝起步，中段转为清透青绿，高档落在暖金与柔粉。
+ * 颜色均选用较高明度，兼顾默认深色与冰蓝半透明背景上的可读性。
+ */
+const CHARM_TIER_COLORS = [
+  "#AAB1BD",
+  "#A9BAC8",
+  "#A5C7D2",
+  "#9DD1D1",
+  "#97D5C3",
+  "#A4D8B2",
+  "#BDDAA2",
+  "#D7D99A",
+  "#E8C995",
+  "#F0B5C7",
+] as const;
+
+/**
+ * 名声色阶：恶名使用红橙色，零附近使用灰蓝色，正名使用冰青、绿色与金色。
+ * 除色相外也有明度变化，降低红绿色觉差异带来的辨识压力。
+ */
+const FAME_TIER_COLORS = [
+  "#F29AA3",
+  "#F0A09F",
+  "#EEA69A",
+  "#EBAC94",
+  "#E6B28F",
+  "#DCB98D",
+  "#CFBF91",
+  "#C2C49A",
+  "#B5C8A5",
+  "#A8CBB2",
+  "#B7C3D2",
+  "#A9C8D8",
+  "#9DCCD9",
+  "#91D0D5",
+  "#87D3CC",
+  "#86D4BD",
+  "#91D5AC",
+  "#A6D49A",
+  "#C0D28D",
+  "#D9CD8A",
+] as const;
+
+function roleplayTierColor(value: number, min: number, colors: readonly string[]): string {
+  const tierIndex = Math.floor((value - min) / 10);
+  return colors[Math.max(0, Math.min(colors.length - 1, tierIndex))] ?? "#D7EAEA";
+}
+
+/** 声望区块：魅力/名声的数值、查表得出的档位名，以及 AI 撰写的具体描述。 */
+const roleplayStatRows = computed(() => {
+  const p = props.protagonist;
+  if (!p) return [];
+  return [
+    {
+      key: "charm",
+      label: "魅力",
+      value: p.charm,
+      tier: charmTierLabel(p.charm),
+      tierColor: roleplayTierColor(p.charm, 0, CHARM_TIER_COLORS),
+      desc: p.charmDesc,
+    },
+    {
+      key: "fame",
+      label: "名声",
+      value: p.fame,
+      tier: fameTierLabel(p.fame),
+      tierColor: roleplayTierColor(p.fame, -100, FAME_TIER_COLORS),
+      desc: p.fameDesc,
+    },
+  ].map((r) => ({ ...r, tip: r.desc ? `${r.tier}（${r.value}）
+${r.desc}` : `${r.tier}（${r.value}）` }));
+});
+
 /** 生效中的限时增益（餐食等），含剩余天数与效果文案。 */
 const activeBuffRows = computed(() => {
   const p = props.protagonist;
@@ -153,6 +250,37 @@ ${parts.join("，")}`,
 
 const detailOpen = ref(false);
 const detailPayload = ref<ProtagonistDetailPayload | null>(null);
+
+type PlayerPanelSectionId =
+  | "attributes"
+  | "combat"
+  | "craft"
+  | "roleplay"
+  | "buffs"
+  | "talents"
+  | "equipment"
+  | "gongfa"
+  | "inventory";
+
+const collapsedSections = ref<Record<PlayerPanelSectionId, boolean>>({
+  attributes: false,
+  combat: false,
+  craft: false,
+  roleplay: false,
+  buffs: false,
+  talents: false,
+  equipment: false,
+  gongfa: false,
+  inventory: false,
+});
+
+function toggleSection(section: PlayerPanelSectionId): void {
+  collapsedSections.value[section] = !collapsedSections.value[section];
+}
+
+function sectionExpanded(section: PlayerPanelSectionId): boolean {
+  return !collapsedSections.value[section];
+}
 
 // ── 主角立绘生成 ──────────────────────────────────────────────────────────
 const generatingPortrait = ref(false);
@@ -350,6 +478,12 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
 
 <template>
   <section class="main-panel main-panel--player mj-pane--player" aria-label="主角信息">
+    <InventoryBagModal
+      :open="bagModalOpen && !!protagonist"
+      :slots="protagonist?.inventorySlots ?? []"
+      @close="bagModalOpen = false"
+      @select="onBagSlotClick"
+    />
     <ProtagonistDetailModal
       :open="detailOpen"
       :payload="detailPayload"
@@ -459,6 +593,16 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
               <span class="mj-stat-v" :class="{ 'mj-stat-v--danger': shouyuanWarning === 'danger', 'mj-stat-v--warning': shouyuanWarning === 'warning' }">{{ protagonist.shouyuan }}</span>
             </div>
           </div>
+          <div class="mj-stat-pair-row">
+            <div class="mj-stat-cell" :title="raceTooltip">
+              <span class="mj-stat-k">种族</span>
+              <span class="mj-stat-v">{{ protagonist.race || "—" }}</span>
+            </div>
+            <div class="mj-stat-cell" :title="factionTooltip">
+              <span class="mj-stat-k">阵营</span>
+              <span class="mj-stat-v">{{ protagonist.faction || "—" }}</span>
+            </div>
+          </div>
         </div>
 
         <div v-if="hpMp" class="mj-resource-row">
@@ -484,66 +628,128 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
           </div>
         </div>
 
-        <div class="mj-combat-stats">
-          <div class="mj-attr-section-header">
+        <div class="mj-combat-stats" :class="{ 'is-collapsed': !sectionExpanded('attributes') }">
+          <button
+            type="button"
+            class="mj-attr-section-header mj-collapsible-section__trigger"
+            :aria-expanded="sectionExpanded('attributes')"
+            aria-controls="mj-player-section-attributes"
+            @click="toggleSection('attributes')"
+          >
             <h3 class="mj-attr-section-title mj-attr-section-title--first">属性</h3>
-          </div>
-          <div v-for="row in Math.ceil(PRIMARY_STAT_KEYS.length / 2)" :key="row" class="mj-stat-pair-row">
-            <template v-for="col in [0, 1]" :key="col">
-               <div v-if="PRIMARY_STAT_KEYS[(row - 1) * 2 + col]" class="mj-stat-cell" :class="col === 1 ? 'mj-stat-cell--right' : ''">
-                 <span class="mj-stat-k mj-stat-k--tip" :data-tip="PRIMARY_STAT_KEY_DESC[PRIMARY_STAT_KEYS[(row - 1) * 2 + col]]">{{ PRIMARY_STAT_KEY_TO_ZH[PRIMARY_STAT_KEYS[(row - 1) * 2 + col]] }}</span>
-                <span class="mj-stat-v">{{ primaryStats ? (primaryStats[PRIMARY_STAT_KEYS[(row - 1) * 2 + col]] ?? 0) : 0 }}</span>
-              </div>
-            </template>
+          </button>
+          <div id="mj-player-section-attributes" v-show="sectionExpanded('attributes')">
+            <div v-for="row in Math.ceil(PRIMARY_STAT_KEYS.length / 2)" :key="row" class="mj-stat-pair-row">
+              <template v-for="col in [0, 1]" :key="col">
+                 <div v-if="PRIMARY_STAT_KEYS[(row - 1) * 2 + col]" class="mj-stat-cell" :class="col === 1 ? 'mj-stat-cell--right' : ''">
+                   <span class="mj-stat-k mj-stat-k--tip" :data-tip="PRIMARY_STAT_KEY_DESC[PRIMARY_STAT_KEYS[(row - 1) * 2 + col]]">{{ PRIMARY_STAT_KEY_TO_ZH[PRIMARY_STAT_KEYS[(row - 1) * 2 + col]] }}</span>
+                  <span class="mj-stat-v">{{ primaryStats ? (primaryStats[PRIMARY_STAT_KEYS[(row - 1) * 2 + col]] ?? 0) : 0 }}</span>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
 
-        <div class="mj-combat-stats">
-          <div class="mj-attr-section-header">
+        <div class="mj-combat-stats" :class="{ 'is-collapsed': !sectionExpanded('combat') }">
+          <button
+            type="button"
+            class="mj-attr-section-header mj-collapsible-section__trigger"
+            :aria-expanded="sectionExpanded('combat')"
+            aria-controls="mj-player-section-combat"
+            @click="toggleSection('combat')"
+          >
             <h3 class="mj-attr-section-title">战斗属性</h3>
-          </div>
-          <div v-for="row in Math.ceil(combatStatRows.length / 2)" :key="row" class="mj-stat-pair-row">
-            <template v-for="col in [0, 1]" :key="col">
-              <div v-if="combatStatRows[(row - 1) * 2 + col]" class="mj-stat-cell" :class="col === 1 ? 'mj-stat-cell--right' : ''">
-                <span class="mj-stat-k mj-stat-k--tip" :data-tip="combatStatRows[(row - 1) * 2 + col].tip">{{ combatStatRows[(row - 1) * 2 + col].k }}</span>
-                <span class="mj-stat-v">{{ combatStatRows[(row - 1) * 2 + col].v }}</span>
-              </div>
-            </template>
+          </button>
+          <div id="mj-player-section-combat" v-show="sectionExpanded('combat')">
+            <div v-for="row in Math.ceil(combatStatRows.length / 2)" :key="row" class="mj-stat-pair-row">
+              <template v-for="col in [0, 1]" :key="col">
+                <div v-if="combatStatRows[(row - 1) * 2 + col]" class="mj-stat-cell" :class="col === 1 ? 'mj-stat-cell--right' : ''">
+                  <span class="mj-stat-k mj-stat-k--tip" :data-tip="combatStatRows[(row - 1) * 2 + col].tip">{{ combatStatRows[(row - 1) * 2 + col].k }}</span>
+                  <span class="mj-stat-v">{{ combatStatRows[(row - 1) * 2 + col].v }}</span>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
 
-        <div class="mj-combat-stats">
-          <div class="mj-attr-section-header">
+        <div class="mj-combat-stats" :class="{ 'is-collapsed': !sectionExpanded('roleplay') }">
+          <button
+            type="button"
+            class="mj-attr-section-header mj-collapsible-section__trigger"
+            :aria-expanded="sectionExpanded('roleplay')"
+            aria-controls="mj-player-section-roleplay"
+            @click="toggleSection('roleplay')"
+          >
+            <h3 class="mj-attr-section-title">声望</h3>
+          </button>
+          <div id="mj-player-section-roleplay" v-show="sectionExpanded('roleplay')" class="mj-roleplay-list">
+            <div v-for="r in roleplayStatRows" :key="r.key" class="mj-stat-cell" :title="r.tip">
+              <span class="mj-stat-k">{{ r.label }}</span>
+              <span class="mj-stat-v mj-roleplay-value">
+                <span class="mj-roleplay-tier" :style="{ color: r.tierColor }">{{ r.tier }}</span>
+                <span class="mj-roleplay-number">· {{ r.value }}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mj-combat-stats" :class="{ 'is-collapsed': !sectionExpanded('craft') }">
+          <button
+            type="button"
+            class="mj-attr-section-header mj-collapsible-section__trigger"
+            :aria-expanded="sectionExpanded('craft')"
+            aria-controls="mj-player-section-craft"
+            @click="toggleSection('craft')"
+          >
             <h3 class="mj-attr-section-title">技艺</h3>
-          </div>
-          <div v-for="row in Math.ceil(craftSkillRows.length / 2)" :key="'craft-' + row" class="mj-stat-pair-row">
-            <template v-for="col in [0, 1]" :key="col">
-              <div v-if="craftSkillRows[(row - 1) * 2 + col]" class="mj-stat-cell" :class="col === 1 ? 'mj-stat-cell--right' : ''">
-                <span class="mj-stat-k mj-stat-k--tip" :data-tip="craftSkillRows[(row - 1) * 2 + col].tip">{{ craftSkillRows[(row - 1) * 2 + col].label }}</span>
-                <span class="mj-stat-v">{{ craftSkillRows[(row - 1) * 2 + col].value }}</span>
-              </div>
-            </template>
+          </button>
+          <div id="mj-player-section-craft" v-show="sectionExpanded('craft')">
+            <div v-for="row in Math.ceil(craftSkillRows.length / 2)" :key="'craft-' + row" class="mj-stat-pair-row">
+              <template v-for="col in [0, 1]" :key="col">
+                <div v-if="craftSkillRows[(row - 1) * 2 + col]" class="mj-stat-cell" :class="col === 1 ? 'mj-stat-cell--right' : ''">
+                  <span class="mj-stat-k mj-stat-k--tip" :data-tip="craftSkillRows[(row - 1) * 2 + col].tip">{{ craftSkillRows[(row - 1) * 2 + col].label }}</span>
+                  <span class="mj-stat-v">{{ craftSkillRows[(row - 1) * 2 + col].value }}</span>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
 
-        <div v-if="activeBuffRows.length > 0" class="mj-combat-stats">
-          <div class="mj-attr-section-header">
+        <div v-if="activeBuffRows.length > 0" class="mj-combat-stats" :class="{ 'is-collapsed': !sectionExpanded('buffs') }">
+          <button
+            type="button"
+            class="mj-attr-section-header mj-collapsible-section__trigger"
+            :aria-expanded="sectionExpanded('buffs')"
+            aria-controls="mj-player-section-buffs"
+            @click="toggleSection('buffs')"
+          >
             <h3 class="mj-attr-section-title">增益</h3>
-          </div>
-          <div v-for="b in activeBuffRows" :key="b.id" class="mj-stat-cell mj-buff-row" :title="b.tip">
-            <span class="mj-stat-k">{{ b.name }}</span>
-            <span class="mj-stat-v mj-buff-effect">{{ b.effectText }}</span>
-            <span class="mj-buff-days">余{{ b.daysLeft }}天</span>
+          </button>
+          <div id="mj-player-section-buffs" v-show="sectionExpanded('buffs')">
+            <div v-for="b in activeBuffRows" :key="b.id" class="mj-stat-cell mj-buff-row" :title="b.tip">
+              <span class="mj-stat-k">{{ b.name }}</span>
+              <span class="mj-stat-v mj-buff-effect">{{ b.effectText }}</span>
+              <span class="mj-buff-days">余{{ b.daysLeft }}天</span>
+            </div>
           </div>
         </div>
 
-        <div class="mj-talent-block">
-          <h3 class="mj-attr-section-title">天赋</h3>
-          <div class="mj-talent-row" role="list" style="flex-direction: column; gap: 2px">
+        <div class="mj-talent-block" :class="{ 'is-collapsed': !sectionExpanded('talents') }">
+          <button
+            type="button"
+            class="mj-attr-section-header mj-collapsible-section__trigger"
+            :aria-expanded="sectionExpanded('talents')"
+            aria-controls="mj-player-section-talents"
+            @click="toggleSection('talents')"
+          >
+            <h3 class="mj-attr-section-title">天赋</h3>
+          </button>
+          <div id="mj-player-section-talents" v-show="sectionExpanded('talents')" class="mj-talent-row" role="list">
             <div
               v-for="(t, ti) in traitRows"
               :key="ti"
-              class="mj-stat-cell"
+              class="mj-stat-cell mj-talent-item"
+              :data-rarity="traitSlotRarity(t) ?? undefined"
               :title="traitSlotTitle(t) + '\n（点击查看详情）'"
               role="listitem"
               tabindex="0"
@@ -553,15 +759,23 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
               <span class="mj-stat-k">{{ traitSlotInnerText(t) }}</span>
               <span class="mj-stat-v">{{ traitSlotRarity(t) ?? "" }}</span>
             </div>
-            <div v-if="!traitRows.length" class="mj-stat-cell">
+            <div v-if="!traitRows.length" class="mj-stat-cell mj-talent-item mj-talent-item--empty">
               <span class="mj-stat-k">暂无天赋</span>
             </div>
           </div>
         </div>
 
-        <div class="mj-equip-block">
-          <h3 class="mj-attr-section-title">法宝</h3>
-          <div class="mj-inventory-grid mj-treasure-grid" aria-label="法宝栏四格">
+        <div class="mj-equip-block" :class="{ 'is-collapsed': !sectionExpanded('equipment') }">
+          <button
+            type="button"
+            class="mj-attr-section-header mj-collapsible-section__trigger"
+            :aria-expanded="sectionExpanded('equipment')"
+            aria-controls="mj-player-section-equipment"
+            @click="toggleSection('equipment')"
+          >
+            <h3 class="mj-attr-section-title">法宝</h3>
+          </button>
+          <div id="mj-player-section-equipment" v-show="sectionExpanded('equipment')" class="mj-inventory-grid mj-treasure-grid" aria-label="法宝栏四格">
             <div
               v-for="slot in equipSlots"
               :key="slot.key"
@@ -578,9 +792,17 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
           </div>
         </div>
 
-        <div class="mj-player-bag-stack">
-          <h3 class="mj-attr-section-title">功法</h3>
-          <div class="mj-bag-grid-scroll mj-bag-grid-scroll--gongfa">
+        <div class="mj-player-bag-stack" :class="{ 'is-collapsed': !sectionExpanded('gongfa') }">
+          <button
+            type="button"
+            class="mj-attr-section-header mj-collapsible-section__trigger"
+            :aria-expanded="sectionExpanded('gongfa')"
+            aria-controls="mj-player-section-gongfa"
+            @click="toggleSection('gongfa')"
+          >
+            <h3 class="mj-attr-section-title">功法</h3>
+          </button>
+          <div id="mj-player-section-gongfa" v-show="sectionExpanded('gongfa')" class="mj-bag-grid-scroll mj-bag-grid-scroll--gongfa">
             <div class="mj-inventory-grid mj-gongfa-grid" aria-label="功法栏八格">
               <div
                 v-for="(cell, gi) in protagonist.gongfaSlots"
@@ -600,9 +822,17 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
           </div>
         </div>
 
-        <div class="mj-player-bag-stack">
-          <h3 class="mj-attr-section-title">储物袋</h3>
-          <div class="mj-bag-grid-scroll mj-bag-grid-scroll--inventory" role="region" aria-label="储物袋格子">
+        <div class="mj-player-bag-stack" :class="{ 'is-collapsed': !sectionExpanded('inventory') }">
+          <button
+            type="button"
+            class="mj-attr-section-header mj-collapsible-section__trigger"
+            :aria-expanded="sectionExpanded('inventory')"
+            aria-controls="mj-player-section-inventory"
+            @click="toggleSection('inventory')"
+          >
+            <h3 class="mj-attr-section-title">储物袋</h3>
+          </button>
+          <div id="mj-player-section-inventory" v-show="sectionExpanded('inventory')" class="mj-bag-grid-scroll mj-bag-grid-scroll--inventory" role="region" aria-label="储物袋格子">
             <div id="mj-inventory-grid" class="mj-inventory-grid">
               <div
                 v-for="(cell, bi) in inventoryBagDisplaySlots"
@@ -629,11 +859,20 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
                 }}</span>
               </div>
             </div>
+            <button
+              v-if="inventoryBagOverflow > 0"
+              type="button"
+              class="main-screen__btn"
+              @click="bagModalOpen = true"
+            >
+              更多（还有 {{ inventoryBagOverflow }} 格）
+            </button>
           </div>
         </div>
       </div>
     </div>
   </section>
+
 
   <PortraitHistoryModal
     :open="historyModalOpen && !!protagonist"
@@ -651,19 +890,18 @@ function onSlotKeydown(e: KeyboardEvent, fn: () => void) {
 .mj-buff-row {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 4px;
   width: 100%;
 }
 
 .mj-buff-effect {
   flex: 1;
-  font-size: 12px;
+  font-size: 0.72rem;
 }
 
 .mj-buff-days {
-  font-size: 12px;
+  font-size: 0.7rem;
   opacity: 0.7;
   white-space: nowrap;
 }
 </style>
-

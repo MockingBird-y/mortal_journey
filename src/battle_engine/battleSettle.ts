@@ -6,6 +6,9 @@ import type { InventoryStackItem, TreasureItemDefinition, GongfaItemDefinition }
 import type { BattleTriggerEntry } from "../ai/state_generate";
 import { gameLog } from "../log/gameLog";
 
+/** 每场战斗结束后，主角每门已装备功法（含被动）获得的熟练度经验。 */
+export const BATTLE_GONGFA_MASTERY_EXP = 25;
+
 /**
  * 从 NPC 的 equippedSlots（法宝）+ gongfaSlots（功法）中随机抽取一件作为战利品。
  *
@@ -37,6 +40,11 @@ export interface SettleBattleOptions {
   protagonistCanDie?: boolean;
   /** 队友战败是否身亡（正常/困难=true；简单=false，队友不会死亡）。 */
   companionsCanDie?: boolean;
+  /**
+   * 非致命：被打倒的敌人不死亡（HP 保底 1），也不掉落战利品，
+   * 战报里记入 `enemiesSpared` 而非 `enemiesKilled`。
+   */
+  nonLethal?: boolean;
 }
 
 export function settleBattle(state: BattleState, opts?: SettleBattleOptions): BattleResult {
@@ -44,8 +52,10 @@ export function settleBattle(state: BattleState, opts?: SettleBattleOptions): Ba
   const protagonistCombatant = state.allies.find(a => a.isProtagonist);
   const elixirsUsed: { name: string; count: number }[] = [];
   const enemiesKilled: string[] = [];
+  const enemiesSpared: string[] = [];
   const protagonistCanDie = opts?.protagonistCanDie ?? true;
   const companionsCanDie = opts?.companionsCanDie ?? true;
+  const nonLethal = opts?.nonLethal ?? false;
 
   const elixirMap = new Map<string, number>();
   for (const ally of state.allies) {
@@ -62,7 +72,7 @@ export function settleBattle(state: BattleState, opts?: SettleBattleOptions): Ba
 
   for (const enemy of state.enemies) {
     if (enemy.isDead && enemy.sourceNpcName) {
-      enemiesKilled.push(enemy.sourceNpcName);
+      (nonLethal ? enemiesSpared : enemiesKilled).push(enemy.sourceNpcName);
     }
   }
 
@@ -92,6 +102,12 @@ export function settleBattle(state: BattleState, opts?: SettleBattleOptions): Ba
     }
   }
 
+  // 战功淬炼：只要参战就给所有已装备功法涨熟练度，不区分用了哪门、用了几次。
+  // 主角身亡则不发放（已路由到结局页）。
+  if (p && !protagonistDied) {
+    p.addMasteryExpToAllGongfa(BATTLE_GONGFA_MASTERY_EXP);
+  }
+
   if (elixirsUsed.length > 0 && p) {
     for (const used of elixirsUsed) {
       let remaining = used.count;
@@ -112,12 +128,18 @@ export function settleBattle(state: BattleState, opts?: SettleBattleOptions): Ba
     if (enemy.isDead && enemy.sourceNpcName) {
       const npc = npcStore.getNpc(enemy.sourceNpcName);
       if (npc) {
+        // 非致命：手下留情，只打晕不打死（HP 保底 1），沿用简单模式队友生还的写法。
+        if (nonLethal) {
+          npc.setCurrentHpMp(1, npc.currentMp);
+          continue;
+        }
         // 战斗结算是受控的程序逻辑，直接赋值（不构成数据漂移）。
         // 与 applyCoreChange 的 death 事件语义保持一致：死亡时清零 HP。
         npc.isDead = true;
         npc.currentHp = 0;
 
         // 战利品掉落：每个被击杀敌人随机掉落一件法宝/功法（纯游戏性，不经 AI）。
+        // 非致命时不掉落——没杀人就不搜身。
         if (state.phase === "victory" && lootRecipient) {
           const rolled = rollLootFromNpc(npc);
           if (rolled) {
@@ -172,6 +194,7 @@ export function settleBattle(state: BattleState, opts?: SettleBattleOptions): Ba
     protagonistMpPercent: protagonistCombatant ? Math.round(protagonistCombatant.mp / Math.max(1, protagonistCombatant.stats.maxMp) * 100) : 0,
     elixirsUsed,
     enemiesKilled,
+    enemiesSpared,
     triggerReason: trigger.triggerReason,
     allyNames: trigger.allies.map(a => a.displayName),
     enemyNames: trigger.enemies.map(e => e.displayName),

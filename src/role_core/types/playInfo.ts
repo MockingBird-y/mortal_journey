@@ -181,8 +181,11 @@ export type TraitEntry =
       name: string;
       desc: string;
       rarity: string;
-      /** 天赋具体效果（仅主角开局天赋携带；旧存档无此字段视为已结算/无效果）。 */
-      effect?: import("../../fate_choice/traitEffect").TraitEffect;
+      /**
+       * 天赋具体效果（仅主角开局天赋携带；旧存档无此字段视为已结算/无效果）。
+       * 可以是单个效果，也可以是多个不同 kind 的数组。
+       */
+      effect?: import("../../fate_choice/traitEffect").TraitEffectSpec;
     };
 
 export interface CharacterPlayInfoCommon {
@@ -225,6 +228,14 @@ export interface ProtagonistPlayInfo extends CharacterPlayInfoCommon {
   craftSkills?: CraftSkillState;
   /** 限时增益（餐食等）。 */
   timedBuffs?: TimedBuff[];
+  /** 魅力（扮演向软属性，不参与战斗）。旧存档缺省为 0。 */
+  charm?: number;
+  /** 魅力的具体描述，由 AI 撰写；档位名另由数值查表得出。 */
+  charmDesc?: string;
+  /** 名声（扮演向软属性，不参与战斗；负值为恶名）。旧存档缺省为 0。 */
+  fame?: number;
+  /** 名声的具体描述，由 AI 撰写；档位名另由数值查表得出。 */
+  fameDesc?: string;
 }
 
 export type PowerTier = "小怪" | "精英怪" | "小boss" | "大boss" | "普通NPC";
